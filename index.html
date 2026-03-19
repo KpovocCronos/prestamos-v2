@@ -1878,7 +1878,7 @@ async function crearPrestamo() {
           reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 540 }] }
         };
         const calRes = await fetch(
-          'https://www.googleapis.com/calendar/v3/calendars/a4da58c8084bf9486a88468ae1453f8e915926956efe8c85b89b3929fff4d432@group.calendar.google.com/events'.replace('@','%40'),
+          'https://www.googleapis.com/calendar/v3/calendars/a4da58c8084bf9486a88468ae1453f8e915926956efe8c85b89b3929fff4d432%40group.calendar.google.com/events',
           { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) }
         );
         if (calRes.ok) { const calData = await calRes.json(); eventId = calData.id || ''; }
