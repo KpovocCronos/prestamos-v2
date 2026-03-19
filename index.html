@@ -713,6 +713,9 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <div class="nav-item active" data-screen="dashboard" onclick="nav('dashboard')">
           <span class="nav-icon">◈</span> Dashboard
         </div>
+        <div class="nav-item" data-screen="estadisticas" onclick="nav('estadisticas')">
+          <span class="nav-icon">◑</span> Estadísticas
+        </div>
       </div>
       <div class="nav-section">
         <div class="nav-section-label">Gestión</div>
@@ -1013,6 +1016,106 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         </div>
       </div>
 
+      <!-- ESTADISTICAS -->
+      <div class="screen" id="screen-estadisticas">
+        <div id="est-loading" class="loading"><div class="spinner"></div> Calculando...</div>
+        <div id="est-content" style="display:none">
+
+          <!-- Filtro de período -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+            <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Período:</span>
+            <div class="mode-toggle" style="margin-bottom:0">
+              <button class="mode-btn active" id="est-btn-7"   onclick="setEstPeriodo(7,this)">7 días</button>
+              <button class="mode-btn"        id="est-btn-30"  onclick="setEstPeriodo(30,this)">Mes</button>
+              <button class="mode-btn"        id="est-btn-90"  onclick="setEstPeriodo(90,this)">Trimestre</button>
+              <button class="mode-btn"        id="est-btn-365" onclick="setEstPeriodo(365,this)">Año</button>
+              <button class="mode-btn"        id="est-btn-0"   onclick="setEstPeriodo(0,this)">Todo</button>
+            </div>
+            <span id="est-rango-label" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
+          </div>
+
+          <!-- Stats principales -->
+          <div class="stats-grid" style="margin-bottom:20px">
+            <div class="stat-card">
+              <div class="stat-label">Capital prestado</div>
+              <div class="stat-value text-accent" id="est-capital">$0</div>
+              <div class="stat-meta" id="est-capital-meta">0 préstamos</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Ganancia bruta</div>
+              <div class="stat-value text-green" id="est-gb">$0</div>
+              <div class="stat-meta" id="est-gb-meta">sobre el capital</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Comisiones pagadas</div>
+              <div class="stat-value text-amber" id="est-com">$0</div>
+              <div class="stat-meta" id="est-com-meta">0 de tercero</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Ganancia neta</div>
+              <div class="stat-value text-green" id="est-gn">$0</div>
+              <div class="stat-meta" id="est-gn-meta">lo que queda para vos</div>
+            </div>
+          </div>
+
+          <!-- Segunda fila stats -->
+          <div class="stats-grid" style="margin-bottom:20px">
+            <div class="stat-card">
+              <div class="stat-label">Cobrado en el período</div>
+              <div class="stat-value" id="est-cobrado">$0</div>
+              <div class="stat-meta" id="est-cobrado-meta">0 pagos</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Mora generada</div>
+              <div class="stat-value text-red" id="est-mora">$0</div>
+              <div class="stat-meta" id="est-mora-meta">0 cuotas vencidas</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Clientes nuevos</div>
+              <div class="stat-value" id="est-cli-nuevos">0</div>
+              <div class="stat-meta" id="est-cli-nuevos-meta">en el período</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Tasa mora</div>
+              <div class="stat-value text-red" id="est-tasa-mora">0%</div>
+              <div class="stat-meta">cuotas vencidas / total</div>
+            </div>
+          </div>
+
+          <!-- Dos columnas -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+
+            <!-- Propio vs Tercero -->
+            <div class="card">
+              <div class="card-header"><span class="card-title">Propio vs Tercero</span></div>
+              <div class="card-body" id="est-tipo-body">—</div>
+            </div>
+
+            <!-- Top clientes por volumen -->
+            <div class="card">
+              <div class="card-header"><span class="card-title">Top clientes</span></div>
+              <div id="est-top-body" style="padding:0">—</div>
+            </div>
+
+          </div>
+
+          <!-- Historial de pagos cobrados -->
+          <div class="table-wrap">
+            <div class="card-header">
+              <span class="card-title">Pagos cobrados en el período</span>
+              <span class="text-mono text-muted" id="est-pagos-count">0 pagos</span>
+            </div>
+            <table>
+              <thead><tr>
+                <th>Fecha</th><th>Cliente</th><th>Préstamo</th><th>Cuota</th><th>Monto</th><th>Días atraso</th>
+              </tr></thead>
+              <tbody id="est-pagos-tabla"></tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
     </div>
   </main>
 </div>
@@ -1075,27 +1178,49 @@ function saveConfig() {
 // ============================================================
 // SHEETS API
 // ============================================================
-async function sheetsGet(range) {
-  const r = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(range)}`,
-    { headers: { Authorization: 'Bearer ' + TOKEN } }
-  );
-  if (!r.ok) throw new Error('Sheets GET error ' + r.status);
-  const d = await r.json();
-  return d.values || [];
+async function sheetsGet(range, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(range)}`,
+        { headers: { Authorization: 'Bearer ' + TOKEN } }
+      );
+      if (r.status === 429 || r.status >= 500) {
+        if (attempt < retries) { await sleep(attempt * 1000); continue; }
+      }
+      if (!r.ok) throw new Error('Sheets GET error ' + r.status);
+      const d = await r.json();
+      return d.values || [];
+    } catch(e) {
+      if (attempt === retries) throw e;
+      await sleep(attempt * 800);
+    }
+  }
 }
 
-async function sheetsAppend(range, values) {
-  const r = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-    {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values })
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function sheetsAppend(range, values, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const r = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+        {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values })
+        }
+      );
+      if (r.status === 429 || r.status >= 500) {
+        if (attempt < retries) { await sleep(attempt * 1000); continue; }
+      }
+      if (!r.ok) throw new Error('Sheets APPEND error ' + r.status);
+      return r.json();
+    } catch(e) {
+      if (attempt === retries) throw e;
+      await sleep(attempt * 800);
     }
-  );
-  if (!r.ok) throw new Error('Sheets APPEND error ' + r.status);
-  return r.json();
+  }
 }
 
 async function sheetsUpdate(range, values) {
@@ -1112,25 +1237,44 @@ async function sheetsUpdate(range, values) {
 }
 
 // ============================================================
-// LOAD DATA
+// LOAD DATA — con cache de 60 segundos
 // ============================================================
-async function loadAll() {
-  try {
-    const [clientes, prestamos, cuotas, pagos] = await Promise.all([
-      sheetsGet('Clientes!A2:L'),
-      sheetsGet('Préstamos!A2:P'),
-      sheetsGet('Cuotas!A2:J'),
-      sheetsGet('Pagos!A2:H'),
-    ]);
-    DB.clientes  = clientes.map(rowToCliente);
-    DB.prestamos = prestamos.map(rowToPrestamo);
-    DB.cuotas    = cuotas.map(rowToCuota);
-    DB.pagos     = pagos.map(rowToPago);
-  } catch(e) {
-    console.error(e);
-    showToast('Error al cargar datos: ' + e.message, 'error');
-  }
+let _lastLoad = 0;
+let _loadingPromise = null;
+const CACHE_TTL = 60000; // 60 segundos
+
+async function loadAll(force = false) {
+  const now = Date.now();
+  // Si hay datos frescos y no es forzado, usar cache
+  if (!force && DB.clientes.length > 0 && (now - _lastLoad) < CACHE_TTL) return;
+  // Si ya hay una carga en progreso, esperar esa misma
+  if (_loadingPromise) return _loadingPromise;
+
+  _loadingPromise = (async () => {
+    try {
+      const [clientes, prestamos, cuotas, pagos] = await Promise.all([
+        sheetsGet('Clientes!A2:L'),
+        sheetsGet('Préstamos!A2:P'),
+        sheetsGet('Cuotas!A2:J'),
+        sheetsGet('Pagos!A2:H'),
+      ]);
+      DB.clientes  = clientes.map(rowToCliente);
+      DB.prestamos = prestamos.map(rowToPrestamo);
+      DB.cuotas    = cuotas.map(rowToCuota);
+      DB.pagos     = pagos.map(rowToPago);
+      _lastLoad = Date.now();
+    } catch(e) {
+      console.error(e);
+      showToast('Error al cargar datos: ' + e.message, 'error');
+    } finally {
+      _loadingPromise = null;
+    }
+  })();
+  return _loadingPromise;
 }
+
+// Forzar recarga fresca (llamar después de guardar datos)
+function invalidateCache() { _lastLoad = 0; }
 
 function rowToCliente(r)  { return { id:r[0]||'', apellido:r[1]||'', nombre:r[2]||'', alias:r[3]||'', dni:r[4]||'', tel:r[5]||'', tel2:r[6]||'', email:r[7]||'', dir:r[8]||'', alta:r[9]||'', activo:r[10]||'Sí', notas:r[11]||'' }; }
 function rowToPrestamo(r) { return { id:r[0]||'', clienteId:r[1]||'', nombre:r[2]||'', fechaInicio:r[3]||'', capital:parseFloat(r[4])||0, interes:r[5]||'', total:parseFloat(r[6])||0, cuotas:parseInt(r[7])||0, tipo:r[8]||'', terceroId:r[9]||'', terceroNombre:r[10]||'', ganBruta:parseFloat(r[11])||0, comision:parseFloat(r[12])||0, ganNeta:parseFloat(r[13])||0, estado:r[14]||'Activo', notas:r[15]||'' }; }
@@ -1140,7 +1284,7 @@ function rowToPago(r)     { return { id:r[0]||'', cuotaId:r[1]||'', prestId:r[2]
 // ============================================================
 // NAVIGATION
 // ============================================================
-const TITLES = { dashboard:'Dashboard', clientes:'Clientes', 'detalle-cliente':'Detalle cliente', prestamos:'Préstamos', 'detalle-prestamo':'Detalle préstamo', vencimientos:'Vencimientos', 'nuevo-prestamo':'Nuevo préstamo', 'nuevo-cliente':'Nuevo cliente' };
+const TITLES = { dashboard:'Dashboard', estadisticas:'Estadísticas', clientes:'Clientes', 'detalle-cliente':'Detalle cliente', prestamos:'Préstamos', 'detalle-prestamo':'Detalle préstamo', vencimientos:'Vencimientos', 'nuevo-prestamo':'Nuevo préstamo', 'nuevo-cliente':'Nuevo cliente' };
 
 async function nav(screen, data) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -1151,6 +1295,7 @@ async function nav(screen, data) {
   const el = document.getElementById('screen-' + screen);
   if (el) el.classList.add('active');
   if (screen === 'dashboard')        await renderDashboard();
+  if (screen === 'estadisticas')     await renderEstadisticas();
   if (screen === 'clientes')         await renderClientes();
   if (screen === 'prestamos')        await renderPrestamos();
   if (screen === 'vencimientos')     await renderVencimientos();
@@ -1230,19 +1375,19 @@ async function renderDashboard() {
         : hayVencidas ? '<span style="color:var(--red);font-size:12px;font-weight:600">● Cuota vencida</span>'
         : proxVenc ? '<span style="font-size:12px;color:var(--muted)">Próx: ' + fmtFecha(proxVenc) + '</span>' : '';
 
-      header.innerHTML = `
+      header.innerHTML = \`
         <div style="display:flex;align-items:center;gap:12px">
-          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,${todasPagas?'#34d399,#059669':'var(--accent),#a78bfa'});display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0">${(cl.apellido[0]||'?')+(cl.nombre[0]||'?')}</div>
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,\${todasPagas?'#34d399,#059669':'var(--accent),#a78bfa'});display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0">\${(cl.apellido[0]||'?')+(cl.nombre[0]||'?')}</div>
           <div>
-            <div style="font-size:13px;font-weight:600;color:${todasPagas?'var(--green)':'var(--text)'}">${cl.apellido}, ${cl.nombre}</div>
-            <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${cl.id} · ${cuotasCli.length} cuota${cuotasCli.length!==1?'s':''} pendiente${cuotasCli.length!==1?'s':''}</div>
+            <div style="font-size:13px;font-weight:600;color:\${todasPagas?'var(--green)':'var(--text)'}">\${cl.apellido}, \${cl.nombre}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">\${cl.id} · \${cuotasCli.length} cuota\${cuotasCli.length!==1?'s':''} pendiente\${cuotasCli.length!==1?'s':''}</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:16px">
-          ${proxLabel}
-          ${!todasPagas ? '<span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--amber)">'+fmt(saldoTotal)+'</span>' : ''}
-          <span id="arrow-${idx}" style="color:var(--muted);transition:transform .2s;display:inline-block">▾</span>
-        </div>`;
+          \${proxLabel}
+          \${!todasPagas ? '<span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--amber)">'+fmt(saldoTotal)+'</span>' : ''}
+          <span id="arrow-\${idx}" style="color:var(--muted);transition:transform .2s;display:inline-block">▾</span>
+        </div>\`;
 
       const body = document.createElement('div');
       body.style.cssText = 'display:none;border-bottom:1px solid var(--border)';
@@ -1251,7 +1396,7 @@ async function renderDashboard() {
       if (todasPagas) {
         body.innerHTML = '<div style="padding:16px 18px;font-size:13px;color:var(--green);text-align:center">✓ Todos los préstamos de este cliente están completamente pagados</div>';
       } else {
-        body.innerHTML = `<table style="width:100%;border-collapse:collapse">
+        body.innerHTML = \`<table style="width:100%;border-collapse:collapse">
           <thead><tr style="border-bottom:1px solid var(--border)">
             <th style="padding:8px 18px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Préstamo</th>
             <th style="padding:8px 18px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Cuota</th>
@@ -1261,24 +1406,24 @@ async function renderDashboard() {
             <th></th>
           </tr></thead>
           <tbody>
-            ${cuotasCli.map(c => {
+            \${cuotasCli.map(c => {
               const p = DB.prestamos.find(x => x.id === c.prestId) || {};
               const vencida = c._fecha < hoy;
               const hoyMismo = c._fecha.toDateString() === hoy.toDateString();
               const vencLabel = hoyMismo ? '<span style="color:var(--red);font-weight:600">● Hoy</span>'
                 : vencida ? '<span style="color:var(--red)">Hace '+Math.ceil((hoy-c._fecha)/86400000)+'d</span>'
                 : fmtFecha(c._fecha);
-              return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer" onclick="abrirPagoModal('${c.id}')" onmouseenter="this.style.background='var(--bg3)'" onmouseleave="this.style.background=''">
-                <td style="padding:10px 18px;font-size:12px;font-family:var(--mono);color:var(--muted)">${c.prestId}</td>
-                <td style="padding:10px 18px;font-size:12px;font-family:var(--mono)">${c.nro}/${p.cuotas||'?'}</td>
-                <td style="padding:10px 18px;font-size:13px">${vencLabel}</td>
-                <td style="padding:10px 18px;font-size:13px;font-family:var(--mono);font-weight:600">${fmt(c.saldo)}</td>
-                <td style="padding:10px 18px">${estadoPill(c.estado)}</td>
-                <td style="padding:10px 18px"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal('${c.id}')">Pagar</button></td>
-              </tr>`;
+              return \\`<tr style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer" onclick="abrirPagoModal('\\${c.id}')" onmouseenter="this.style.background='var(--bg3)'" onmouseleave="this.style.background=''">
+                <td style="padding:10px 18px;font-size:12px;font-family:var(--mono);color:var(--muted)">\\${c.prestId}</td>
+                <td style="padding:10px 18px;font-size:12px;font-family:var(--mono)">\\${c.nro}/\\${p.cuotas||'?'}</td>
+                <td style="padding:10px 18px;font-size:13px">\\${vencLabel}</td>
+                <td style="padding:10px 18px;font-size:13px;font-family:var(--mono);font-weight:600">\\${fmt(c.saldo)}</td>
+                <td style="padding:10px 18px">\\${estadoPill(c.estado)}</td>
+                <td style="padding:10px 18px"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal('\\${c.id}')">Pagar</button></td>
+              </tr>\\`;
             }).join('')}
           </tbody>
-        </table>`;
+        </table>\`;
       }
 
       header.onclick = () => {
@@ -1730,10 +1875,10 @@ async function crearPrestamo() {
           start: { date: fechaISO },
           end:   { date: fechaISO },
           colorId: '5',
-          reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 480 }] }
+          reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 540 }] }
         };
         const calRes = await fetch(
-          'https://www.googleapis.com/calendar/v3/calendars/a4da58c8084bf9486a88468ae1453f8e915926956efe8c85b89b3929fff4d432@group.calendar.google.com/events',
+          'https://www.googleapis.com/calendar/v3/calendars/a4da58c8084bf9486a88468ae1453f8e915926956efe8c85b89b3929fff4d432@group.calendar.google.com/events'.replace('@','%40'),
           { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) }
         );
         if (calRes.ok) { const calData = await calRes.json(); eventId = calData.id || ''; }
@@ -1748,8 +1893,9 @@ async function crearPrestamo() {
 
     const calMsg = calRows.length === cuotas ? ' y ' + cuotas + ' eventos en Calendar ✓' :
                    calRows.length > 0 ? ' (' + calRows.length + '/' + cuotas + ' en Calendar)' : '';
+    invalidateCache();
     showToast('✓ Préstamo creado con ' + cuotas + ' cuotas' + calMsg);
-    await loadAll();
+    await loadAll(true);
     nav('prestamos');
   } catch(e) {
     showToast('Error al guardar: ' + e.message, 'error');
@@ -1778,6 +1924,7 @@ async function guardarCliente() {
   try {
     await sheetsAppend('Clientes!A:L', [[id, apellido, nombre, alias, dni, tel, tel2, email, dir, hoy, 'Sí', notas]]);
     if (doc) await sheetsAppend('Documentos!A:F', [['DOC-'+String(Date.now()), id, 'Documentación', doc, hoy, '']]);
+    invalidateCache();
     showToast('✓ Cliente guardado como ' + id);
     ['cli-apellido','cli-nombre','cli-alias','cli-dni','cli-tel','cli-tel2','cli-email','cli-dir','cli-doc','cli-notas'].forEach(f => { const el=document.getElementById(f); if(el) el.value=''; });
     await loadAll();
@@ -1842,6 +1989,7 @@ async function confirmarPago() {
       const sheetRow = rowIdx + 1;
       await sheetsUpdate(`Cuotas!G${sheetRow}:I${sheetRow}`, [[nuevoMontoPagado.toFixed(2), nuevoSaldo.toFixed(2), nuevoEstado]]);
     }
+    invalidateCache();
     closePagoModal();
     showToast('✓ Pago registrado' + (diasAtraso > 0 ? ' · ' + diasAtraso + ' días de atraso' : ''));
     await loadAll();
@@ -1900,6 +2048,169 @@ document.getElementById('pagoModal').addEventListener('click', e => {
 document.getElementById('setupModal').addEventListener('click', e => {
   if (e.target === document.getElementById('setupModal')) closeSetup();
 });
+
+// ============================================================
+// ESTADISTICAS
+// ============================================================
+let estPeriodoDias = 7;
+
+function setEstPeriodo(dias, btn) {
+  estPeriodoDias = dias;
+  document.querySelectorAll('#est-btn-7,#est-btn-30,#est-btn-90,#est-btn-365,#est-btn-0').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEstadisticas();
+}
+
+async function renderEstadisticas() {
+  document.getElementById('est-loading').style.display = 'flex';
+  document.getElementById('est-content').style.display = 'none';
+  await loadAll();
+
+  const hoy = new Date(); hoy.setHours(23,59,59,999);
+  const desde = estPeriodoDias === 0 ? new Date('2000-01-01') : new Date(hoy.getTime() - estPeriodoDias * 86400000);
+  desde.setHours(0,0,0,0);
+
+  const labels = {7:'Últimos 7 días', 30:'Último mes', 90:'Último trimestre', 365:'Último año', 0:'Desde siempre'};
+  document.getElementById('est-rango-label').textContent = '(' + labels[estPeriodoDias] + ')';
+
+  // Préstamos en el período
+  const prestPeriodo = DB.prestamos.filter(p => {
+    const d = parseFecha(p.fechaInicio);
+    return d && d >= desde && d <= hoy;
+  });
+  const capitalTotal = prestPeriodo.reduce((a,p) => a+p.capital, 0);
+  const gbTotal = prestPeriodo.reduce((a,p) => a+p.ganBruta, 0);
+  const comTotal = prestPeriodo.reduce((a,p) => a+p.comision, 0);
+  const gnTotal = prestPeriodo.reduce((a,p) => a+p.ganNeta, 0);
+  const terceroCount = prestPeriodo.filter(p => p.tipo==='De tercero').length;
+  const tasaPromedio = prestPeriodo.length ? (gbTotal/capitalTotal*100).toFixed(1) : 0;
+
+  document.getElementById('est-capital').textContent = fmt(capitalTotal);
+  document.getElementById('est-capital-meta').textContent = prestPeriodo.length + ' préstamos · tasa prom ' + tasaPromedio + '%';
+  document.getElementById('est-gb').textContent = fmt(gbTotal);
+  document.getElementById('est-gb-meta').textContent = capitalTotal > 0 ? (gbTotal/capitalTotal*100).toFixed(1)+'% sobre el capital' : '—';
+  document.getElementById('est-com').textContent = fmt(comTotal);
+  document.getElementById('est-com-meta').textContent = terceroCount + ' préstamos de tercero';
+  document.getElementById('est-gn').textContent = fmt(gnTotal);
+  document.getElementById('est-gn-meta').textContent = gbTotal > 0 ? 'margen neto: '+(gnTotal/gbTotal*100).toFixed(1)+'%' : '—';
+
+  // Pagos cobrados en el período
+  const pagosPeriodo = DB.pagos.filter(p => {
+    const d = parseFecha(p.fecha);
+    return d && d >= desde && d <= hoy;
+  });
+  const montoCobrado = pagosPeriodo.reduce((a,p) => a+p.monto, 0);
+  document.getElementById('est-cobrado').textContent = fmt(montoCobrado);
+  document.getElementById('est-cobrado-meta').textContent = pagosPeriodo.length + ' pagos recibidos';
+
+  // Mora
+  const cuotasVencPeriodo = DB.cuotas.filter(c => {
+    const d = parseFecha(c.vencimiento);
+    return d && d >= desde && d <= hoy && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con');
+  });
+  const montoMora = cuotasVencPeriodo.reduce((a,c) => a+c.saldo, 0);
+  const totalCuotasPeriodo = DB.cuotas.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hoy; }).length;
+  const tasaMora = totalCuotasPeriodo > 0 ? (cuotasVencPeriodo.length/totalCuotasPeriodo*100).toFixed(1) : 0;
+  document.getElementById('est-mora').textContent = fmt(montoMora);
+  document.getElementById('est-mora-meta').textContent = cuotasVencPeriodo.length + ' cuotas vencidas sin pagar';
+  document.getElementById('est-tasa-mora').textContent = tasaMora + '%';
+
+  // Clientes nuevos
+  const clientesNuevos = DB.clientes.filter(c => {
+    const d = parseFecha(c.alta);
+    return d && d >= desde && d <= hoy;
+  });
+  document.getElementById('est-cli-nuevos').textContent = clientesNuevos.length;
+  document.getElementById('est-cli-nuevos-meta').textContent = clientesNuevos.map(c => c.apellido).join(', ') || 'en el período';
+
+  // Propio vs Tercero
+  const propios = prestPeriodo.filter(p => p.tipo !== 'De tercero');
+  const terceros = prestPeriodo.filter(p => p.tipo === 'De tercero');
+  const capPropios = propios.reduce((a,p) => a+p.capital, 0);
+  const capTerceros = terceros.reduce((a,p) => a+p.capital, 0);
+  const gnPropios = propios.reduce((a,p) => a+p.ganNeta, 0);
+  const gnTerceros = terceros.reduce((a,p) => a+p.ganNeta, 0);
+  document.getElementById('est-tipo-body').innerHTML = prestPeriodo.length === 0
+    ? '<p style="color:var(--muted);font-size:13px">Sin préstamos en este período</p>'
+    : \`<div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px">
+          <span style="color:var(--muted)">Propios (\${propios.length})</span>
+          <span style="font-family:var(--mono)">\${fmt(capPropios)}</span>
+        </div>
+        <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px">
+          <div style="height:100%;width:\${capitalTotal>0?(capPropios/capitalTotal*100).toFixed(0):0}%;background:var(--accent);border-radius:4px;transition:width .4s"></div>
+        </div>
+        <div style="font-size:11px;color:var(--green);text-align:right">Ganancia neta: \${fmt(gnPropios)}</div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px">
+          <span style="color:var(--muted)">Terceros (\${terceros.length})</span>
+          <span style="font-family:var(--mono)">\${fmt(capTerceros)}</span>
+        </div>
+        <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px">
+          <div style="height:100%;width:\${capitalTotal>0?(capTerceros/capitalTotal*100).toFixed(0):0}%;background:var(--amber);border-radius:4px;transition:width .4s"></div>
+        </div>
+        <div style="font-size:11px;color:var(--amber);text-align:right">Ganancia neta (después comisión): \${fmt(gnTerceros)}</div>
+      </div>\`;
+
+  // Top clientes por capital
+  const volClientes = {};
+  DB.prestamos.forEach(p => {
+    const d = parseFecha(p.fechaInicio);
+    if (!d || d < desde || d > hoy) return;
+    if (!volClientes[p.clienteId]) volClientes[p.clienteId] = { capital:0, count:0, gn:0 };
+    volClientes[p.clienteId].capital += p.capital;
+    volClientes[p.clienteId].count++;
+    volClientes[p.clienteId].gn += p.ganNeta;
+  });
+  const topClis = Object.entries(volClientes)
+    .sort((a,b) => b[1].capital - a[1].capital)
+    .slice(0, 5);
+  const maxCap = topClis[0]?.[1].capital || 1;
+
+  document.getElementById('est-top-body').innerHTML = topClis.length === 0
+    ? '<div style="padding:16px;color:var(--muted);font-size:13px">Sin datos</div>'
+    : topClis.map(([cliId, v]) => {
+        const cl = DB.clientes.find(x => x.id === cliId) || {apellido:'?', nombre:''};
+        const pct = (v.capital/maxCap*100).toFixed(0);
+        return \`<div style="padding:10px 16px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px">
+            <span style="font-weight:600">\${cl.apellido}, \${cl.nombre}</span>
+            <span style="font-family:var(--mono)">\${fmt(v.capital)}</span>
+          </div>
+          <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px">
+            <div style="height:100%;width:\${pct}%;background:var(--accent);border-radius:3px"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">
+            <span>\${v.count} préstamo\${v.count!==1?'s':''}</span>
+            <span style="color:var(--green)">Gan. neta: \${fmt(v.gn)}</span>
+          </div>
+        </div>\`;
+      }).join('');
+
+  // Tabla de pagos
+  const pagosOrdenados = [...pagosPeriodo].sort((a,b) => {
+    const da = parseFecha(a.fecha), db = parseFecha(b.fecha);
+    return (db||0) - (da||0);
+  });
+  document.getElementById('est-pagos-count').textContent = pagosOrdenados.length + ' pagos';
+  document.getElementById('est-pagos-tabla').innerHTML = pagosOrdenados.length === 0
+    ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Sin pagos en este período</td></tr>'
+    : pagosOrdenados.map(p => {
+        const cl = DB.clientes.find(x => x.id === p.clienteId) || {apellido:'?', nombre:''};
+        return \`<tr>
+          <td class="td-mono">\${p.fecha}</td>
+          <td><div class="td-name">\${cl.apellido}, \${cl.nombre}</div></td>
+          <td class="td-mono">\${p.prestId}</td>
+          <td class="td-mono">\${p.cuotaId}</td>
+          <td class="td-mono">\${fmt(p.monto)}</td>
+          <td>\${p.diasAtraso > 0 ? '<span class="pill pill-red">'+p.diasAtraso+'d</span>' : '<span class="pill pill-green">A tiempo</span>'}</td>
+        </tr>\`;
+      }).join('');
+
+  document.getElementById('est-loading').style.display = 'none';
+  document.getElementById('est-content').style.display = 'block';
+}
 
 // ============================================================
 // INIT
