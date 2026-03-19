@@ -1740,7 +1740,7 @@ async function crearPrestamo() {
       } catch(calErr) { console.warn('Calendar error cuota ' + i, calErr); }
 
       cuotasRows.push([cuotaId, prestId, clienteId, i, fechaVencES, cuotaM.toFixed(2), 0, cuotaM.toFixed(2), 'Pendiente', eventId]);
-      if (eventId) calRows.push([cuotaId, prestId, clienteId, eventId, 'primary', 'Activo']);
+      if (eventId) calRows.push([cuotaId, prestId, clienteId, eventId, 'a4da58c8084bf9486a88468ae1453f8e915926956efe8c85b89b3929fff4d432@group.calendar.google.com', 'Activo']);
     }
 
     await sheetsAppend('Cuotas!A:J', cuotasRows);
