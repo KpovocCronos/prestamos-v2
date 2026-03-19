@@ -1230,19 +1230,19 @@ async function renderDashboard() {
         : hayVencidas ? '<span style="color:var(--red);font-size:12px;font-weight:600">● Cuota vencida</span>'
         : proxVenc ? '<span style="font-size:12px;color:var(--muted)">Próx: ' + fmtFecha(proxVenc) + '</span>' : '';
 
-      header.innerHTML = \`
+      header.innerHTML = `
         <div style="display:flex;align-items:center;gap:12px">
-          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,\${todasPagas?'#34d399,#059669':'var(--accent),#a78bfa'});display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0">\${(cl.apellido[0]||'?')+(cl.nombre[0]||'?')}</div>
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,${todasPagas?'#34d399,#059669':'var(--accent),#a78bfa'});display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0">${(cl.apellido[0]||'?')+(cl.nombre[0]||'?')}</div>
           <div>
-            <div style="font-size:13px;font-weight:600;color:\${todasPagas?'var(--green)':'var(--text)'}">\${cl.apellido}, \${cl.nombre}</div>
-            <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">\${cl.id} · \${cuotasCli.length} cuota\${cuotasCli.length!==1?'s':''} pendiente\${cuotasCli.length!==1?'s':''}</div>
+            <div style="font-size:13px;font-weight:600;color:${todasPagas?'var(--green)':'var(--text)'}">${cl.apellido}, ${cl.nombre}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${cl.id} · ${cuotasCli.length} cuota${cuotasCli.length!==1?'s':''} pendiente${cuotasCli.length!==1?'s':''}</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:16px">
-          \${proxLabel}
-          \${!todasPagas ? '<span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--amber)">'+fmt(saldoTotal)+'</span>' : ''}
-          <span id="arrow-\${idx}" style="color:var(--muted);transition:transform .2s;display:inline-block">▾</span>
-        </div>\`;
+          ${proxLabel}
+          ${!todasPagas ? '<span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--amber)">'+fmt(saldoTotal)+'</span>' : ''}
+          <span id="arrow-${idx}" style="color:var(--muted);transition:transform .2s;display:inline-block">▾</span>
+        </div>`;
 
       const body = document.createElement('div');
       body.style.cssText = 'display:none;border-bottom:1px solid var(--border)';
@@ -1251,7 +1251,7 @@ async function renderDashboard() {
       if (todasPagas) {
         body.innerHTML = '<div style="padding:16px 18px;font-size:13px;color:var(--green);text-align:center">✓ Todos los préstamos de este cliente están completamente pagados</div>';
       } else {
-        body.innerHTML = \`<table style="width:100%;border-collapse:collapse">
+        body.innerHTML = `<table style="width:100%;border-collapse:collapse">
           <thead><tr style="border-bottom:1px solid var(--border)">
             <th style="padding:8px 18px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Préstamo</th>
             <th style="padding:8px 18px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Cuota</th>
@@ -1261,24 +1261,24 @@ async function renderDashboard() {
             <th></th>
           </tr></thead>
           <tbody>
-            \${cuotasCli.map(c => {
+            ${cuotasCli.map(c => {
               const p = DB.prestamos.find(x => x.id === c.prestId) || {};
               const vencida = c._fecha < hoy;
               const hoyMismo = c._fecha.toDateString() === hoy.toDateString();
               const vencLabel = hoyMismo ? '<span style="color:var(--red);font-weight:600">● Hoy</span>'
                 : vencida ? '<span style="color:var(--red)">Hace '+Math.ceil((hoy-c._fecha)/86400000)+'d</span>'
                 : fmtFecha(c._fecha);
-              return \\`<tr style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer" onclick="abrirPagoModal('\\${c.id}')" onmouseenter="this.style.background='var(--bg3)'" onmouseleave="this.style.background=''">
-                <td style="padding:10px 18px;font-size:12px;font-family:var(--mono);color:var(--muted)">\\${c.prestId}</td>
-                <td style="padding:10px 18px;font-size:12px;font-family:var(--mono)">\\${c.nro}/\\${p.cuotas||'?'}</td>
-                <td style="padding:10px 18px;font-size:13px">\\${vencLabel}</td>
-                <td style="padding:10px 18px;font-size:13px;font-family:var(--mono);font-weight:600">\\${fmt(c.saldo)}</td>
-                <td style="padding:10px 18px">\\${estadoPill(c.estado)}</td>
-                <td style="padding:10px 18px"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal('\\${c.id}')">Pagar</button></td>
-              </tr>\\`;
+              return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer" onclick="abrirPagoModal('${c.id}')" onmouseenter="this.style.background='var(--bg3)'" onmouseleave="this.style.background=''">
+                <td style="padding:10px 18px;font-size:12px;font-family:var(--mono);color:var(--muted)">${c.prestId}</td>
+                <td style="padding:10px 18px;font-size:12px;font-family:var(--mono)">${c.nro}/${p.cuotas||'?'}</td>
+                <td style="padding:10px 18px;font-size:13px">${vencLabel}</td>
+                <td style="padding:10px 18px;font-size:13px;font-family:var(--mono);font-weight:600">${fmt(c.saldo)}</td>
+                <td style="padding:10px 18px">${estadoPill(c.estado)}</td>
+                <td style="padding:10px 18px"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal('${c.id}')">Pagar</button></td>
+              </tr>`;
             }).join('')}
           </tbody>
-        </table>\`;
+        </table>`;
       }
 
       header.onclick = () => {
@@ -1733,7 +1733,7 @@ async function crearPrestamo() {
           reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 480 }] }
         };
         const calRes = await fetch(
-          'https://www.googleapis.com/calendar/v3/calendars/a4da58c8084bf9486a88468ae1453f8e915926956efe8c85b89b3929fff4d432@group.calendar.google.com/events'.replace('@','%40'),
+          'https://www.googleapis.com/calendar/v3/calendars/a4da58c8084bf9486a88468ae1453f8e915926956efe8c85b89b3929fff4d432@group.calendar.google.com/events',
           { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) }
         );
         if (calRes.ok) { const calData = await calRes.json(); eventId = calData.id || ''; }
