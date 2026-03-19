@@ -1375,19 +1375,19 @@ async function renderDashboard() {
         : hayVencidas ? '<span style="color:var(--red);font-size:12px;font-weight:600">● Cuota vencida</span>'
         : proxVenc ? '<span style="font-size:12px;color:var(--muted)">Próx: ' + fmtFecha(proxVenc) + '</span>' : '';
 
-      header.innerHTML = \`
+      header.innerHTML = `
         <div style="display:flex;align-items:center;gap:12px">
-          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,\${todasPagas?'#34d399,#059669':'var(--accent),#a78bfa'});display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0">\${(cl.apellido[0]||'?')+(cl.nombre[0]||'?')}</div>
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,${todasPagas?'#34d399,#059669':'var(--accent),#a78bfa'});display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0">${(cl.apellido[0]||'?')+(cl.nombre[0]||'?')}</div>
           <div>
-            <div style="font-size:13px;font-weight:600;color:\${todasPagas?'var(--green)':'var(--text)'}">\${cl.apellido}, \${cl.nombre}</div>
-            <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">\${cl.id} · \${cuotasCli.length} cuota\${cuotasCli.length!==1?'s':''} pendiente\${cuotasCli.length!==1?'s':''}</div>
+            <div style="font-size:13px;font-weight:600;color:${todasPagas?'var(--green)':'var(--text)'}">${cl.apellido}, ${cl.nombre}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${cl.id} · ${cuotasCli.length} cuota${cuotasCli.length!==1?'s':''} pendiente${cuotasCli.length!==1?'s':''}</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:16px">
-          \${proxLabel}
-          \${!todasPagas ? '<span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--amber)">'+fmt(saldoTotal)+'</span>' : ''}
-          <span id="arrow-\${idx}" style="color:var(--muted);transition:transform .2s;display:inline-block">▾</span>
-        </div>\`;
+          ${proxLabel}
+          ${!todasPagas ? '<span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--amber)">'+fmt(saldoTotal)+'</span>' : ''}
+          <span id="arrow-${idx}" style="color:var(--muted);transition:transform .2s;display:inline-block">▾</span>
+        </div>`;
 
       const body = document.createElement('div');
       body.style.cssText = 'display:none;border-bottom:1px solid var(--border)';
@@ -1396,7 +1396,7 @@ async function renderDashboard() {
       if (todasPagas) {
         body.innerHTML = '<div style="padding:16px 18px;font-size:13px;color:var(--green);text-align:center">✓ Todos los préstamos de este cliente están completamente pagados</div>';
       } else {
-        body.innerHTML = \`<table style="width:100%;border-collapse:collapse">
+        body.innerHTML = `<table style="width:100%;border-collapse:collapse">
           <thead><tr style="border-bottom:1px solid var(--border)">
             <th style="padding:8px 18px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Préstamo</th>
             <th style="padding:8px 18px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Cuota</th>
@@ -1406,24 +1406,24 @@ async function renderDashboard() {
             <th></th>
           </tr></thead>
           <tbody>
-            \${cuotasCli.map(c => {
+            ${cuotasCli.map(c => {
               const p = DB.prestamos.find(x => x.id === c.prestId) || {};
               const vencida = c._fecha < hoy;
               const hoyMismo = c._fecha.toDateString() === hoy.toDateString();
               const vencLabel = hoyMismo ? '<span style="color:var(--red);font-weight:600">● Hoy</span>'
                 : vencida ? '<span style="color:var(--red)">Hace '+Math.ceil((hoy-c._fecha)/86400000)+'d</span>'
                 : fmtFecha(c._fecha);
-              return \\`<tr style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer" onclick="abrirPagoModal('\\${c.id}')" onmouseenter="this.style.background='var(--bg3)'" onmouseleave="this.style.background=''">
-                <td style="padding:10px 18px;font-size:12px;font-family:var(--mono);color:var(--muted)">\\${c.prestId}</td>
-                <td style="padding:10px 18px;font-size:12px;font-family:var(--mono)">\\${c.nro}/\\${p.cuotas||'?'}</td>
-                <td style="padding:10px 18px;font-size:13px">\\${vencLabel}</td>
-                <td style="padding:10px 18px;font-size:13px;font-family:var(--mono);font-weight:600">\\${fmt(c.saldo)}</td>
-                <td style="padding:10px 18px">\\${estadoPill(c.estado)}</td>
-                <td style="padding:10px 18px"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal('\\${c.id}')">Pagar</button></td>
-              </tr>\\`;
+              return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer" onclick="abrirPagoModal(\'' + c.id + '\')" onmouseenter="this.style.background=\'var(--bg3)\'" onmouseleave="this.style.background=\'\'">'+
+                '<td style="padding:10px 18px;font-size:12px;font-family:var(--mono);color:var(--muted)">' + c.prestId + '</td>'+
+                '<td style="padding:10px 18px;font-size:12px;font-family:var(--mono)">' + c.nro + '/' + (p.cuotas||'?') + '</td>'+
+                '<td style="padding:10px 18px;font-size:13px">' + vencLabel + '</td>'+
+                '<td style="padding:10px 18px;font-size:13px;font-family:var(--mono);font-weight:600">' + fmt(c.saldo) + '</td>'+
+                '<td style="padding:10px 18px">' + estadoPill(c.estado) + '</td>'+
+                '<td style="padding:10px 18px"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal(\'' + c.id + '\')">Pagar</button></td>'+
+              '</tr>';
             }).join('')}
           </tbody>
-        </table>\`;
+        </table>`;
       }
 
       header.onclick = () => {
@@ -2132,26 +2132,26 @@ async function renderEstadisticas() {
   const gnTerceros = terceros.reduce((a,p) => a+p.ganNeta, 0);
   document.getElementById('est-tipo-body').innerHTML = prestPeriodo.length === 0
     ? '<p style="color:var(--muted);font-size:13px">Sin préstamos en este período</p>'
-    : \`<div style="margin-bottom:16px">
+    : `<div style="margin-bottom:16px">
         <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px">
-          <span style="color:var(--muted)">Propios (\${propios.length})</span>
-          <span style="font-family:var(--mono)">\${fmt(capPropios)}</span>
+          <span style="color:var(--muted)">Propios (${propios.length})</span>
+          <span style="font-family:var(--mono)">${fmt(capPropios)}</span>
         </div>
         <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px">
-          <div style="height:100%;width:\${capitalTotal>0?(capPropios/capitalTotal*100).toFixed(0):0}%;background:var(--accent);border-radius:4px;transition:width .4s"></div>
+          <div style="height:100%;width:${capitalTotal>0?(capPropios/capitalTotal*100).toFixed(0):0}%;background:var(--accent);border-radius:4px;transition:width .4s"></div>
         </div>
-        <div style="font-size:11px;color:var(--green);text-align:right">Ganancia neta: \${fmt(gnPropios)}</div>
+        <div style="font-size:11px;color:var(--green);text-align:right">Ganancia neta: ${fmt(gnPropios)}</div>
       </div>
       <div>
         <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px">
-          <span style="color:var(--muted)">Terceros (\${terceros.length})</span>
-          <span style="font-family:var(--mono)">\${fmt(capTerceros)}</span>
+          <span style="color:var(--muted)">Terceros (${terceros.length})</span>
+          <span style="font-family:var(--mono)">${fmt(capTerceros)}</span>
         </div>
         <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px">
-          <div style="height:100%;width:\${capitalTotal>0?(capTerceros/capitalTotal*100).toFixed(0):0}%;background:var(--amber);border-radius:4px;transition:width .4s"></div>
+          <div style="height:100%;width:${capitalTotal>0?(capTerceros/capitalTotal*100).toFixed(0):0}%;background:var(--amber);border-radius:4px;transition:width .4s"></div>
         </div>
-        <div style="font-size:11px;color:var(--amber);text-align:right">Ganancia neta (después comisión): \${fmt(gnTerceros)}</div>
-      </div>\`;
+        <div style="font-size:11px;color:var(--amber);text-align:right">Ganancia neta (después comisión): ${fmt(gnTerceros)}</div>
+      </div>`;
 
   // Top clientes por capital
   const volClientes = {};
@@ -2173,19 +2173,19 @@ async function renderEstadisticas() {
     : topClis.map(([cliId, v]) => {
         const cl = DB.clientes.find(x => x.id === cliId) || {apellido:'?', nombre:''};
         const pct = (v.capital/maxCap*100).toFixed(0);
-        return \`<div style="padding:10px 16px;border-bottom:1px solid var(--border)">
+        return `<div style="padding:10px 16px;border-bottom:1px solid var(--border)">
           <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px">
-            <span style="font-weight:600">\${cl.apellido}, \${cl.nombre}</span>
-            <span style="font-family:var(--mono)">\${fmt(v.capital)}</span>
+            <span style="font-weight:600">${cl.apellido}, ${cl.nombre}</span>
+            <span style="font-family:var(--mono)">${fmt(v.capital)}</span>
           </div>
           <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px">
-            <div style="height:100%;width:\${pct}%;background:var(--accent);border-radius:3px"></div>
+            <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px"></div>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">
-            <span>\${v.count} préstamo\${v.count!==1?'s':''}</span>
-            <span style="color:var(--green)">Gan. neta: \${fmt(v.gn)}</span>
+            <span>${v.count} préstamo${v.count!==1?'s':''}</span>
+            <span style="color:var(--green)">Gan. neta: ${fmt(v.gn)}</span>
           </div>
-        </div>\`;
+        </div>`;
       }).join('');
 
   // Tabla de pagos
@@ -2198,14 +2198,14 @@ async function renderEstadisticas() {
     ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Sin pagos en este período</td></tr>'
     : pagosOrdenados.map(p => {
         const cl = DB.clientes.find(x => x.id === p.clienteId) || {apellido:'?', nombre:''};
-        return \`<tr>
-          <td class="td-mono">\${p.fecha}</td>
-          <td><div class="td-name">\${cl.apellido}, \${cl.nombre}</div></td>
-          <td class="td-mono">\${p.prestId}</td>
-          <td class="td-mono">\${p.cuotaId}</td>
-          <td class="td-mono">\${fmt(p.monto)}</td>
-          <td>\${p.diasAtraso > 0 ? '<span class="pill pill-red">'+p.diasAtraso+'d</span>' : '<span class="pill pill-green">A tiempo</span>'}</td>
-        </tr>\`;
+        return `<tr>
+          <td class="td-mono">${p.fecha}</td>
+          <td><div class="td-name">${cl.apellido}, ${cl.nombre}</div></td>
+          <td class="td-mono">${p.prestId}</td>
+          <td class="td-mono">${p.cuotaId}</td>
+          <td class="td-mono">${fmt(p.monto)}</td>
+          <td>${p.diasAtraso > 0 ? '<span class="pill pill-red">'+p.diasAtraso+'d</span>' : '<span class="pill pill-green">A tiempo</span>'}</td>
+        </tr>`;
       }).join('');
 
   document.getElementById('est-loading').style.display = 'none';
