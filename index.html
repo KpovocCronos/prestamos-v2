@@ -1370,7 +1370,7 @@ async function renderDashboard() {
   const clientesEnMora = new Set(cuotasVenc.map(c => c.clienteId)).size;
   const clientesConSaldo = new Set(cuotasPend.map(c => c.clienteId));
   const cantClientesActivos = clientesConSaldo.size;
-  const tercerosActivos = DB.prestamos.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero' && prestConSaldo.has(p.id)).length;
+  const tercerosActivos = DB.prestamos.filter(p => (p.tipo === 'tercero' || p.tipo === 'De tercero') && prestConSaldo.has(p.id)).length;
   const vencBadge = cuotasVenc.length;
   document.getElementById('badge-venc').textContent = vencBadge;
   document.getElementById('badge-venc').style.display = vencBadge ? '' : 'none';
@@ -1866,32 +1866,6 @@ function calcularFechaCuota(base, numeroCuota, freqDias) {
   d.setDate(d.getDate() + (freqDias * numeroCuota));
   return d;
 }
-function diasEnMes(anio, mesIndex) {
-  return new Date(anio, mesIndex + 1, 0).getDate();
-}
-
-function sumarMesesRespetandoDia(base, mesesASumar) {
-  const diaOriginal = base.getDate();
-  const anio = base.getFullYear();
-  const mes = base.getMonth();
-
-  const destinoMesIndexTotal = mes + mesesASumar;
-  const destinoAnio = anio + Math.floor(destinoMesIndexTotal / 12);
-  const destinoMes = ((destinoMesIndexTotal % 12) + 12) % 12;
-
-  const ultimoDiaDestino = diasEnMes(destinoAnio, destinoMes);
-  const diaFinal = Math.min(diaOriginal, ultimoDiaDestino);
-
-  return new Date(destinoAnio, destinoMes, diaFinal, 12, 0, 0);
-}
-
-function calcularFechaCuota(base, numeroCuota, freqDias) {
-  const d = new Date(base);
-
-  if (freqDias === 7 || freqDias === 15) {
-    d.setDate(d.getDate() + (freqDias * numeroCuota));
-    return d;
-  }
 
   if (freqDias === 30) {
     return sumarMesesRespetandoDia(base, numeroCuota);
@@ -1906,37 +1880,53 @@ function calcularFechaCuota(base, numeroCuota, freqDias) {
 }   
 
 function recalcNP() {
-  const capital = parseFloat(document.getElementById('np-capital').value) || 0;
-  const tasa = parseFloat(document.getElementById('np-tasa').value) || 0;
-  const cuotas = parseInt(document.getElementById('np-cuotas').value) || 1;
-  const freq = document.getElementById('np-freq').value;
-  const base = new Date(document.getElementById('np-fecha').value);
+  const cap = parseFloat(document.getElementById('np-capital')?.value) || 0;
+  const int = parseFloat(document.getElementById('np-interes')?.value) || 0;
+  const cuotas = Math.max(1, parseInt(document.getElementById('np-cuotas')?.value) || 1);
+  const tipo = document.getElementById('np-tipo')?.value || 'propio';
+  const fechaStr = document.getElementById('np-fecha')?.value;
 
-  const npFreqDias = freq === 'semanal' ? 7 :
-                     freq === 'quincenal' ? 15 :
-                     freq === 'mensual' ? 30 : 60;
+  const total = cap * (1 + int / 100);
+  const gb = total - cap;
+  const com = tipo === 'tercero' ? gb * 0.2 : 0;
+  const gn = gb - com;
+  const cuotaM = total / cuotas;
 
-  const interes = capital * (tasa / 100);
-  const total = capital + interes;
-  const cuotaMonto = total / cuotas;
+  document.getElementById('np-r-total').textContent = fmt(total);
+  document.getElementById('np-r-gb').textContent = fmt(gb);
+  document.getElementById('np-r-com').textContent = fmt(com);
+  document.getElementById('np-r-gn').textContent = fmt(gn);
+  document.getElementById('np-r-cuota').textContent = fmt(cuotaM);
+  document.getElementById('np-r-freq').textContent = npFreqLabel;
+  document.getElementById('np-r-com-row').style.display = tipo === 'tercero' ? 'flex' : 'none';
 
-  document.getElementById('np-preview-badge').textContent =
-    cuotas + ' cuotas · ' + freq;
+  const labelPlural =
+    npFreqLabel === 'mensual' ? 'mensuales' :
+    npFreqLabel === 'bimestral' ? 'bimestrales' :
+    npFreqLabel === 'quincenal' ? 'quincenales' :
+    'semanales';
 
-  const cont = document.getElementById('np-preview-cuotas');
-  cont.innerHTML = '';
+  document.getElementById('np-preview-badge').textContent = cuotas + ' cuotas · ' + labelPlural;
+
+  const list = document.getElementById('np-preview-list');
+  list.innerHTML = '';
+
+  if (!fechaStr) return;
+
+  const base = new Date(fechaStr + 'T12:00:00');
+  const ds = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 
   for (let i = 1; i <= cuotas; i++) {
     const d = calcularFechaCuota(base, i, npFreqDias);
-
     const item = document.createElement('div');
+    item.className = 'preview-item';
     item.innerHTML = `
-      <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0">
-        <span>Cuota ${i}</span>
-        <span>${fmtFecha(d)} · ${fmt(cuotaMonto)}</span>
-      </div>
+      <span class="preview-num">${String(i).padStart(2,'0')}</span>
+      <span class="preview-fecha">${ds[d.getDay()]} ${fmtFecha(d)}</span>
+      <span class="preview-dias">${npFreqLabel}</span>
+      <span class="preview-monto">${fmt(cuotaM)}</span>
     `;
-    cont.appendChild(item);
+    list.appendChild(item);
   }
 }
 
@@ -2249,7 +2239,7 @@ async function renderEstadisticas() {
   const gbTotal = prestPeriodo.reduce((a,p) => a + (p.ganBruta || 0), 0);
   const comTotal = prestPeriodo.reduce((a,p) => a + (p.comision || 0), 0);
   const gnTotal = prestPeriodo.reduce((a,p) => a + (p.ganNeta || 0), 0);
-  const terceroCount = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'tercero' || p.tipo === 'De tercero').length;
+  const terceroCount = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero').length;
   const tasaPromedio = capitalTotal > 0 ? (gbTotal / capitalTotal * 100).toFixed(1) : 0;
 
   document.getElementById('est-capital').textContent = fmt(capitalTotal);
@@ -2305,8 +2295,8 @@ async function renderEstadisticas() {
     clientesNuevos.length ? clientesNuevos.map(c => c.apellido).join(', ') : 'en el período';
 
   // Propio vs Tercero
-  const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'tercero' && p.tipo !== 'De tercero');
-  const terceros = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'tercero' || p.tipo === 'De tercero');
+  const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
+  const terceros = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero');
 
   const capPropios = propios.reduce((a,p) => a + (p.capital || 0), 0);
   const capTerceros = terceros.reduce((a,p) => a + (p.capital || 0), 0);
