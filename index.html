@@ -1370,7 +1370,7 @@ async function renderDashboard() {
   const clientesEnMora = new Set(cuotasVenc.map(c => c.clienteId)).size;
   const clientesConSaldo = new Set(cuotasPend.map(c => c.clienteId));
   const cantClientesActivos = clientesConSaldo.size;
-  const tercerosActivos = DB.prestamos.filter(p => p.tipo === 'De tercero' && prestConSaldo.has(p.id)).length;
+  const tercerosActivos = DB.prestamos.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero' && prestConSaldo.has(p.id)).length;
   const vencBadge = cuotasVenc.length;
   document.getElementById('badge-venc').textContent = vencBadge;
   document.getElementById('badge-venc').style.display = vencBadge ? '' : 'none';
@@ -1583,7 +1583,7 @@ function renderDetalleCliente(clienteId) {
             <td class="td-mono">${p.id}</td>
             <td class="td-mono">${fmt(p.capital)}</td>
             <td class="td-mono">${fmt(p.total)}</td>
-            <td>${p.tipo === 'De tercero' ? '<span class="pill pill-amber">Tercero</span>' : '<span class="pill pill-gray">Propio</span>'}</td>
+            <td>${p.tipo === 'tercero' || p.tipo === 'De tercero' ? '<span class="pill pill-amber">Tercero</span>' : '<span class="pill pill-gray">Propio</span>'}</td>
             <td class="td-mono">${p.cuotas} cuotas</td>
             <td>${estadoPill2(calcEstadoPrestamo(p.id))}</td>
             <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();nav('detalle-prestamo','${p.id}')">Ver →</button></td>
@@ -1609,7 +1609,7 @@ function renderTablaPrestamos(lista) {
   const tbody = document.getElementById('prestamos-table');
   tbody.innerHTML = lista.map(p => {
     const cuotasP = DB.cuotas.filter(c => c.prestId === p.id);
-    const pendientes = cuotasP.filter(c => c.estado !== 'Pagada' && c.estado !== 'Pagada con atraso').length;
+    const pendientes = cuotasP.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con')).length;
     return `<tr class="clickable" onclick="nav('detalle-prestamo','${p.id}')">
       <td class="td-mono">${p.id}</td>
       ${(() => {
@@ -1618,7 +1618,7 @@ function renderTablaPrestamos(lista) {
 })()}
       <td class="td-mono">${fmt(p.capital)}</td>
       <td class="td-mono">${fmt(p.total)}</td>
-      <td>${p.tipo === 'De tercero' ? '<span class="pill pill-amber">Tercero</span>' : '<span class="pill pill-gray">Propio</span>'}</td>
+      <td>${p.tipo === 'tercero' || p.tipo === 'De tercero' ? '<span class="pill pill-amber">Tercero</span>' : '<span class="pill pill-gray">Propio</span>'}</td>
       <td class="td-mono">${pendientes}/${p.cuotas} pend.</td>
       <td>${estadoPill2(calcEstadoPrestamo(p.id))}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();nav('detalle-prestamo','${p.id}')">Ver →</button></td>
@@ -1704,7 +1704,7 @@ async function renderVencimientos() {
   hoy.setHours(0,0,0,0);
 
   const pendientes = DB.cuotas
-    .filter(c => c.estado !== 'Pagada' && c.estado !== 'Pagada con atraso')
+    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'))
     .map(c => ({ ...c, _fecha: parseFecha(c.vencimiento) }))
     .sort((a,b) => (a._fecha || 0) - (b._fecha || 0));
 
@@ -1828,6 +1828,44 @@ function toggleTerceroNP() {
     document.getElementById('np-tipo').value === 'tercero' ? 'flex' : 'none';
 }
 
+function diasEnMes(anio, mesIndex) {
+  return new Date(anio, mesIndex + 1, 0).getDate();
+}
+
+function sumarMesesRespetandoDia(base, mesesASumar) {
+  const diaOriginal = base.getDate();
+  const anio = base.getFullYear();
+  const mes = base.getMonth();
+
+  const destinoMesIndexTotal = mes + mesesASumar;
+  const destinoAnio = anio + Math.floor(destinoMesIndexTotal / 12);
+  const destinoMes = ((destinoMesIndexTotal % 12) + 12) % 12;
+
+  const ultimoDiaDestino = diasEnMes(destinoAnio, destinoMes);
+  const diaFinal = Math.min(diaOriginal, ultimoDiaDestino);
+
+  return new Date(destinoAnio, destinoMes, diaFinal, 12, 0, 0);
+}
+
+function calcularFechaCuota(base, numeroCuota, freqDias) {
+  const d = new Date(base);
+
+  if (freqDias === 7 || freqDias === 15) {
+    d.setDate(d.getDate() + (freqDias * numeroCuota));
+    return d;
+  }
+
+  if (freqDias === 30) {
+    return sumarMesesRespetandoDia(base, numeroCuota);
+  }
+
+  if (freqDias === 60) {
+    return sumarMesesRespetandoDia(base, numeroCuota * 2);
+  }
+
+  d.setDate(d.getDate() + (freqDias * numeroCuota));
+  return d;
+}
 function diasEnMes(anio, mesIndex) {
   return new Date(anio, mesIndex + 1, 0).getDate();
 }
@@ -2211,7 +2249,7 @@ async function renderEstadisticas() {
   const gbTotal = prestPeriodo.reduce((a,p) => a + (p.ganBruta || 0), 0);
   const comTotal = prestPeriodo.reduce((a,p) => a + (p.comision || 0), 0);
   const gnTotal = prestPeriodo.reduce((a,p) => a + (p.ganNeta || 0), 0);
-  const terceroCount = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero').length;
+  const terceroCount = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'tercero' || p.tipo === 'De tercero').length;
   const tasaPromedio = capitalTotal > 0 ? (gbTotal / capitalTotal * 100).toFixed(1) : 0;
 
   document.getElementById('est-capital').textContent = fmt(capitalTotal);
@@ -2267,8 +2305,8 @@ async function renderEstadisticas() {
     clientesNuevos.length ? clientesNuevos.map(c => c.apellido).join(', ') : 'en el período';
 
   // Propio vs Tercero
-  const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
-  const terceros = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero');
+  const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'tercero' && p.tipo !== 'De tercero');
+  const terceros = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'tercero' || p.tipo === 'De tercero');
 
   const capPropios = propios.reduce((a,p) => a + (p.capital || 0), 0);
   const capTerceros = terceros.reduce((a,p) => a + (p.capital || 0), 0);
