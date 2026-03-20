@@ -1585,7 +1585,7 @@ function renderDetalleCliente(clienteId) {
             <td class="td-mono">${fmt(p.total)}</td>
             <td>${p.tipo === 'De tercero' ? '<span class="pill pill-amber">Tercero</span>' : '<span class="pill pill-gray">Propio</span>'}</td>
             <td class="td-mono">${p.cuotas} cuotas</td>
-            <td>${estadoPill(p.estado)}</td>
+            <td>${estadoPill2(calcEstadoPrestamo(p.id))}</td>
             <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();nav('detalle-prestamo','${p.id}')">Ver →</button></td>
           </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">Sin préstamos</td></tr>'}
         </tbody>
@@ -2121,36 +2121,6 @@ async function renderEstadisticas() {
   const labels = {7:'Últimos 7 días', 30:'Último mes', 90:'Último trimestre', 365:'Último año', 0:'Desde siempre'};
   document.getElementById('est-rango-label').textContent = '(' + labels[estPeriodoDias] + ')';
 
-  // Préstamos en el período
-  const prestPeriodo = estPeriodoDias === 0
-    ? DB.prestamos
-    : DB.prestamos.filter(p => {
-        const d = parseFecha(p.fechaInicio);
-        return d && d >= desde && d <= hoy;
-      });
-  const capitalTotal = prestPeriodo.reduce((a,p) => a+p.capital, 0);
-  const gbTotal = prestPeriodo.reduce((a,p) => {
-    const gb = p.ganBruta || (p.capital * (parseFloat(p.interes)||0) / 100);
-    return a + gb;
-  }, 0);
-  const comTotal = prestPeriodo.reduce((a,p) => a+p.comision, 0);
-  const gnTotal = prestPeriodo.reduce((a,p) => {
-    const gb = p.ganBruta || (p.capital * (parseFloat(p.interes)||0) / 100);
-    const com = p.comision || 0;
-    return a + gb - com;
-  }, 0);
-  const terceroCount = prestPeriodo.filter(p => p.tipo==='De tercero').length;
-  const tasaPromedio = prestPeriodo.length ? (gbTotal/capitalTotal*100).toFixed(1) : 0;
-
-  document.getElementById('est-capital').textContent = fmt(capitalTotal);
-  document.getElementById('est-capital-meta').textContent = prestPeriodo.length + ' préstamos · tasa prom ' + tasaPromedio + '%';
-  document.getElementById('est-gb').textContent = fmt(gbTotal);
-  document.getElementById('est-gb-meta').textContent = capitalTotal > 0 ? (gbTotal/capitalTotal*100).toFixed(1)+'% sobre el capital' : '—';
-  document.getElementById('est-com').textContent = fmt(comTotal);
-  document.getElementById('est-com-meta').textContent = terceroCount + ' préstamos de tercero';
-  document.getElementById('est-gn').textContent = fmt(gnTotal);
-  document.getElementById('est-gn-meta').textContent = gbTotal > 0 ? 'margen neto: '+(gnTotal/gbTotal*100).toFixed(1)+'%' : '—';
-
   // Pagos cobrados en el período
   const pagosPeriodo = estPeriodoDias === 0
     ? DB.pagos
@@ -2158,22 +2128,62 @@ async function renderEstadisticas() {
         const d = parseFecha(p.fecha);
         return d && d >= desde && d <= hoy;
       });
-  const montoCobrado = pagosPeriodo.reduce((a,p) => a+p.monto, 0);
+
+  const montoCobrado = pagosPeriodo.reduce((a,p) => a + p.monto, 0);
   document.getElementById('est-cobrado').textContent = fmt(montoCobrado);
   document.getElementById('est-cobrado-meta').textContent = pagosPeriodo.length + ' pagos recibidos';
+
+  // Préstamos del período:
+  // si es "Todo" => todos los préstamos
+  // si no => préstamos que tuvieron pagos en el período
+  const prestIdsConPagos = new Set(pagosPeriodo.map(p => p.prestId));
+  const prestPeriodo = estPeriodoDias === 0
+    ? DB.prestamos
+    : DB.prestamos.filter(p => prestIdsConPagos.has(p.id));
+
+  const capitalTotal = prestPeriodo.reduce((a,p) => a + (p.capital || 0), 0);
+  const gbTotal = prestPeriodo.reduce((a,p) => a + (p.ganBruta || 0), 0);
+  const comTotal = prestPeriodo.reduce((a,p) => a + (p.comision || 0), 0);
+  const gnTotal = prestPeriodo.reduce((a,p) => a + (p.ganNeta || 0), 0);
+  const terceroCount = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero').length;
+  const tasaPromedio = capitalTotal > 0 ? (gbTotal / capitalTotal * 100).toFixed(1) : 0;
+
+  document.getElementById('est-capital').textContent = fmt(capitalTotal);
+  document.getElementById('est-capital-meta').textContent = prestPeriodo.length + ' préstamos · tasa prom ' + tasaPromedio + '%';
+
+  document.getElementById('est-gb').textContent = fmt(gbTotal);
+  document.getElementById('est-gb-meta').textContent =
+    capitalTotal > 0 ? (gbTotal / capitalTotal * 100).toFixed(1) + '% sobre el capital' : '—';
+
+  document.getElementById('est-com').textContent = fmt(comTotal);
+  document.getElementById('est-com-meta').textContent = terceroCount + ' préstamos de tercero';
+
+  document.getElementById('est-gn').textContent = fmt(gnTotal);
+  document.getElementById('est-gn-meta').textContent =
+    gbTotal > 0 ? 'margen neto: ' + (gnTotal / gbTotal * 100).toFixed(1) + '%' : '—';
 
   // Mora
   const cuotasVencPeriodo = DB.cuotas.filter(c => {
     if (c.estado === 'Pagada' || c.estado.startsWith('Pagada con')) return false;
-    if (estPeriodoDias === 0) return true;
+    if (estPeriodoDias === 0) {
+      const d = parseFecha(c.vencimiento);
+      return d && d <= hoy;
+    }
     const d = parseFecha(c.vencimiento);
     return d && d >= desde && d <= hoy;
   });
-  const montoMora = cuotasVencPeriodo.reduce((a,c) => a+c.saldo, 0);
+
+  const montoMora = cuotasVencPeriodo.reduce((a,c) => a + c.saldo, 0);
+
   const totalCuotasPeriodo = estPeriodoDias === 0
     ? DB.cuotas.length
-    : DB.cuotas.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hoy; }).length;
-  const tasaMora = totalCuotasPeriodo > 0 ? (cuotasVencPeriodo.length/totalCuotasPeriodo*100).toFixed(1) : 0;
+    : DB.cuotas.filter(c => {
+        const d = parseFecha(c.vencimiento);
+        return d && d >= desde && d <= hoy;
+      }).length;
+
+  const tasaMora = totalCuotasPeriodo > 0 ? (cuotasVencPeriodo.length / totalCuotasPeriodo * 100).toFixed(1) : 0;
+
   document.getElementById('est-mora').textContent = fmt(montoMora);
   document.getElementById('est-mora-meta').textContent = cuotasVencPeriodo.length + ' cuotas vencidas sin pagar';
   document.getElementById('est-tasa-mora').textContent = tasaMora + '%';
@@ -2185,16 +2195,20 @@ async function renderEstadisticas() {
         const d = parseFecha(c.alta);
         return d && d >= desde && d <= hoy;
       });
+
   document.getElementById('est-cli-nuevos').textContent = clientesNuevos.length;
-  document.getElementById('est-cli-nuevos-meta').textContent = clientesNuevos.map(c => c.apellido).join(', ') || 'en el período';
+  document.getElementById('est-cli-nuevos-meta').textContent =
+    clientesNuevos.length ? clientesNuevos.map(c => c.apellido).join(', ') : 'en el período';
 
   // Propio vs Tercero
-  const propios = prestPeriodo.filter(p => p.tipo !== 'De tercero');
-  const terceros = prestPeriodo.filter(p => p.tipo === 'De tercero');
-  const capPropios = propios.reduce((a,p) => a+p.capital, 0);
-  const capTerceros = terceros.reduce((a,p) => a+p.capital, 0);
-  const gnPropios = propios.reduce((a,p) => a+p.ganNeta, 0);
-  const gnTerceros = terceros.reduce((a,p) => a+p.ganNeta, 0);
+  const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
+  const terceros = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero');
+
+  const capPropios = propios.reduce((a,p) => a + (p.capital || 0), 0);
+  const capTerceros = terceros.reduce((a,p) => a + (p.capital || 0), 0);
+  const gnPropios = propios.reduce((a,p) => a + (p.ganNeta || 0), 0);
+  const gnTerceros = terceros.reduce((a,p) => a + (p.ganNeta || 0), 0);
+
   document.getElementById('est-tipo-body').innerHTML = prestPeriodo.length === 0
     ? '<p style="color:var(--muted);font-size:13px">Sin préstamos en este período</p>'
     : `<div style="margin-bottom:16px">
@@ -2220,26 +2234,24 @@ async function renderEstadisticas() {
 
   // Top clientes por capital
   const volClientes = {};
-  DB.prestamos.forEach(p => {
-    if (estPeriodoDias !== 0) {
-      const d = parseFecha(p.fechaInicio);
-      if (!d || d < desde || d > hoy) return;
-    }
+  prestPeriodo.forEach(p => {
     if (!volClientes[p.clienteId]) volClientes[p.clienteId] = { capital:0, count:0, gn:0 };
-    volClientes[p.clienteId].capital += p.capital;
+    volClientes[p.clienteId].capital += p.capital || 0;
     volClientes[p.clienteId].count++;
-    volClientes[p.clienteId].gn += p.ganNeta;
+    volClientes[p.clienteId].gn += p.ganNeta || 0;
   });
+
   const topClis = Object.entries(volClientes)
     .sort((a,b) => b[1].capital - a[1].capital)
     .slice(0, 5);
+
   const maxCap = topClis[0]?.[1].capital || 1;
 
   document.getElementById('est-top-body').innerHTML = topClis.length === 0
     ? '<div style="padding:16px;color:var(--muted);font-size:13px">Sin datos</div>'
     : topClis.map(([cliId, v]) => {
         const cl = DB.clientes.find(x => x.id === cliId) || {apellido:'?', nombre:''};
-        const pct = (v.capital/maxCap*100).toFixed(0);
+        const pct = (v.capital / maxCap * 100).toFixed(0);
         return `<div style="padding:10px 16px;border-bottom:1px solid var(--border)">
           <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px">
             <span style="font-weight:600">${cl.apellido}, ${cl.nombre}</span>
@@ -2258,8 +2270,9 @@ async function renderEstadisticas() {
   // Tabla de pagos
   const pagosOrdenados = [...pagosPeriodo].sort((a,b) => {
     const da = parseFecha(a.fecha), db = parseFecha(b.fecha);
-    return (db||0) - (da||0);
+    return (db || 0) - (da || 0);
   });
+
   document.getElementById('est-pagos-count').textContent = pagosOrdenados.length + ' pagos';
   document.getElementById('est-pagos-tabla').innerHTML = pagosOrdenados.length === 0
     ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Sin pagos en este período</td></tr>'
@@ -2278,7 +2291,6 @@ async function renderEstadisticas() {
   document.getElementById('est-loading').style.display = 'none';
   document.getElementById('est-content').style.display = 'block';
 }
-
 // ============================================================
 // INIT
 // ============================================================
