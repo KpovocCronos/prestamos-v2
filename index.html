@@ -1984,7 +1984,7 @@ async function crearPrestamo() {
         btn.textContent = 'Creando cuota ' + i + '/' + cuotas + ' en Calendar...';
         const eventoBody = {
           summary: '💰 ' + clienteNombre + ' — Cuota ' + i + '/' + cuotas + ' | $' + Math.round(cuotaM).toLocaleString('es-AR') + ' (' + prestId + ')',
-          description: 'Préstamo: ' + prestId + '\nCliente: ' + clienteNombre + ' (' + clienteId + ')\nMonto cuota: $' + cuotaM.toFixed(2) + '\nTipo: ' + tipo + (tipo==='De tercero' ? ' — Tercero: ' + tercero : ''),
+          description: 'Préstamo: ' + prestId + '\nCliente: ' + clienteNombre + ' (' + clienteId + ')\nMonto cuota: $' + cuotaM.toFixed(2) + '\nTipo: ' + tipo + ((tipo === 'tercero' || tipo === 'De tercero') ? ' — Tercero: ' + tercero : ''),
           start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
           end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
           colorId: '5',
