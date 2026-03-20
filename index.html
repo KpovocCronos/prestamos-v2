@@ -1612,7 +1612,10 @@ function renderTablaPrestamos(lista) {
     const pendientes = cuotasP.filter(c => c.estado !== 'Pagada' && c.estado !== 'Pagada con atraso').length;
     return `<tr class="clickable" onclick="nav('detalle-prestamo','${p.id}')">
       <td class="td-mono">${p.id}</td>
-      <td><div class="td-name">${p.nombre}</div><div class="td-sub">${p.clienteId}</div></td>
+      ${(() => {
+  const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
+  return `<td><div class="td-name">${cl.id ? `${cl.apellido}, ${cl.nombre}` : p.nombre}</div><div class="td-sub">${p.clienteId}</div></td>`;
+})()}
       <td class="td-mono">${fmt(p.capital)}</td>
       <td class="td-mono">${fmt(p.total)}</td>
       <td>${p.tipo === 'De tercero' ? '<span class="pill pill-amber">Tercero</span>' : '<span class="pill pill-gray">Propio</span>'}</td>
@@ -1704,10 +1707,10 @@ async function renderVencimientos() {
 
   const tbody = document.getElementById('venc-table');
   tbody.innerHTML = pendientes.map(c => {
-    const cl = DB.clientes.find(x => x.id === c.clienteId) || {};
+   <td><div class="td-name">${cl.id ? `${cl.apellido}, ${cl.nombre}` : c.clienteId}</div></td>
     const vencida = c._fecha && c._fecha < hoy;
     return `<tr class="clickable" onclick="nav('detalle-prestamo','${c.prestId}')">
-      <td><div class="td-name">${cl.apellido||''}, ${cl.nombre||''}</div></td>
+      <td><div class="td-name">${cl.id ? `${cl.apellido}, ${cl.nombre}` : c.clienteId}</div></td>
       <td class="td-mono">${c.prestId}</td>
       <td class="td-mono">${c.nro}</td>
       <td>${vencida ? `<span class="text-red">${c.vencimiento}</span>` : c.vencimiento}</td>
