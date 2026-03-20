@@ -2296,31 +2296,7 @@ async function renderEstadisticas() {
   document.getElementById('est-content').style.display = 'block';
 }
 
-  // Tabla de pagos
-  const pagosOrdenados = [...pagosPeriodo].sort((a,b) => {
-    const da = parseFecha(a.fecha), db = parseFecha(b.fecha);
-    return (db||0) - (da||0);
-  });
-  document.getElementById('est-pagos-count').textContent = pagosOrdenados.length + ' pagos';
-  document.getElementById('est-pagos-tabla').innerHTML = pagosOrdenados.length === 0
-    ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Sin pagos en este período</td></tr>'
-    : pagosOrdenados.map(p => {
-        const cl = DB.clientes.find(x => x.id === p.clienteId) || {apellido:'?', nombre:''};
-        return `<tr>
-          <td class="td-mono">${p.fecha}</td>
-          <td><div class="td-name">${cl.apellido}, ${cl.nombre}</div></td>
-          <td class="td-mono">${p.prestId}</td>
-          <td class="td-mono">${p.cuotaId}</td>
-          <td class="td-mono">${fmt(p.monto)}</td>
-          <td>${p.diasAtraso > 0 ? '<span class="pill pill-red">'+p.diasAtraso+'d</span>' : '<span class="pill pill-green">A tiempo</span>'}</td>
-        </tr>`;
-      }).join('');
-
-  document.getElementById('est-loading').style.display = 'none';
-  document.getElementById('est-content').style.display = 'block';
-}
-
-// ============================================================
+ // ============================================================
 // INIT
 // ============================================================
 async function init() {
