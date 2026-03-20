@@ -2056,10 +2056,23 @@ if (rowIdx >= 0) {
 function fmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
 
 function parseFecha(str) {
-  if (!str) return null;
-  const parts = str.split('/');
-  if (parts.length === 3) return new Date(parts[2], parts[1]-1, parts[0], 12, 0, 0);
-  const d = new Date(str); return isNaN(d) ? null : d;
+  if (str === null || str === undefined || str === '') return null;
+
+  // Si viene como número serial de Google Sheets / Excel
+  if (!isNaN(str) && String(str).indexOf('/') === -1 && String(str).indexOf('-') === -1) {
+    const serial = Number(str);
+    const base = new Date(Date.UTC(1899, 11, 30));
+    const d = new Date(base.getTime() + serial * 86400000);
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0);
+  }
+
+  const parts = String(str).split('/');
+  if (parts.length === 3) {
+    return new Date(parts[2], parts[1]-1, parts[0], 12, 0, 0);
+  }
+
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
 }
 
 function fmtFecha(d) {
