@@ -931,7 +931,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
                   <label class="form-label">Frecuencia de cuotas</label>
                   <div class="freq-group">
                     <button class="freq-btn" onclick="setFreqNP(7,this)">Semanal<div class="freq-sub">cada 7 días</div></button>
-                    <button class="freq-btn" onclick="setFreqNP(14,this)">Quincenal<div class="freq-sub">cada 15 días</div></button>
+                    <button class="freq-btn" onclick="setFreqNP(15,this)">Quincenal<div class="freq-sub">cada 15 días</div></button>
                     <button class="freq-btn active" onclick="setFreqNP(30,this)">Mensual<div class="freq-sub">cada 30 días</div></button>
                     <button class="freq-btn" onclick="setFreqNP(60,this)">Bimestral<div class="freq-sub">cada 60 días</div></button>
                   </div>
@@ -1305,6 +1305,46 @@ async function nav(screen, data) {
 }
 
 // ============================================================
+// HELPERS DE ESTADO DINÁMICO (usados en todas las pantallas)
+// ============================================================
+function calcEstadoPrestamo(prestId) {
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const cuotas = DB.cuotas.filter(c => c.prestId === prestId);
+  if (!cuotas.length) return 'Activo';
+  const saldoTotal = cuotas.reduce((a,c) => a + c.saldo, 0);
+  if (saldoTotal <= 0) return 'Finalizado';
+  const hayVencidas = cuotas.some(c => {
+    const d = parseFecha(c.vencimiento);
+    return d && d < hoy && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con');
+  });
+  return hayVencidas ? 'En mora' : 'Activo';
+}
+
+function calcEstadoCliente(clienteId) {
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const prestamos = DB.prestamos.filter(p => p.clienteId === clienteId);
+  if (!prestamos.length) return 'Sin préstamos';
+  const cuotas = DB.cuotas.filter(c => c.clienteId === clienteId);
+  if (!cuotas.length) return 'Activo';
+  const saldoTotal = cuotas.reduce((a,c) => a + c.saldo, 0);
+  if (saldoTotal <= 0) return 'Crédito finalizado';
+  const hayVencidas = cuotas.some(c => {
+    const d = parseFecha(c.vencimiento);
+    return d && d < hoy && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con');
+  });
+  return hayVencidas ? 'En mora' : 'Activo';
+}
+
+function estadoPill2(estado) {
+  if (!estado) return '';
+  if (estado === 'Finalizado' || estado === 'Crédito finalizado') return '<span class="pill pill-green">' + estado + '</span>';
+  if (estado === 'En mora') return '<span class="pill pill-red">En mora</span>';
+  if (estado === 'Activo') return '<span class="pill pill-purple">Activo</span>';
+  if (estado === 'Sin préstamos') return '<span class="pill pill-gray">Sin préstamos</span>';
+  return '<span class="pill pill-gray">' + estado + '</span>';
+}
+
+// ============================================================
 // DASHBOARD
 // ============================================================
 async function renderDashboard() {
@@ -1313,27 +1353,33 @@ async function renderDashboard() {
   await loadAll();
 
   const hoy = new Date(); hoy.setHours(0,0,0,0);
-  const prestActivos = DB.prestamos.filter(p => p.estado === 'Activo');
-  const capitalTotal = prestActivos.reduce((a,p) => a+p.capital, 0);
-  const cuotasPend = DB.cuotas.filter(c => c.estado !== 'Pagada' && c.estado !== 'Pagada con atraso');
   const mesActual = hoy.getMonth();
-  const cuotasMes = cuotasPend.filter(c => { const d = parseFecha(c.vencimiento); return d && d.getMonth() === mesActual; });
-  const montoCobrarMes = cuotasMes.reduce((a,c) => a+c.saldo, 0);
+  const anioActual = hoy.getFullYear();
+  const cuotasPend = DB.cuotas.filter(c => c.saldo > 0 && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'));
+  const prestConSaldo = new Set(cuotasPend.map(c => c.prestId));
+  const capitalTotal = DB.prestamos.filter(p => prestConSaldo.has(p.id)).reduce((a,p) => a + p.capital, 0);
+  const cantPrestActivos = prestConSaldo.size;
+  const cuotasMes = cuotasPend.filter(c => { const d = parseFecha(c.vencimiento); return d && d.getMonth() === mesActual && d.getFullYear() === anioActual; });
+  const montoCobrarMes = cuotasMes.reduce((a,c) => a + c.saldo, 0);
+  const hoyStr = hoy.toDateString();
+  const cuotasHoy = cuotasMes.filter(c => { const d = parseFecha(c.vencimiento); return d && d.toDateString() === hoyStr; });
   const cuotasVenc = cuotasPend.filter(c => { const d = parseFecha(c.vencimiento); return d && d < hoy; });
-  const montoMora = cuotasVenc.reduce((a,c) => a+c.saldo, 0);
-  const terceros = DB.prestamos.filter(p => p.tipo === 'De tercero').length;
+  const montoMora = cuotasVenc.reduce((a,c) => a + c.saldo, 0);
+  const clientesEnMora = new Set(cuotasVenc.map(c => c.clienteId)).size;
+  const clientesConSaldo = new Set(cuotasPend.map(c => c.clienteId));
+  const cantClientesActivos = clientesConSaldo.size;
+  const tercerosActivos = DB.prestamos.filter(p => p.tipo === 'De tercero' && prestConSaldo.has(p.id)).length;
   const vencBadge = cuotasVenc.length;
   document.getElementById('badge-venc').textContent = vencBadge;
   document.getElementById('badge-venc').style.display = vencBadge ? '' : 'none';
-
   document.getElementById('stat-capital').textContent = fmt(capitalTotal);
-  document.getElementById('stat-capital-meta').textContent = prestActivos.length + ' préstamos activos';
+  document.getElementById('stat-capital-meta').textContent = cantPrestActivos + ' préstamos con saldo';
   document.getElementById('stat-cobrar').textContent = fmt(montoCobrarMes);
-  document.getElementById('stat-cobrar-meta').textContent = cuotasMes.length + ' cuotas este mes';
+  document.getElementById('stat-cobrar-meta').textContent = cuotasMes.length + ' cuotas · ' + (cuotasHoy.length ? cuotasHoy.length + ' vencen hoy' : 'ninguna hoy');
   document.getElementById('stat-mora').textContent = fmt(montoMora);
-  document.getElementById('stat-mora-meta').textContent = cuotasVenc.length + ' cuotas vencidas';
-  document.getElementById('stat-clientes').textContent = DB.clientes.length;
-  document.getElementById('stat-clientes-meta').textContent = terceros + ' préstamos de tercero';
+  document.getElementById('stat-mora-meta').textContent = cuotasVenc.length + ' cuotas · ' + clientesEnMora + ' clientes en mora';
+  document.getElementById('stat-clientes').textContent = cantClientesActivos;
+  document.getElementById('stat-clientes-meta').textContent = tercerosActivos + ' de tercero activos';
 
   // Agrupar cuotas pendientes por cliente
   const cuotasConFecha = DB.cuotas
@@ -1472,7 +1518,7 @@ function renderTablaClientes(lista) {
       <td class="td-mono">****${c.dni}</td>
       <td class="td-mono">${c.tel}</td>
       <td>${ps.length > 0 ? `<span class="pill pill-purple">${ps.length} préstamo${ps.length>1?'s':''}</span>` : '<span class="pill pill-gray">Sin préstamos</span>'}</td>
-      <td><span class="pill pill-green">Activo</span></td>
+      <td>${estadoPill2(calcEstadoCliente(c.id))}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();nav('detalle-cliente','${c.id}')">Ver →</button></td>
     </tr>`;
   }).join('');
@@ -1569,7 +1615,7 @@ function renderTablaPrestamos(lista) {
       <td class="td-mono">${fmt(p.total)}</td>
       <td>${p.tipo === 'De tercero' ? '<span class="pill pill-amber">Tercero</span>' : '<span class="pill pill-gray">Propio</span>'}</td>
       <td class="td-mono">${pendientes}/${p.cuotas} pend.</td>
-      <td>${estadoPill(p.estado)}</td>
+      <td>${estadoPill2(calcEstadoPrestamo(p.id))}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();nav('detalle-prestamo','${p.id}')">Ver →</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Sin préstamos</td></tr>';
@@ -1760,7 +1806,7 @@ function limpiarClienteNP() {
 
 function setFreqNP(dias, btn) {
   npFreqDias = dias;
-  const labels = {7:'semanal',14:'quincenal',30:'mensual',60:'bimestral'};
+  const labels = {7:'semanal',15:'quincenal',30:'mensual',60:'bimestral'};
   npFreqLabel = labels[dias];
   document.querySelectorAll('.freq-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -1872,10 +1918,10 @@ async function crearPrestamo() {
         const eventoBody = {
           summary: '💰 ' + clienteNombre + ' — Cuota ' + i + '/' + cuotas + ' | $' + Math.round(cuotaM).toLocaleString('es-AR') + ' (' + prestId + ')',
           description: 'Préstamo: ' + prestId + '\nCliente: ' + clienteNombre + ' (' + clienteId + ')\nMonto cuota: $' + cuotaM.toFixed(2) + '\nTipo: ' + tipo + (tipo==='De tercero' ? ' — Tercero: ' + tercero : ''),
-          start: { date: fechaISO },
-          end:   { date: fechaISO },
+          start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
+          end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
           colorId: '5',
-          reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 540 }] }
+          reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
         };
         const calRes = await fetch(
           'https://www.googleapis.com/calendar/v3/calendars/a4da58c8084bf9486a88468ae1453f8e915926956efe8c85b89b3929fff4d432%40group.calendar.google.com/events',
@@ -1986,7 +2032,7 @@ async function confirmarPago() {
     const cuotasData = await sheetsGet('Cuotas!A:J');
     const rowIdx = cuotasData.findIndex(r => r[0] === c.id);
     if (rowIdx >= 0) {
-      const sheetRow = rowIdx + 1;
+      const sheetRow = rowIdx + 2;
       await sheetsUpdate(`Cuotas!G${sheetRow}:I${sheetRow}`, [[nuevoMontoPagado.toFixed(2), nuevoSaldo.toFixed(2), nuevoEstado]]);
     }
     invalidateCache();
