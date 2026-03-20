@@ -1649,14 +1649,14 @@ function renderDetallePrestamo(prestId) {
     <div class="detail-grid">
       <div class="detail-card">
         <div class="detail-card-label">Préstamo</div>
-        <div class="detail-row"><span class="detail-key">Capital</span><span class="detail-val mono">${fmt(p.capital)}</span></div>
-        <div class="detail-row"><span class="detail-key">Interés</span><span class="detail-val mono">${p.interes}</span></div>
-        <div class="detail-row"><span class="detail-key">Total a devolver</span><span class="detail-val mono">${fmt(p.total)}</span></div>
-        <div class="detail-row"><span class="detail-key">Ganancia bruta</span><span class="detail-val mono text-green">${fmt(p.ganBruta)}</span></div>
-        ${p.tipo==='De tercero' ? `<div class="detail-row"><span class="detail-key">Comisión (20%)</span><span class="detail-val mono text-amber">${fmt(p.comision)}</span></div>` : ''}
-        <div class="detail-row"><span class="detail-key">Ganancia neta</span><span class="detail-val mono text-green">${fmt(p.ganNeta)}</span></div>
-        <div class="detail-row"><span class="detail-key">Tipo</span><span class="detail-val">${p.tipo==='De tercero' ? '⚡ Tercero: '+p.terceroNombre : 'Propio'}</span></div>
-        <div class="detail-row"><span class="detail-key">Inicio</span><span class="detail-val">${p.fechaInicio}</span></div>
+         <div class="detail-row"><span class="detail-key">Capital</span><span class="detail-val mono">${fmt(p.capital)}</span></div>
+         <div class="detail-row"><span class="detail-key">Interés</span><span class="detail-val mono">${p.interes}</span></div>
+         <div class="detail-row"><span class="detail-key">Total a devolver</span><span class="detail-val mono">${fmt(p.total)}</span></div>
+         <div class="detail-row"><span class="detail-key">Ganancia bruta</span><span class="detail-val mono text-green">${fmt(p.ganBruta)}</span></div>
+         ${(p.tipo === 'tercero' || p.tipo === 'De tercero') ? `<div class="detail-row"><span class="detail-key">Comisión (20%)</span><span class="detail-val mono text-amber">${fmt(p.comision)}</span></div>` : ''}
+         <div class="detail-row"><span class="detail-key">Ganancia neta</span><span class="detail-val mono text-green">${fmt(p.ganNeta)}</span></div>
+         <div class="detail-row"><span class="detail-key">Tipo</span><span class="detail-val">${(p.tipo === 'tercero' || p.tipo === 'De tercero') ? '⚡ Tercero: ' + p.terceroNombre : 'Propio'}</span></div>
+         <div class="detail-row"><span class="detail-key">Inicio</span><span class="detail-val">${p.fechaInicio}</span></div>
       </div>
       <div class="detail-card">
         <div class="detail-card-label">Estado de cuotas</div>
@@ -1867,19 +1867,7 @@ function calcularFechaCuota(base, numeroCuota, freqDias) {
   return d;
 }
 
-  if (freqDias === 30) {
-    return sumarMesesRespetandoDia(base, numeroCuota);
-  }
-
-  if (freqDias === 60) {
-    return sumarMesesRespetandoDia(base, numeroCuota * 2);
-  }
-
-  d.setDate(d.getDate() + (freqDias * numeroCuota));
-  return d;
-}   
-
-function recalcNP() {
+ function recalcNP() {
   const cap = parseFloat(document.getElementById('np-capital')?.value) || 0;
   const int = parseFloat(document.getElementById('np-interes')?.value) || 0;
   const cuotas = Math.max(1, parseInt(document.getElementById('np-cuotas')?.value) || 1);
