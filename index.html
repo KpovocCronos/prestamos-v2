@@ -1699,21 +1699,27 @@ async function renderVencimientos() {
   document.getElementById('venc-loading').style.display = 'flex';
   document.getElementById('venc-content').style.display = 'none';
   await loadAll();
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
+
+  const hoy = new Date();
+  hoy.setHours(0,0,0,0);
+
   const pendientes = DB.cuotas
     .filter(c => c.estado !== 'Pagada' && c.estado !== 'Pagada con atraso')
-    .map(c => ({...c, _fecha: parseFecha(c.vencimiento)}))
-    .sort((a,b) => (a._fecha||0) - (b._fecha||0));
+    .map(c => ({ ...c, _fecha: parseFecha(c.vencimiento) }))
+    .sort((a,b) => (a._fecha || 0) - (b._fecha || 0));
 
   const tbody = document.getElementById('venc-table');
+
   tbody.innerHTML = pendientes.map(c => {
-   <td><div class="td-name">${cl.id ? `${cl.apellido}, ${cl.nombre}` : c.clienteId}</div></td>
+    const cl = DB.clientes.find(x => x.id === c.clienteId) || {};
     const vencida = c._fecha && c._fecha < hoy;
+    const fechaMostrar = c._fecha ? fmtFecha(c._fecha) : c.vencimiento;
+
     return `<tr class="clickable" onclick="nav('detalle-prestamo','${c.prestId}')">
       <td><div class="td-name">${cl.id ? `${cl.apellido}, ${cl.nombre}` : c.clienteId}</div></td>
       <td class="td-mono">${c.prestId}</td>
       <td class="td-mono">${c.nro}</td>
-      <td>${vencida ? `<span class="text-red">${c.vencimiento}</span>` : c.vencimiento}</td>
+      <td>${vencida ? `<span class="text-red">${fechaMostrar}</span>` : fechaMostrar}</td>
       <td class="td-mono">${fmt(c.monto)}</td>
       <td class="td-mono text-green">${fmt(c.pagado)}</td>
       <td class="td-mono text-amber">${fmt(c.saldo)}</td>
@@ -1725,7 +1731,6 @@ async function renderVencimientos() {
   document.getElementById('venc-loading').style.display = 'none';
   document.getElementById('venc-content').style.display = 'block';
 }
-
 // ============================================================
 // NUEVO PRÉSTAMO
 // ============================================================
