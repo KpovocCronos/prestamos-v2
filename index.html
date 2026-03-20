@@ -1311,11 +1311,12 @@ function calcEstadoPrestamo(prestId) {
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const cuotas = DB.cuotas.filter(c => c.prestId === prestId);
   if (!cuotas.length) return 'Activo';
-  const saldoTotal = cuotas.reduce((a,c) => a + c.saldo, 0);
-  if (saldoTotal <= 0) return 'Finalizado';
+  const saldoTotal = cuotas.reduce((a,c) => a + (parseFloat(c.saldo)||0), 0);
+  if (saldoTotal <= 0.01) return 'Finalizado';
   const hayVencidas = cuotas.some(c => {
+    if (c.estado === 'Pagada' || c.estado.startsWith('Pagada con')) return false;
     const d = parseFecha(c.vencimiento);
-    return d && d < hoy && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con');
+    return d && d < hoy;
   });
   return hayVencidas ? 'En mora' : 'Activo';
 }
@@ -1325,12 +1326,13 @@ function calcEstadoCliente(clienteId) {
   const prestamos = DB.prestamos.filter(p => p.clienteId === clienteId);
   if (!prestamos.length) return 'Sin préstamos';
   const cuotas = DB.cuotas.filter(c => c.clienteId === clienteId);
-  if (!cuotas.length) return 'Activo';
-  const saldoTotal = cuotas.reduce((a,c) => a + c.saldo, 0);
-  if (saldoTotal <= 0) return 'Crédito finalizado';
+  if (!cuotas.length) return 'Sin préstamos';
+  const saldoTotal = cuotas.reduce((a,c) => a + (parseFloat(c.saldo)||0), 0);
+  if (saldoTotal <= 0.01) return 'Crédito finalizado';
   const hayVencidas = cuotas.some(c => {
+    if (c.estado === 'Pagada' || c.estado.startsWith('Pagada con')) return false;
     const d = parseFecha(c.vencimiento);
-    return d && d < hoy && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con');
+    return d && d < hoy;
   });
   return hayVencidas ? 'En mora' : 'Activo';
 }
@@ -2120,14 +2122,23 @@ async function renderEstadisticas() {
   document.getElementById('est-rango-label').textContent = '(' + labels[estPeriodoDias] + ')';
 
   // Préstamos en el período
-  const prestPeriodo = DB.prestamos.filter(p => {
-    const d = parseFecha(p.fechaInicio);
-    return d && d >= desde && d <= hoy;
-  });
+  const prestPeriodo = estPeriodoDias === 0
+    ? DB.prestamos
+    : DB.prestamos.filter(p => {
+        const d = parseFecha(p.fechaInicio);
+        return d && d >= desde && d <= hoy;
+      });
   const capitalTotal = prestPeriodo.reduce((a,p) => a+p.capital, 0);
-  const gbTotal = prestPeriodo.reduce((a,p) => a+p.ganBruta, 0);
+  const gbTotal = prestPeriodo.reduce((a,p) => {
+    const gb = p.ganBruta || (p.capital * (parseFloat(p.interes)||0) / 100);
+    return a + gb;
+  }, 0);
   const comTotal = prestPeriodo.reduce((a,p) => a+p.comision, 0);
-  const gnTotal = prestPeriodo.reduce((a,p) => a+p.ganNeta, 0);
+  const gnTotal = prestPeriodo.reduce((a,p) => {
+    const gb = p.ganBruta || (p.capital * (parseFloat(p.interes)||0) / 100);
+    const com = p.comision || 0;
+    return a + gb - com;
+  }, 0);
   const terceroCount = prestPeriodo.filter(p => p.tipo==='De tercero').length;
   const tasaPromedio = prestPeriodo.length ? (gbTotal/capitalTotal*100).toFixed(1) : 0;
 
@@ -2141,31 +2152,39 @@ async function renderEstadisticas() {
   document.getElementById('est-gn-meta').textContent = gbTotal > 0 ? 'margen neto: '+(gnTotal/gbTotal*100).toFixed(1)+'%' : '—';
 
   // Pagos cobrados en el período
-  const pagosPeriodo = DB.pagos.filter(p => {
-    const d = parseFecha(p.fecha);
-    return d && d >= desde && d <= hoy;
-  });
+  const pagosPeriodo = estPeriodoDias === 0
+    ? DB.pagos
+    : DB.pagos.filter(p => {
+        const d = parseFecha(p.fecha);
+        return d && d >= desde && d <= hoy;
+      });
   const montoCobrado = pagosPeriodo.reduce((a,p) => a+p.monto, 0);
   document.getElementById('est-cobrado').textContent = fmt(montoCobrado);
   document.getElementById('est-cobrado-meta').textContent = pagosPeriodo.length + ' pagos recibidos';
 
   // Mora
   const cuotasVencPeriodo = DB.cuotas.filter(c => {
+    if (c.estado === 'Pagada' || c.estado.startsWith('Pagada con')) return false;
+    if (estPeriodoDias === 0) return true;
     const d = parseFecha(c.vencimiento);
-    return d && d >= desde && d <= hoy && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con');
+    return d && d >= desde && d <= hoy;
   });
   const montoMora = cuotasVencPeriodo.reduce((a,c) => a+c.saldo, 0);
-  const totalCuotasPeriodo = DB.cuotas.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hoy; }).length;
+  const totalCuotasPeriodo = estPeriodoDias === 0
+    ? DB.cuotas.length
+    : DB.cuotas.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hoy; }).length;
   const tasaMora = totalCuotasPeriodo > 0 ? (cuotasVencPeriodo.length/totalCuotasPeriodo*100).toFixed(1) : 0;
   document.getElementById('est-mora').textContent = fmt(montoMora);
   document.getElementById('est-mora-meta').textContent = cuotasVencPeriodo.length + ' cuotas vencidas sin pagar';
   document.getElementById('est-tasa-mora').textContent = tasaMora + '%';
 
   // Clientes nuevos
-  const clientesNuevos = DB.clientes.filter(c => {
-    const d = parseFecha(c.alta);
-    return d && d >= desde && d <= hoy;
-  });
+  const clientesNuevos = estPeriodoDias === 0
+    ? DB.clientes
+    : DB.clientes.filter(c => {
+        const d = parseFecha(c.alta);
+        return d && d >= desde && d <= hoy;
+      });
   document.getElementById('est-cli-nuevos').textContent = clientesNuevos.length;
   document.getElementById('est-cli-nuevos-meta').textContent = clientesNuevos.map(c => c.apellido).join(', ') || 'en el período';
 
@@ -2202,8 +2221,10 @@ async function renderEstadisticas() {
   // Top clientes por capital
   const volClientes = {};
   DB.prestamos.forEach(p => {
-    const d = parseFecha(p.fechaInicio);
-    if (!d || d < desde || d > hoy) return;
+    if (estPeriodoDias !== 0) {
+      const d = parseFecha(p.fechaInicio);
+      if (!d || d < desde || d > hoy) return;
+    }
     if (!volClientes[p.clienteId]) volClientes[p.clienteId] = { capital:0, count:0, gn:0 };
     volClientes[p.clienteId].capital += p.capital;
     volClientes[p.clienteId].count++;
@@ -2282,3 +2303,4 @@ init();
 </script>
 </body>
 </html>
+
