@@ -1370,10 +1370,10 @@ async function loadAll(force = false) {
         sheetsGet('Cuotas!A2:J'),
         sheetsGet('Pagos!A2:H'),
       ]);
-      DB.clientes  = clientes.map(rowToCliente);
-      DB.prestamos = prestamos.map(rowToPrestamo);
-      DB.cuotas    = cuotas.map(rowToCuota);
-      DB.pagos     = pagos.map(rowToPago);
+      DB.clientes  = clientes.map(rowToCliente).filter(c => c.id && c.id.startsWith('CLI-'));
+      DB.prestamos = prestamos.map(rowToPrestamo).filter(p => p.id && p.id.startsWith('PREST-'));
+      DB.cuotas    = cuotas.map(rowToCuota).filter(c => c.id && c.id.startsWith('PREST-'));
+      DB.pagos     = pagos.map(rowToPago).filter(p => p.id && p.id.startsWith('PAGO-'));
       _lastLoad = Date.now();
     } catch(e) {
       console.error(e);
@@ -2685,11 +2685,12 @@ async function guardarEditCliente() {
   if (!apellido || !nombre || !dni) { showToast('Apellido, nombre y DNI son obligatorios', 'error'); return; }
 
   try {
-    // Leer con header incluido (A1) para encontrar la fila exacta
+    // Leer desde A1 con header para calcular fila exacta en Sheets
     const datos = await sheetsGet('Clientes!A1:L');
+    // rowIdx 0 = header (fila 1), rowIdx 1 = primer dato (fila 2)
     const rowIdx = datos.findIndex(r => r[0] === editClienteId);
     if (rowIdx < 0) throw new Error('Cliente no encontrado en Sheets');
-    const sheetRow = rowIdx + 1; // rowIdx 0 = fila 1 del sheet
+    const sheetRow = rowIdx + 1; // fila real en Sheets (1-based)
     await sheetsUpdate(`Clientes!B${sheetRow}:L${sheetRow}`, [[apellido, nombre, alias, dni, tel, tel2, email, dir, datos[rowIdx][9]||'', datos[rowIdx][10]||'Si', notas]]);
 
     // Actualizar nombre en hoja Prestamos (columna C = nombre cliente)
