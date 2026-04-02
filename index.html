@@ -2569,15 +2569,21 @@ async function eliminarPrestamo(prestId) {
 // Elimina filas de una hoja donde la columna colIdx coincide con valor
 async function eliminarFilasSheets(range, colIdx, valor) {
   const hoja = range.split('!')[0];
-  // Leer solo los datos (sin header) desde fila 2
+  // Leer datos desde fila 2 (sin header)
   const datos = await sheetsGet(range);
   if (!datos || datos.length === 0) return;
-  const nuevas = datos.filter(row => (row[colIdx] || '') !== valor);
-  if (nuevas.length === datos.length) return; // nada que borrar
+  // Filtrar: sacar la fila objetivo Y cualquier fila que sea header duplicado
+  // (headers no empiezan con CLI-, PREST-, PAGO-)
+  const esHeader = row => {
+    const v = (row[0] || '').toString();
+    return !v.match(/^(CLI-|PREST-|PAGO-|DOC-)/);
+  };
+  const nuevas = datos.filter(row => !esHeader(row) && (row[colIdx] || '') !== valor);
+  if (nuevas.length === datos.length && !datos.some(esHeader)) return; // nada que borrar
   // Limpiar desde fila 2 hasta el final de los datos actuales
-  const ultimaFila = datos.length + 1; // +1 porque datos empieza en fila 2
+  const ultimaFila = datos.length + 1;
   await sheetsClear(hoja + '!A2:Z' + ultimaFila);
-  // Reescribir los datos filtrados desde fila 2 (sin tocar el header)
+  // Reescribir los datos filtrados desde fila 2 (header fila 1 intacto)
   if (nuevas.length > 0) {
     const r = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(hoja + '!A2')}?valueInputOption=USER_ENTERED`,
@@ -2704,14 +2710,17 @@ async function guardarEditCliente() {
     const sheetRow = rowIdx + 1; // fila real en Sheets (1-based)
     await sheetsUpdate(`Clientes!B${sheetRow}:L${sheetRow}`, [[apellido, nombre, alias, dni, tel, tel2, email, dir, datos[rowIdx][9]||'', datos[rowIdx][10]||'Si', notas]]);
 
-    // Actualizar nombre en hoja Prestamos (columna C = nombre cliente)
+    // Actualizar nombre en hoja Préstamos (columna C = nombre cliente)
     const nuevoNombre = apellido + ', ' + nombre;
     const prestData = await sheetsGet('Préstamos!A1:P');
     for (let i = 0; i < prestData.length; i++) {
       if (prestData[i][1] === editClienteId) {
-        await sheetsUpdate(`Prestamos!C${i+1}`, [[nuevoNombre]]);
+        await sheetsUpdate(`Préstamos!C${i+1}`, [[nuevoNombre]]);
       }
     }
+
+    // Actualizar nombre en hoja Cuotas (columna C = clienteId — no hay nombre, no hace falta)
+    // El nombre en Calendar sí se actualiza abajo
 
     // Actualizar eventos Calendar pendientes con el nuevo nombre
     if (CFG.calId) {
