@@ -2568,16 +2568,22 @@ async function eliminarPrestamo(prestId) {
 
 // Elimina filas de una hoja donde la columna colIdx coincide con valor
 async function eliminarFilasSheets(range, colIdx, valor) {
-  const datos = await sheetsGet(range);
-  if (!datos || datos.length === 0) return;
-  // Construir nuevo array sin las filas que coinciden
+  // Leer desde fila 1 para incluir el header
+  const hoja = range.split('!')[0];
+  const cols = range.includes('!') ? range.split('!')[1].replace(/\d/g, '') : 'A:Z';
+  const todosConHeader = await sheetsGet(hoja + '!' + cols.split(':')[0] + '1:' + cols.split(':')[1]);
+  if (!todosConHeader || todosConHeader.length === 0) return;
+
+  const header = todosConHeader[0]; // fila 1 = títulos
+  const datos = todosConHeader.slice(1); // filas 2 en adelante = datos
+
   const nuevas = datos.filter(row => (row[colIdx] || '') !== valor);
   if (nuevas.length === datos.length) return; // nada que borrar
-  // Limpiar todo el rango y reescribir
-  const hoja = range.split('!')[0];
-  const totalFilas = datos.length + 1; // +1 por header
-  await sheetsClear(hoja + '!A2:Z' + (totalFilas + 1));
-  if (nuevas.length > 0) await sheetsAppend(range, nuevas);
+
+  // Limpiar datos (desde fila 2) y reescribir solo los datos sin el header
+  const totalFilas = todosConHeader.length + 2;
+  await sheetsClear(hoja + '!A2:Z' + totalFilas);
+  if (nuevas.length > 0) await sheetsAppend(hoja + '!A2', nuevas);
 }
 
 async function sheetsClear(range) {
