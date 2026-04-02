@@ -2568,22 +2568,27 @@ async function eliminarPrestamo(prestId) {
 
 // Elimina filas de una hoja donde la columna colIdx coincide con valor
 async function eliminarFilasSheets(range, colIdx, valor) {
-  // Leer desde fila 1 para incluir el header
   const hoja = range.split('!')[0];
-  const cols = range.includes('!') ? range.split('!')[1].replace(/\d/g, '') : 'A:Z';
-  const todosConHeader = await sheetsGet(hoja + '!' + cols.split(':')[0] + '1:' + cols.split(':')[1]);
-  if (!todosConHeader || todosConHeader.length === 0) return;
-
-  const header = todosConHeader[0]; // fila 1 = títulos
-  const datos = todosConHeader.slice(1); // filas 2 en adelante = datos
-
+  // Leer solo los datos (sin header) desde fila 2
+  const datos = await sheetsGet(range);
+  if (!datos || datos.length === 0) return;
   const nuevas = datos.filter(row => (row[colIdx] || '') !== valor);
   if (nuevas.length === datos.length) return; // nada que borrar
-
-  // Limpiar datos (desde fila 2) y reescribir solo los datos sin el header
-  const totalFilas = todosConHeader.length + 2;
-  await sheetsClear(hoja + '!A2:Z' + totalFilas);
-  if (nuevas.length > 0) await sheetsAppend(hoja + '!A2', nuevas);
+  // Limpiar desde fila 2 hasta el final de los datos actuales
+  const ultimaFila = datos.length + 1; // +1 porque datos empieza en fila 2
+  await sheetsClear(hoja + '!A2:Z' + ultimaFila);
+  // Reescribir los datos filtrados desde fila 2 (sin tocar el header)
+  if (nuevas.length > 0) {
+    const r = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(hoja + '!A2')}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: nuevas })
+      }
+    );
+    if (!r.ok) throw new Error('Sheets UPDATE error ' + r.status);
+  }
 }
 
 async function sheetsClear(range) {
@@ -2701,7 +2706,7 @@ async function guardarEditCliente() {
 
     // Actualizar nombre en hoja Prestamos (columna C = nombre cliente)
     const nuevoNombre = apellido + ', ' + nombre;
-    const prestData = await sheetsGet('Prestamos!A1:P');
+    const prestData = await sheetsGet('Préstamos!A1:P');
     for (let i = 0; i < prestData.length; i++) {
       if (prestData[i][1] === editClienteId) {
         await sheetsUpdate(`Prestamos!C${i+1}`, [[nuevoNombre]]);
