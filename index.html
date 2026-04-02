@@ -2538,16 +2538,21 @@ function pedirEliminarPrestamo(prestId) {
 }
 
 async function eliminarPrestamo(prestId) {
-  const cuotas = DB.cuotas.filter(c => c.prestId === prestId);
-  const todasPagas = cuotas.every(c => c.estado.startsWith('Pagada'));
-  showToast('Eliminando préstamo...', 'success');
+  showToast('Eliminando préstamo...');
 
   try {
-    // 1. Borrar eventos Calendar de cuotas NO pagadas
-    if (!todasPagas) {
-      const cuotasPendientes = cuotas.filter(c => !c.estado.startsWith('Pagada'));
-      for (const c of cuotasPendientes) {
-        if (c.eventId) await borrarEventoCalendar(c.eventId);
+    // 1. Leer cuotas DIRECTO del Sheet (no del cache, puede estar desactualizado)
+    const cuotasRaw = await sheetsGet('Cuotas!A:J');
+    const cuotasPrest = cuotasRaw
+      .filter(r => r[1] === prestId)
+      .map(rowToCuota);
+    const todasPagas = cuotasPrest.length > 0 && cuotasPrest.every(c => c.estado.startsWith('Pagada'));
+
+    // 2. Borrar eventos Calendar de cuotas NO pagadas
+    if (!todasPagas && CFG.calId) {
+      const pendientes = cuotasPrest.filter(c => !c.estado.startsWith('Pagada') && c.eventId);
+      for (const c of pendientes) {
+        await borrarEventoCalendar(c.eventId);
       }
     }
 
@@ -2926,9 +2931,12 @@ function pedirEliminarCliente(clienteId) {
 async function eliminarCliente(clienteId) {
   showToast('Eliminando cliente...');
   try {
-    // 1. Borrar eventos Calendar de cuotas pendientes
+    // 1. Leer cuotas DIRECTO del Sheet antes de borrar nada
     if (CFG.calId) {
-      const cuotasPend = DB.cuotas.filter(c => c.clienteId === clienteId && !c.estado.startsWith('Pagada') && c.eventId);
+      const cuotasRaw = await sheetsGet('Cuotas!A:J');
+      const cuotasPend = cuotasRaw
+        .filter(r => r[2] === clienteId && r[8] && !r[8].startsWith('Pagada') && r[9])
+        .map(rowToCuota);
       for (const c of cuotasPend) {
         await borrarEventoCalendar(c.eventId);
       }
