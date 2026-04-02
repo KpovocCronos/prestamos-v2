@@ -1668,6 +1668,7 @@ function renderDetalleCliente(clienteId) {
       </div>
       <div class="flex-row">
         <button class="btn btn-ghost btn-sm" onclick="abrirEditClienteModal('${c.id}')">✏ Editar cliente</button>
+        <button class="btn btn-danger btn-sm" onclick="pedirEliminarCliente('${c.id}')">🗑 Eliminar cliente</button>
         <button class="btn btn-primary btn-sm" onclick="nav('nuevo-prestamo')">+ Nuevo préstamo</button>
       </div>
     </div>
@@ -2216,7 +2217,7 @@ async function confirmarPago() {
   try {
     await sheetsAppend('Pagos!A:H', [[pagoId, c.id, c.prestId, c.clienteId, fmtFechaES(fechaPago), monto.toFixed(2), diasAtraso, notas]]);
     // Find row in Cuotas and update
-    const cuotasData = await sheetsGet('Cuotas!A:J');
+    const cuotasData = await sheetsGet('Cuotas!A1:J');
 const rowIdx = cuotasData.findIndex(r => r[0] === c.id);
 if (rowIdx >= 0) {
   const sheetRow = rowIdx + 1;
@@ -2622,10 +2623,10 @@ async function guardarEditPrest() {
   const notas = document.getElementById('ep-notas').value.trim();
 
   try {
-    const datos = await sheetsGet('Préstamos!A:P');
+    const datos = await sheetsGet('Préstamos!A1:P');
     const rowIdx = datos.findIndex(r => r[0] === editPrestId);
     if (rowIdx < 0) throw new Error('Préstamo no encontrado en Sheets');
-    const sheetRow = rowIdx + 2; // +1 header +1 base1
+    const sheetRow = rowIdx + 1; // rowIdx 0 = fila 1 del sheet
     const tipoStr = tipo === 'tercero' ? 'De tercero' : 'propio';
     await sheetsUpdate(`Préstamos!I${sheetRow}:K${sheetRow}`, [[tipoStr, '', tercero]]);
     await sheetsUpdate(`Préstamos!P${sheetRow}`, [[notas]]);
@@ -2684,14 +2685,43 @@ async function guardarEditCliente() {
   if (!apellido || !nombre || !dni) { showToast('Apellido, nombre y DNI son obligatorios', 'error'); return; }
 
   try {
-    const datos = await sheetsGet('Clientes!A:L');
+    // Leer con header incluido (A1) para encontrar la fila exacta
+    const datos = await sheetsGet('Clientes!A1:L');
     const rowIdx = datos.findIndex(r => r[0] === editClienteId);
     if (rowIdx < 0) throw new Error('Cliente no encontrado en Sheets');
-    const sheetRow = rowIdx + 2;
-    await sheetsUpdate(`Clientes!B${sheetRow}:L${sheetRow}`, [[apellido, nombre, alias, dni, tel, tel2, email, dir, datos[rowIdx][9]||'', datos[rowIdx][10]||'Sí', notas]]);
+    const sheetRow = rowIdx + 1; // rowIdx 0 = fila 1 del sheet
+    await sheetsUpdate(`Clientes!B${sheetRow}:L${sheetRow}`, [[apellido, nombre, alias, dni, tel, tel2, email, dir, datos[rowIdx][9]||'', datos[rowIdx][10]||'Si', notas]]);
+
+    // Actualizar nombre en hoja Prestamos (columna C = nombre cliente)
+    const nuevoNombre = apellido + ', ' + nombre;
+    const prestData = await sheetsGet('Prestamos!A1:P');
+    for (let i = 0; i < prestData.length; i++) {
+      if (prestData[i][1] === editClienteId) {
+        await sheetsUpdate(`Prestamos!C${i+1}`, [[nuevoNombre]]);
+      }
+    }
+
+    // Actualizar eventos Calendar pendientes con el nuevo nombre
+    if (CFG.calId) {
+      const cuotasPend = DB.cuotas.filter(c => c.clienteId === editClienteId && !c.estado.startsWith('Pagada') && c.eventId);
+      for (const c of cuotasPend) {
+        try {
+          const totalCuotas = DB.cuotas.filter(x => x.prestId === c.prestId).length;
+          await fetch(
+            'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId,
+            {
+              method: 'PATCH',
+              headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ summary: '\u{1F4B0} ' + nuevoNombre + ' \u2014 Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(c.saldo) + ' (' + c.prestId + ')' })
+            }
+          );
+        } catch(calErr) { console.warn('Error actualizando Calendar:', c.eventId, calErr); }
+      }
+    }
+
     invalidateCache();
     closeEditClienteModal();
-    showToast('✓ Cliente actualizado');
+    showToast('Cliente actualizado');
     await loadAll(true);
     renderDetalleCliente(editClienteId);
   } catch(e) {
@@ -2841,6 +2871,61 @@ async function confirmarReprogramar() {
 document.getElementById('reprogModal').addEventListener('click', e => {
   if (e.target === document.getElementById('reprogModal')) closeReprogModal();
 });
+
+
+// ============================================================
+// ELIMINAR CLIENTE
+// ============================================================
+function pedirEliminarCliente(clienteId) {
+  const c = DB.clientes.find(x => x.id === clienteId);
+  if (!c) return;
+  const ps = DB.prestamos.filter(p => p.clienteId === clienteId);
+  const cuotasPend = DB.cuotas.filter(cu => cu.clienteId === clienteId && !cu.estado.startsWith('Pagada'));
+  if (cuotasPend.length > 0) {
+    mostrarConfirm(
+      'Eliminar cliente con préstamos activos',
+      c.apellido + ', ' + c.nombre + ' tiene ' + cuotasPend.length + ' cuota/s pendiente/s. Se eliminarán el cliente, todos sus préstamos, cuotas y eventos Calendar pendientes. Esta acción no se puede deshacer.',
+      () => eliminarCliente(clienteId)
+    );
+  } else if (ps.length > 0) {
+    mostrarConfirm(
+      'Eliminar cliente',
+      c.apellido + ', ' + c.nombre + ' tiene préstamos completamente pagados. Se eliminará el cliente y sus datos de Sheets. Los eventos Calendar pagados se conservan.',
+      () => eliminarCliente(clienteId)
+    );
+  } else {
+    mostrarConfirm(
+      'Eliminar cliente',
+      'Eliminar a ' + c.apellido + ', ' + c.nombre + ' (' + clienteId + ')? Esta acción no se puede deshacer.',
+      () => eliminarCliente(clienteId)
+    );
+  }
+}
+
+async function eliminarCliente(clienteId) {
+  showToast('Eliminando cliente...');
+  try {
+    // 1. Borrar eventos Calendar de cuotas pendientes
+    if (CFG.calId) {
+      const cuotasPend = DB.cuotas.filter(c => c.clienteId === clienteId && !c.estado.startsWith('Pagada') && c.eventId);
+      for (const c of cuotasPend) {
+        await borrarEventoCalendar(c.eventId);
+      }
+    }
+    // 2. Borrar filas en Sheets
+    await eliminarFilasSheets('Cuotas!A:J', 2, clienteId);    // col C = clienteId
+    await eliminarFilasSheets('Pagos!A:H', 3, clienteId);     // col D = clienteId
+    await eliminarFilasSheets('Calendario!A:F', 2, clienteId); // col C = clienteId
+    await eliminarFilasSheets('Préstamos!A:P', 1, clienteId); // col B = clienteId
+    await eliminarFilasSheets('Clientes!A:L', 0, clienteId);  // col A = clienteId
+    invalidateCache();
+    await loadAll(true);
+    showToast('✓ Cliente eliminado');
+    nav('clientes');
+  } catch(e) {
+    showToast('Error al eliminar: ' + e.message, 'error');
+  }
+}
 
 // ============================================================
 // INIT
