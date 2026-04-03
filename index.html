@@ -2610,7 +2610,7 @@ async function guardarEditCliente() {
       for (const c of cuotasPend) {
         try {
           const totalCuotas = DB.cuotas.filter(x => x.prestId === c.prestId).length;
-          await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: '\u{1F4B0} ' + nuevoNombre + ' \u2014 Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(c.saldo) + ' (' + c.prestId + ')' }) });
+          await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: '💰 ' + nuevoNombre + ' — Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(c.saldo) + ' (' + c.prestId + ')' }) });
         } catch(calErr) { console.warn('Error actualizando Calendar:', c.eventId, calErr); }
       }
     }
