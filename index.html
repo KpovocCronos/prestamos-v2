@@ -484,6 +484,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
   font-size: 12px;
   color: var(--muted);
   flex-shrink: 0;
+  position: relative;
 }
 .cuota-fecha { font-size: 13px; font-weight: 600; }
 .cuota-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
@@ -2324,12 +2325,6 @@ function fmtFecha(d) {
 
 function fmtFechaES(d) {
   return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('/');
-}
-
-// Convierte fecha type="date" (yyyy-mm-dd) a Date
-function dateInputToDate(inputVal) {
-  if (!inputVal) return null;
-  return new Date(inputVal + 'T12:00:00');
 }
 
 function estadoPill(estado) {
