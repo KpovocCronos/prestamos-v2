@@ -199,6 +199,7 @@ a { color: var(--accent2); text-decoration: none; }
 .btn-danger { background: var(--redbg); color: var(--red); border: 1px solid rgba(248,113,113,.2); }
 .btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 6px; }
 .btn-icon { padding: 7px; border-radius: 7px; }
+.btn-amber { background: var(--amberbg); color: var(--amber); border: 1px solid rgba(251,191,36,.2); }
 
 /* Pills */
 .pill {
@@ -303,6 +304,12 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
 .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: rgba(124,111,255,.5); }
 .form-select { appearance: none; cursor: pointer; }
 .form-hint { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* Date input styling for dark theme */
+.form-input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+}
 
 /* Calc box */
 .calc-box {
@@ -704,6 +711,41 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
   </div>
 </div>
 
+<!-- MODAL CUOTA EXTRA -->
+<div class="modal-overlay" id="cuotaExtraModal">
+  <div class="modal">
+    <div class="modal-title">Agregar cuota extra</div>
+    <div class="modal-sub" id="cuota-extra-sub">PREST-0001 · Cuota adicional</div>
+    <div style="background:var(--amberbg);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--amber);font-weight:600;margin-bottom:4px">⚠ Cuota adicional</div>
+      <div style="font-size:12px;color:var(--muted)">Se agrega una cuota extra al final del préstamo. Útil cuando el cliente no puede pagar una cuota y se la extiende.</div>
+    </div>
+    <div class="calc-box" style="margin-bottom:16px">
+      <div class="calc-row"><span class="calc-label">Cuotas actuales</span><span class="calc-val" id="ce-cuotas-actuales">—</span></div>
+      <div class="calc-row"><span class="calc-label">Monto por cuota</span><span class="calc-val" id="ce-monto-cuota">—</span></div>
+      <div class="calc-row"><span class="calc-label">Nueva cuota será</span><span class="calc-val text-amber" id="ce-nueva-nro">—</span></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-field">
+        <label class="form-label">Fecha de vencimiento</label>
+        <input class="form-input" type="date" id="ce-fecha">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Monto de la cuota ($)</label>
+        <input class="form-input" type="number" id="ce-monto">
+      </div>
+      <div class="form-field full">
+        <label class="form-label">Notas</label>
+        <input class="form-input" id="ce-notas" placeholder="Ej: no pudo pagar cuota 3, se extiende...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeCuotaExtraModal()">Cancelar</button>
+      <button class="btn btn-amber" id="btn-cuota-extra" onclick="confirmarCuotaExtra()">Agregar cuota extra →</button>
+    </div>
+  </div>
+</div>
+
 <!-- APP -->
 <div class="app" id="appShell" style="display:none">
   <!-- SIDEBAR -->
@@ -869,14 +911,10 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
       <!-- NUEVO PRESTAMO -->
       <div class="screen" id="screen-nuevo-prestamo">
         <div style="max-width: 600px;">
-
-          <!-- Selector cliente -->
           <div class="mode-toggle">
             <button class="mode-btn active" id="modo-existente-btn" onclick="setModoCliente('existente')">Cliente existente</button>
             <button class="mode-btn" id="modo-nuevo-btn" onclick="setModoCliente('nuevo')">+ Cliente nuevo</button>
           </div>
-
-          <!-- Existente -->
           <div id="bloque-cliente-existente">
             <div class="client-search-wrap">
               <div class="client-search-box">
@@ -897,8 +935,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
               <button class="btn btn-ghost btn-sm" onclick="limpiarClienteNP()">Cambiar</button>
             </div>
           </div>
-
-          <!-- Nuevo cliente inline -->
           <div id="bloque-cliente-nuevo" style="display:none">
             <div class="form-grid">
               <div class="form-field"><label class="form-label">Apellido</label><input class="form-input" id="nc-apellido" placeholder="García"></div>
@@ -910,8 +946,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
             </div>
             <div class="divider"></div>
           </div>
-
-          <!-- Datos préstamo -->
           <div id="bloque-prestamo-form" style="opacity:.35;pointer-events:none;transition:opacity .25s">
             <div class="form-section">
               <div class="form-section-title">Datos del préstamo</div>
@@ -958,7 +992,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
                 </div>
               </div>
             </div>
-
             <div class="calc-box mt-16">
               <div class="calc-row"><span class="calc-label">Total a devolver</span><span class="calc-val" id="np-r-total">$140.000</span></div>
               <div class="calc-row"><span class="calc-label">Ganancia bruta</span><span class="calc-val text-green" id="np-r-gb">$40.000</span></div>
@@ -966,7 +999,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
               <div class="calc-row"><span class="calc-label">Ganancia neta</span><span class="calc-val text-green" id="np-r-gn">$40.000</span></div>
               <div class="calc-row"><span class="calc-label">Cuota <span id="np-r-freq" class="text-accent">mensual</span></span><span class="calc-val text-accent" id="np-r-cuota">$23.333</span></div>
             </div>
-
             <div class="table-wrap mt-16">
               <div class="card-header">
                 <span class="card-title">Fechas de vencimiento</span>
@@ -974,7 +1006,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
               </div>
               <div class="preview-list" id="np-preview-list"></div>
             </div>
-
             <button class="btn btn-primary mt-20" style="width:100%;justify-content:center;padding:13px" id="btn-crear-prestamo" onclick="crearPrestamo()">
               Crear préstamo y generar cuotas →
             </button>
@@ -1025,8 +1056,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
       <div class="screen" id="screen-estadisticas">
         <div id="est-loading" class="loading"><div class="spinner"></div> Calculando...</div>
         <div id="est-content" style="display:none">
-
-          <!-- Filtro de período -->
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
             <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Período:</span>
             <div class="mode-toggle" style="margin-bottom:0">
@@ -1038,8 +1067,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
             </div>
             <span id="est-rango-label" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
           </div>
-
-          <!-- Stats principales -->
           <div class="stats-grid" style="margin-bottom:20px">
             <div class="stat-card">
               <div class="stat-label">Capital prestado</div>
@@ -1062,8 +1089,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
               <div class="stat-meta" id="est-gn-meta">lo que queda para vos</div>
             </div>
           </div>
-
-          <!-- Segunda fila stats -->
           <div class="stats-grid" style="margin-bottom:20px">
             <div class="stat-card">
               <div class="stat-label">Cobrado en el período</div>
@@ -1086,25 +1111,16 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
               <div class="stat-meta">cuotas vencidas / total</div>
             </div>
           </div>
-
-          <!-- Dos columnas -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-
-            <!-- Propio vs Tercero -->
             <div class="card">
               <div class="card-header"><span class="card-title">Propio vs Tercero</span></div>
               <div class="card-body" id="est-tipo-body">—</div>
             </div>
-
-            <!-- Top clientes por volumen -->
             <div class="card">
               <div class="card-header"><span class="card-title">Top clientes</span></div>
               <div id="est-top-body" style="padding:0">—</div>
             </div>
-
           </div>
-
-          <!-- Historial de pagos cobrados -->
           <div class="table-wrap">
             <div class="card-header">
               <span class="card-title">Pagos cobrados en el período</span>
@@ -1117,7 +1133,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
               <tbody id="est-pagos-tabla"></tbody>
             </table>
           </div>
-
         </div>
       </div>
 
@@ -1202,12 +1217,11 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     <div class="form-grid">
       <div class="form-field">
         <label class="form-label">Nueva fecha de la 1era cuota pendiente</label>
-        <input class="form-input" type="text" id="reprog-fecha" placeholder="dd/mm/aaaa" maxlength="10" oninput="formatearInputFecha(this);actualizarPreviewReprog()">
-        <div class="form-hint">Ingresá la fecha en formato dd/mm/aaaa</div>
+        <input class="form-input" type="date" id="reprog-fecha" onchange="actualizarPreviewReprog()">
       </div>
       <div class="form-field">
         <label class="form-label">Nueva frecuencia</label>
-        <select class="form-select" id="reprog-freq">
+        <select class="form-select" id="reprog-freq" onchange="actualizarPreviewReprog()">
           <option value="7">Semanal (cada 7 días)</option>
           <option value="15">Quincenal (cada 15 días)</option>
           <option value="30" selected>Mensual (cada 30 días)</option>
@@ -1244,6 +1258,7 @@ let TOKEN = null;
 let DB = { clientes: [], prestamos: [], cuotas: [], pagos: [], documentos: [], calendario: [] };
 let npFreqDias = 30, npFreqLabel = 'mensual', npClienteSeleccionado = null, npModoCliente = 'existente';
 let pagoActual = null;
+let cuotaExtraPrestId = null;
 
 // ============================================================
 // AUTH
@@ -1349,19 +1364,16 @@ async function sheetsUpdate(range, values) {
 }
 
 // ============================================================
-// LOAD DATA — con cache de 60 segundos
+// LOAD DATA
 // ============================================================
 let _lastLoad = 0;
 let _loadingPromise = null;
-const CACHE_TTL = 60000; // 60 segundos
+const CACHE_TTL = 60000;
 
 async function loadAll(force = false) {
   const now = Date.now();
-  // Si hay datos frescos y no es forzado, usar cache
   if (!force && DB.clientes.length > 0 && (now - _lastLoad) < CACHE_TTL) return;
-  // Si ya hay una carga en progreso, esperar esa misma
   if (_loadingPromise) return _loadingPromise;
-
   _loadingPromise = (async () => {
     try {
       const [clientes, prestamos, cuotas, pagos] = await Promise.all([
@@ -1385,7 +1397,6 @@ async function loadAll(force = false) {
   return _loadingPromise;
 }
 
-// Forzar recarga fresca (llamar después de guardar datos)
 function invalidateCache() { _lastLoad = 0; }
 
 function rowToCliente(r)  { return { id:r[0]||'', apellido:r[1]||'', nombre:r[2]||'', alias:r[3]||'', dni:r[4]||'', tel:r[5]||'', tel2:r[6]||'', email:r[7]||'', dir:r[8]||'', alta:r[9]||'', activo:r[10]||'Sí', notas:r[11]||'' }; }
@@ -1417,7 +1428,7 @@ async function nav(screen, data) {
 }
 
 // ============================================================
-// HELPERS DE ESTADO DINÁMICO (usados en todas las pantallas)
+// HELPERS DE ESTADO DINÁMICO
 // ============================================================
 function calcEstadoPrestamo(prestId) {
   const hoy = new Date(); hoy.setHours(0,0,0,0);
@@ -1495,20 +1506,17 @@ async function renderDashboard() {
   document.getElementById('stat-clientes').textContent = cantClientesActivos;
   document.getElementById('stat-clientes-meta').textContent = tercerosActivos + ' de tercero activos';
 
-  // Agrupar cuotas pendientes por cliente
   const cuotasConFecha = DB.cuotas
     .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'))
     .map(c => ({...c, _fecha: parseFecha(c.vencimiento)}))
     .filter(c => c._fecha)
     .sort((a,b) => a._fecha - b._fecha);
 
-  // Todos los clientes con préstamos activos, ordenados por próximo vencimiento
   const clientesConPrest = [];
   const vistos = new Set();
   for (const c of cuotasConFecha) {
     if (!vistos.has(c.clienteId)) { vistos.add(c.clienteId); clientesConPrest.push(c.clienteId); }
   }
-  // También incluir clientes que tienen todos pagados (para mostrarlos en verde)
   DB.clientes.forEach(cl => { if (!vistos.has(cl.id) && DB.prestamos.some(p => p.clienteId === cl.id)) clientesConPrest.push(cl.id); });
 
   const contenedor = document.getElementById('dash-acordeon');
@@ -1525,7 +1533,6 @@ async function renderDashboard() {
       const hayVencidas = cuotasCli.some(c => c._fecha < hoy);
       const proxVenc = cuotasCli[0]?._fecha;
 
-      // Header del cliente
       const header = document.createElement('div');
       header.style.cssText = `display:flex;align-items:center;justify-content:space-between;padding:13px 18px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s;${todasPagas ? 'background:rgba(52,211,153,0.07);' : ''}`;
       header.onmouseenter = () => header.style.background = todasPagas ? 'rgba(52,211,153,0.12)' : 'var(--bg3)';
@@ -1596,7 +1603,6 @@ async function renderDashboard() {
       contenedor.appendChild(header);
       contenedor.appendChild(body);
 
-      // Auto-abrir si tiene cuotas vencidas
       if (hayVencidas) {
         body.style.display = 'block';
         const arrow = document.getElementById('arrow-' + idx);
@@ -1751,6 +1757,7 @@ function renderDetallePrestamo(prestId) {
   if (!p) return;
   const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
   const cuotas = DB.cuotas.filter(c => c.prestId === prestId).sort((a,b) => a.nro - b.nro);
+  const totalCuotasReal = cuotas.length;
 
   document.getElementById('dp-content').innerHTML = `
     <div class="flex-between" style="margin-bottom:20px">
@@ -1762,6 +1769,7 @@ function renderDetallePrestamo(prestId) {
         </div>
       </div>
       <div class="flex-row">
+        <button class="btn btn-amber btn-sm" onclick="abrirCuotaExtraModal('${p.id}')">⊕ Agregar cuota extra</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirReprogModal('${p.id}')">📅 Reprogramar fechas</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirEditPrestModal('${p.id}')">✏ Editar</button>
         <button class="btn btn-danger btn-sm" onclick="pedirEliminarPrestamo('${p.id}')">🗑 Eliminar</button>
@@ -1781,7 +1789,7 @@ function renderDetallePrestamo(prestId) {
       </div>
       <div class="detail-card">
         <div class="detail-card-label">Estado de cuotas</div>
-        <div class="detail-row"><span class="detail-key">Total cuotas</span><span class="detail-val">${cuotas.length}</span></div>
+        <div class="detail-row"><span class="detail-key">Total cuotas</span><span class="detail-val">${totalCuotasReal}${totalCuotasReal > p.cuotas ? ' <span class="pill pill-amber" style="font-size:10px">+' + (totalCuotasReal - p.cuotas) + ' extra</span>' : ''}</span></div>
         <div class="detail-row"><span class="detail-key">Pagadas</span><span class="detail-val text-green">${cuotas.filter(c=>c.estado.startsWith('Pagada')).length}</span></div>
         <div class="detail-row"><span class="detail-key">Pago parcial</span><span class="detail-val text-amber">${cuotas.filter(c=>c.estado==='Pago parcial').length}</span></div>
         <div class="detail-row"><span class="detail-key">Pendientes</span><span class="detail-val">${cuotas.filter(c=>c.estado==='Pendiente').length}</span></div>
@@ -1796,10 +1804,11 @@ function renderDetallePrestamo(prestId) {
           const pct = c.monto > 0 ? Math.min(100, (c.pagado/c.monto)*100) : 0;
           const pagada = c.estado.startsWith('Pagada');
           const vencida = !pagada && parseFecha(c.vencimiento) < new Date();
+          const esExtra = c.nro > p.cuotas;
           return `<div class="cuota-item" onclick="abrirPagoModal('${c.id}')">
-            <div class="cuota-num" style="${vencida?'border-color:rgba(248,113,113,.3);color:var(--red)':pagada?'border-color:rgba(52,211,153,.3);color:var(--green)':''}">${String(c.nro).padStart(2,'0')}</div>
+            <div class="cuota-num" style="${vencida?'border-color:rgba(248,113,113,.3);color:var(--red)':pagada?'border-color:rgba(52,211,153,.3);color:var(--green)':esExtra?'border-color:rgba(251,191,36,.3);color:var(--amber)':''}">${String(c.nro).padStart(2,'0')}${esExtra?'<span style="position:absolute;top:-4px;right:-4px;font-size:8px;background:var(--amber);color:#000;border-radius:50%;width:12px;height:12px;display:flex;align-items:center;justify-content:center;font-weight:700">+</span>':''}</div>
             <div style="flex:1">
-              <div class="cuota-fecha">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} ${vencida?'<span style="color:var(--red);font-size:11px">● Vencida</span>':''}</div>
+              <div class="cuota-fecha">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} ${vencida?'<span style="color:var(--red);font-size:11px">● Vencida</span>':''}${esExtra?' <span class="pill pill-amber" style="font-size:9px;padding:1px 6px">Extra</span>':''}</div>
               <div class="cuota-sub">${c.estado} · Pagado: ${fmt(c.pagado)}</div>
               <div class="cuota-prog"><div class="cuota-prog-fill" style="width:${pct}%;background:${pagada?'var(--green)':pct>0?'var(--amber)':'var(--border2)'}"></div></div>
             </div>
@@ -1820,22 +1829,16 @@ async function renderVencimientos() {
   document.getElementById('venc-loading').style.display = 'flex';
   document.getElementById('venc-content').style.display = 'none';
   await loadAll();
-
-  const hoy = new Date();
-  hoy.setHours(0,0,0,0);
-
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
   const pendientes = DB.cuotas
     .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'))
     .map(c => ({ ...c, _fecha: parseFecha(c.vencimiento) }))
     .sort((a,b) => (a._fecha || 0) - (b._fecha || 0));
-
   const tbody = document.getElementById('venc-table');
-
   tbody.innerHTML = pendientes.map(c => {
     const cl = DB.clientes.find(x => x.id === c.clienteId) || {};
     const vencida = c._fecha && c._fecha < hoy;
     const fechaMostrar = c._fecha ? fmtFecha(c._fecha) : c.vencimiento;
-
     return `<tr class="clickable" onclick="nav('detalle-prestamo','${c.prestId}')">
       <td><div class="td-name">${cl.id ? `${cl.apellido}, ${cl.nombre}` : c.clienteId}</div></td>
       <td class="td-mono">${c.prestId}</td>
@@ -1848,10 +1851,10 @@ async function renderVencimientos() {
       <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal('${c.id}')">Pagar</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">No hay cuotas pendientes 🎉</td></tr>';
-
   document.getElementById('venc-loading').style.display = 'none';
   document.getElementById('venc-content').style.display = 'block';
 }
+
 // ============================================================
 // NUEVO PRÉSTAMO
 // ============================================================
@@ -1875,10 +1878,7 @@ function setModoCliente(modo) {
   else if (!npClienteSeleccionado) { bloque.style.opacity='.35'; bloque.style.pointerEvents='none'; }
 }
 
-function abrirDropdownNP() {
-  renderDropdownNP(DB.clientes);
-}
-
+function abrirDropdownNP() { renderDropdownNP(DB.clientes); }
 function filtrarClientesNP(q) {
   const ql = q.toLowerCase();
   renderDropdownNP(DB.clientes.filter(c => (c.apellido+c.nombre+c.alias+c.dni).toLowerCase().includes(ql)));
@@ -1949,58 +1949,40 @@ function toggleTerceroNP() {
     document.getElementById('np-tipo').value === 'tercero' ? 'flex' : 'none';
 }
 
-function diasEnMes(anio, mesIndex) {
-  return new Date(anio, mesIndex + 1, 0).getDate();
-}
+function diasEnMes(anio, mesIndex) { return new Date(anio, mesIndex + 1, 0).getDate(); }
 
 function sumarMesesRespetandoDia(base, mesesASumar) {
   const diaOriginal = base.getDate();
   const anio = base.getFullYear();
   const mes = base.getMonth();
-
   const destinoMesIndexTotal = mes + mesesASumar;
   const destinoAnio = anio + Math.floor(destinoMesIndexTotal / 12);
   const destinoMes = ((destinoMesIndexTotal % 12) + 12) % 12;
-
   const ultimoDiaDestino = diasEnMes(destinoAnio, destinoMes);
   const diaFinal = Math.min(diaOriginal, ultimoDiaDestino);
-
   return new Date(destinoAnio, destinoMes, diaFinal, 12, 0, 0);
 }
 
 function calcularFechaCuota(base, numeroCuota, freqDias) {
   const d = new Date(base);
-
-  if (freqDias === 7 || freqDias === 15) {
-    d.setDate(d.getDate() + (freqDias * numeroCuota));
-    return d;
-  }
-
-  if (freqDias === 30) {
-    return sumarMesesRespetandoDia(base, numeroCuota);
-  }
-
-  if (freqDias === 60) {
-    return sumarMesesRespetandoDia(base, numeroCuota * 2);
-  }
-
+  if (freqDias === 7 || freqDias === 15) { d.setDate(d.getDate() + (freqDias * numeroCuota)); return d; }
+  if (freqDias === 30) return sumarMesesRespetandoDia(base, numeroCuota);
+  if (freqDias === 60) return sumarMesesRespetandoDia(base, numeroCuota * 2);
   d.setDate(d.getDate() + (freqDias * numeroCuota));
   return d;
 }
 
- function recalcNP() {
+function recalcNP() {
   const cap = parseFloat(document.getElementById('np-capital')?.value) || 0;
   const int = parseFloat(document.getElementById('np-interes')?.value) || 0;
   const cuotas = Math.max(1, parseInt(document.getElementById('np-cuotas')?.value) || 1);
   const tipo = document.getElementById('np-tipo')?.value || 'propio';
   const fechaStr = document.getElementById('np-fecha')?.value;
-
   const total = cap * (1 + int / 100);
   const gb = total - cap;
   const com = tipo === 'tercero' ? gb * 0.2 : 0;
   const gn = gb - com;
   const cuotaM = total / cuotas;
-
   document.getElementById('np-r-total').textContent = fmt(total);
   document.getElementById('np-r-gb').textContent = fmt(gb);
   document.getElementById('np-r-com').textContent = fmt(com);
@@ -2008,33 +1990,18 @@ function calcularFechaCuota(base, numeroCuota, freqDias) {
   document.getElementById('np-r-cuota').textContent = fmt(cuotaM);
   document.getElementById('np-r-freq').textContent = npFreqLabel;
   document.getElementById('np-r-com-row').style.display = tipo === 'tercero' ? 'flex' : 'none';
-
-  const labelPlural =
-    npFreqLabel === 'mensual' ? 'mensuales' :
-    npFreqLabel === 'bimestral' ? 'bimestrales' :
-    npFreqLabel === 'quincenal' ? 'quincenales' :
-    'semanales';
-
+  const labelPlural = npFreqLabel === 'mensual' ? 'mensuales' : npFreqLabel === 'bimestral' ? 'bimestrales' : npFreqLabel === 'quincenal' ? 'quincenales' : 'semanales';
   document.getElementById('np-preview-badge').textContent = cuotas + ' cuotas · ' + labelPlural;
-
   const list = document.getElementById('np-preview-list');
   list.innerHTML = '';
-
   if (!fechaStr) return;
-
   const base = new Date(fechaStr + 'T12:00:00');
   const ds = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-
   for (let i = 1; i <= cuotas; i++) {
     const d = calcularFechaCuota(base, i, npFreqDias);
     const item = document.createElement('div');
     item.className = 'preview-item';
-    item.innerHTML = `
-      <span class="preview-num">${String(i).padStart(2,'0')}</span>
-      <span class="preview-fecha">${ds[d.getDay()]} ${fmtFecha(d)}</span>
-      <span class="preview-dias">${npFreqLabel}</span>
-      <span class="preview-monto">${fmt(cuotaM)}</span>
-    `;
+    item.innerHTML = `<span class="preview-num">${String(i).padStart(2,'0')}</span><span class="preview-fecha">${ds[d.getDay()]} ${fmtFecha(d)}</span><span class="preview-dias">${npFreqLabel}</span><span class="preview-monto">${fmt(cuotaM)}</span>`;
     list.appendChild(item);
   }
 }
@@ -2047,9 +2014,7 @@ async function crearPrestamo() {
   const fechaStr = document.getElementById('np-fecha').value;
   const tercero = document.getElementById('np-tercero')?.value||'';
   const notas = document.getElementById('np-notas')?.value||'';
-
   let clienteId, clienteNombre;
-
   if (npModoCliente === 'nuevo') {
     const apellido = document.getElementById('nc-apellido').value.trim();
     const nombre = document.getElementById('nc-nombre').value.trim();
@@ -2067,9 +2032,7 @@ async function crearPrestamo() {
     clienteId = npClienteSeleccionado.id;
     clienteNombre = npClienteSeleccionado.apellido + ', ' + npClienteSeleccionado.nombre;
   }
-
   if (!fechaStr) { showToast('Elegí una fecha de inicio', 'error'); return; }
-
   const total = cap*(1+int/100);
   const gb = total-cap;
   const com = tipo==='tercero' ? gb*0.2 : 0;
@@ -2077,29 +2040,18 @@ async function crearPrestamo() {
   const cuotaM = total/cuotas;
   const fechaInicio = new Date(fechaStr+'T12:00:00');
   const prestId = 'PREST-' + String(DB.prestamos.length + 1).padStart(4,'0');
-
   const btn = document.getElementById('btn-crear-prestamo');
   btn.disabled = true; btn.textContent = 'Guardando...';
-
   try {
-    await sheetsAppend('Préstamos!A:P', [[
-      prestId, clienteId, clienteNombre,
-      fmtFechaES(fechaInicio), cap, int+'%', total.toFixed(2),
-      cuotas, tipo, '', tercero,
-      gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notas
-    ]]);
-
+    await sheetsAppend('Préstamos!A:P', [[prestId, clienteId, clienteNombre, fmtFechaES(fechaInicio), cap, int+'%', total.toFixed(2), cuotas, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notas]]);
     const cuotasRows = [];
     const calRows = [];
     btn.textContent = 'Creando cuotas...';
-
     for (let i=1;i<=cuotas;i++) {
       const d = calcularFechaCuota(fechaInicio, i, npFreqDias);
       const cuotaId = prestId + '-C' + String(i).padStart(2,'0');
       const fechaVencES = fmtFechaES(d);
       const fechaISO = d.toISOString().split('T')[0];
-
-      // Crear evento en Google Calendar
       let eventId = '';
       try {
         btn.textContent = 'Creando cuota ' + i + '/' + cuotas + ' en Calendar...';
@@ -2111,22 +2063,15 @@ async function crearPrestamo() {
           colorId: '5',
           reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
         };
-        const calRes = await fetch(
-          'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId || '') + '/events',
-          { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) }
-        );
+        const calRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId || '') + '/events', { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) });
         if (calRes.ok) { const calData = await calRes.json(); eventId = calData.id || ''; }
       } catch(calErr) { console.warn('Calendar error cuota ' + i, calErr); }
-
       cuotasRows.push([cuotaId, prestId, clienteId, i, fechaVencES, cuotaM.toFixed(2), 0, cuotaM.toFixed(2), 'Pendiente', eventId]);
       if (eventId) calRows.push([cuotaId, prestId, clienteId, eventId, CFG.calId || '', 'Activo']);
     }
-
     await sheetsAppend('Cuotas!A:J', cuotasRows);
     if (calRows.length) await sheetsAppend('Calendario!A:F', calRows);
-
-    const calMsg = calRows.length === cuotas ? ' y ' + cuotas + ' eventos en Calendar ✓' :
-                   calRows.length > 0 ? ' (' + calRows.length + '/' + cuotas + ' en Calendar)' : '';
+    const calMsg = calRows.length === cuotas ? ' y ' + cuotas + ' eventos en Calendar ✓' : calRows.length > 0 ? ' (' + calRows.length + '/' + cuotas + ' en Calendar)' : '';
     invalidateCache();
     showToast('✓ Préstamo creado con ' + cuotas + ' cuotas' + calMsg);
     await loadAll(true);
@@ -2216,17 +2161,12 @@ async function confirmarPago() {
   const pagoId = 'PAGO-' + String(DB.pagos.length + 1).padStart(4,'0');
   try {
     await sheetsAppend('Pagos!A:H', [[pagoId, c.id, c.prestId, c.clienteId, fmtFechaES(fechaPago), monto.toFixed(2), diasAtraso, notas]]);
-    // Find row in Cuotas and update
     const cuotasData = await sheetsGet('Cuotas!A1:J');
-const rowIdx = cuotasData.findIndex(r => r[0] === c.id);
-if (rowIdx >= 0) {
-  const sheetRow = rowIdx + 1;
-  await sheetsUpdate(`Cuotas!G${sheetRow}:I${sheetRow}`, [[
-    nuevoMontoPagado.toFixed(2),
-    nuevoSaldo.toFixed(2),
-    nuevoEstado
-  ]]);
-}
+    const rowIdx = cuotasData.findIndex(r => r[0] === c.id);
+    if (rowIdx >= 0) {
+      const sheetRow = rowIdx + 1;
+      await sheetsUpdate(`Cuotas!G${sheetRow}:I${sheetRow}`, [[nuevoMontoPagado.toFixed(2), nuevoSaldo.toFixed(2), nuevoEstado]]);
+    }
     invalidateCache();
     closePagoModal();
     showToast('✓ Pago registrado' + (diasAtraso > 0 ? ' · ' + diasAtraso + ' días de atraso' : ''));
@@ -2237,26 +2177,142 @@ if (rowIdx >= 0) {
 }
 
 // ============================================================
+// CUOTA EXTRA
+// ============================================================
+function abrirCuotaExtraModal(prestId) {
+  const p = DB.prestamos.find(x => x.id === prestId);
+  if (!p) return;
+  cuotaExtraPrestId = prestId;
+  const cuotas = DB.cuotas.filter(c => c.prestId === prestId).sort((a,b) => a.nro - b.nro);
+  const ultimaCuota = cuotas[cuotas.length - 1];
+  const nuevoNro = cuotas.length + 1;
+  const montoCuota = ultimaCuota ? ultimaCuota.monto : (p.total / p.cuotas);
+
+  document.getElementById('cuota-extra-sub').textContent = prestId + ' · Cuota adicional #' + nuevoNro;
+  document.getElementById('ce-cuotas-actuales').textContent = cuotas.length + (cuotas.length > p.cuotas ? ' (incluye ' + (cuotas.length - p.cuotas) + ' extra)' : '');
+  document.getElementById('ce-monto-cuota').textContent = fmt(montoCuota);
+  document.getElementById('ce-nueva-nro').textContent = '#' + nuevoNro;
+
+  // Fecha default: 30 días después de la última cuota
+  const ultimaFecha = ultimaCuota ? parseFecha(ultimaCuota.vencimiento) : new Date();
+  const fechaDefault = new Date(ultimaFecha);
+  fechaDefault.setDate(fechaDefault.getDate() + 30);
+  document.getElementById('ce-fecha').value = fechaDefault.toISOString().split('T')[0];
+  document.getElementById('ce-monto').value = Math.round(montoCuota);
+  document.getElementById('ce-notas').value = '';
+
+  document.getElementById('cuotaExtraModal').classList.add('open');
+}
+
+function closeCuotaExtraModal() {
+  document.getElementById('cuotaExtraModal').classList.remove('open');
+  cuotaExtraPrestId = null;
+}
+
+async function confirmarCuotaExtra() {
+  if (!cuotaExtraPrestId) return;
+  const fechaStr = document.getElementById('ce-fecha').value;
+  const monto = parseFloat(document.getElementById('ce-monto').value) || 0;
+  const notas = document.getElementById('ce-notas').value.trim();
+
+  if (!fechaStr) { showToast('Elegí una fecha de vencimiento', 'error'); return; }
+  if (monto <= 0) { showToast('El monto debe ser mayor a 0', 'error'); return; }
+
+  const p = DB.prestamos.find(x => x.id === cuotaExtraPrestId);
+  if (!p) return;
+  const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
+  const cuotas = DB.cuotas.filter(c => c.prestId === cuotaExtraPrestId);
+  const nuevoNro = cuotas.length + 1;
+  const cuotaId = cuotaExtraPrestId + '-C' + String(nuevoNro).padStart(2, '0');
+  const fecha = new Date(fechaStr + 'T12:00:00');
+  const fechaES = fmtFechaES(fecha);
+  const fechaISO = fecha.toISOString().split('T')[0];
+  const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.nombre;
+
+  const btn = document.getElementById('btn-cuota-extra');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  try {
+    // 1. Crear evento en Calendar
+    let eventId = '';
+    if (CFG.calId) {
+      try {
+        btn.textContent = 'Creando evento Calendar...';
+        const totalCuotasLabel = nuevoNro;
+        const eventoBody = {
+          summary: '💰 ' + clienteNombre + ' — Cuota ' + nuevoNro + ' (EXTRA) | ' + fmt(monto) + ' (' + cuotaExtraPrestId + ')',
+          description: 'Préstamo: ' + cuotaExtraPrestId + '\nCliente: ' + clienteNombre + '\nMonto cuota: ' + fmt(monto) + '\n⚠ CUOTA EXTRA agregada manualmente' + (notas ? '\nNotas: ' + notas : ''),
+          start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
+          end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
+          colorId: '6',
+          reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
+        };
+        const calRes = await fetch(
+          'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events',
+          { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) }
+        );
+        if (calRes.ok) { const calData = await calRes.json(); eventId = calData.id || ''; }
+      } catch(calErr) { console.warn('Calendar error cuota extra', calErr); }
+    }
+
+    // 2. Agregar cuota a Sheets
+    btn.textContent = 'Guardando cuota...';
+    await sheetsAppend('Cuotas!A:J', [[cuotaId, cuotaExtraPrestId, p.clienteId, nuevoNro, fechaES, monto.toFixed(2), 0, monto.toFixed(2), 'Pendiente', eventId]]);
+
+    // 3. Agregar a Calendario sheet
+    if (eventId) {
+      await sheetsAppend('Calendario!A:F', [[cuotaId, cuotaExtraPrestId, p.clienteId, eventId, CFG.calId || '', 'Activo']]);
+    }
+
+    // 4. Actualizar total y cantidad cuotas del préstamo en Sheets
+    btn.textContent = 'Actualizando préstamo...';
+    const prestData = await sheetsGet('Préstamos!A1:P');
+    const rowIdx = prestData.findIndex(r => r[0] === cuotaExtraPrestId);
+    if (rowIdx >= 0) {
+      const sheetRow = rowIdx + 1;
+      const nuevoTotal = p.total + monto;
+      const nuevaCantCuotas = nuevoNro;
+      const nuevaGB = nuevoTotal - p.capital;
+      const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
+      const nuevaCom = esTercero ? nuevaGB * 0.2 : 0;
+      const nuevaGN = nuevaGB - nuevaCom;
+      await sheetsUpdate(`Préstamos!G${sheetRow}:H${sheetRow}`, [[nuevoTotal.toFixed(2), nuevaCantCuotas]]);
+      await sheetsUpdate(`Préstamos!L${sheetRow}:N${sheetRow}`, [[nuevaGB.toFixed(2), nuevaCom.toFixed(2), nuevaGN.toFixed(2)]]);
+    }
+
+    invalidateCache();
+    closeCuotaExtraModal();
+    showToast('✓ Cuota extra #' + nuevoNro + ' agregada' + (eventId ? ' con evento Calendar' : ''));
+    await loadAll(true);
+    renderDetallePrestamo(cuotaExtraPrestId);
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Agregar cuota extra →';
+  }
+}
+
+document.getElementById('cuotaExtraModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('cuotaExtraModal')) closeCuotaExtraModal();
+});
+
+// ============================================================
 // UTILITIES
 // ============================================================
 function fmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
 
 function parseFecha(str) {
   if (str === null || str === undefined || str === '') return null;
-
-  // Si viene como número serial de Google Sheets / Excel
   if (!isNaN(str) && String(str).indexOf('/') === -1 && String(str).indexOf('-') === -1) {
     const serial = Number(str);
     const base = new Date(Date.UTC(1899, 11, 30));
     const d = new Date(base.getTime() + serial * 86400000);
     return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0);
   }
-
   const parts = String(str).split('/');
-  if (parts.length === 3) {
-    return new Date(parts[2], parts[1]-1, parts[0], 12, 0, 0);
-  }
-
+  if (parts.length === 3) return new Date(parts[2], parts[1]-1, parts[0], 12, 0, 0);
   const d = new Date(str);
   return isNaN(d) ? null : d;
 }
@@ -2268,6 +2324,12 @@ function fmtFecha(d) {
 
 function fmtFechaES(d) {
   return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('/');
+}
+
+// Convierte fecha type="date" (yyyy-mm-dd) a Date
+function dateInputToDate(inputVal) {
+  if (!inputVal) return null;
+  return new Date(inputVal + 'T12:00:00');
 }
 
 function estadoPill(estado) {
@@ -2287,7 +2349,6 @@ function showToast(msg, type = 'success') {
   t._timeout = setTimeout(() => t.classList.remove('show'), 3500);
 }
 
-// Close dropdowns on outside click
 document.addEventListener('click', e => {
   if (!e.target.closest('.client-search-wrap')) {
     document.getElementById('np-dropdown')?.classList.remove('open');
@@ -2316,192 +2377,68 @@ async function renderEstadisticas() {
   document.getElementById('est-loading').style.display = 'flex';
   document.getElementById('est-content').style.display = 'none';
   await loadAll();
-
   const hoy = new Date(); hoy.setHours(23,59,59,999);
   const desde = estPeriodoDias === 0 ? new Date('2000-01-01') : new Date(hoy.getTime() - estPeriodoDias * 86400000);
   desde.setHours(0,0,0,0);
-
   const labels = {7:'Últimos 7 días', 30:'Último mes', 90:'Último trimestre', 365:'Último año', 0:'Desde siempre'};
   document.getElementById('est-rango-label').textContent = '(' + labels[estPeriodoDias] + ')';
-
-  // Pagos cobrados en el período
-  const pagosPeriodo = estPeriodoDias === 0
-    ? DB.pagos
-    : DB.pagos.filter(p => {
-        const d = parseFecha(p.fecha);
-        return d && d >= desde && d <= hoy;
-      });
-
+  const pagosPeriodo = estPeriodoDias === 0 ? DB.pagos : DB.pagos.filter(p => { const d = parseFecha(p.fecha); return d && d >= desde && d <= hoy; });
   const montoCobrado = pagosPeriodo.reduce((a,p) => a + p.monto, 0);
   document.getElementById('est-cobrado').textContent = fmt(montoCobrado);
   document.getElementById('est-cobrado-meta').textContent = pagosPeriodo.length + ' pagos recibidos';
-
-  // Préstamos del período:
-  // si es "Todo" => todos los préstamos
-  // si no => préstamos que tuvieron pagos en el período
   const prestIdsConPagos = new Set(pagosPeriodo.map(p => p.prestId));
-  const prestPeriodo = estPeriodoDias === 0
-    ? DB.prestamos
-    : DB.prestamos.filter(p => prestIdsConPagos.has(p.id));
-
+  const prestPeriodo = estPeriodoDias === 0 ? DB.prestamos : DB.prestamos.filter(p => prestIdsConPagos.has(p.id));
   const capitalTotal = prestPeriodo.reduce((a,p) => a + (p.capital || 0), 0);
   const gbTotal = prestPeriodo.reduce((a,p) => a + (p.ganBruta || 0), 0);
   const comTotal = prestPeriodo.reduce((a,p) => a + (p.comision || 0), 0);
   const gnTotal = prestPeriodo.reduce((a,p) => a + (p.ganNeta || 0), 0);
   const terceroCount = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero').length;
   const tasaPromedio = capitalTotal > 0 ? (gbTotal / capitalTotal * 100).toFixed(1) : 0;
-
   document.getElementById('est-capital').textContent = fmt(capitalTotal);
   document.getElementById('est-capital-meta').textContent = prestPeriodo.length + ' préstamos · tasa prom ' + tasaPromedio + '%';
-
   document.getElementById('est-gb').textContent = fmt(gbTotal);
-  document.getElementById('est-gb-meta').textContent =
-    capitalTotal > 0 ? (gbTotal / capitalTotal * 100).toFixed(1) + '% sobre el capital' : '—';
-
+  document.getElementById('est-gb-meta').textContent = capitalTotal > 0 ? (gbTotal / capitalTotal * 100).toFixed(1) + '% sobre el capital' : '—';
   document.getElementById('est-com').textContent = fmt(comTotal);
   document.getElementById('est-com-meta').textContent = terceroCount + ' préstamos de tercero';
-
   document.getElementById('est-gn').textContent = fmt(gnTotal);
-  document.getElementById('est-gn-meta').textContent =
-    gbTotal > 0 ? 'margen neto: ' + (gnTotal / gbTotal * 100).toFixed(1) + '%' : '—';
-
-  // Mora
+  document.getElementById('est-gn-meta').textContent = gbTotal > 0 ? 'margen neto: ' + (gnTotal / gbTotal * 100).toFixed(1) + '%' : '—';
   const cuotasVencPeriodo = DB.cuotas.filter(c => {
     if (c.estado === 'Pagada' || c.estado.startsWith('Pagada con')) return false;
-    if (estPeriodoDias === 0) {
-      const d = parseFecha(c.vencimiento);
-      return d && d <= hoy;
-    }
-    const d = parseFecha(c.vencimiento);
-    return d && d >= desde && d <= hoy;
+    if (estPeriodoDias === 0) { const d = parseFecha(c.vencimiento); return d && d <= hoy; }
+    const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hoy;
   });
-
   const montoMora = cuotasVencPeriodo.reduce((a,c) => a + c.saldo, 0);
-
-  const totalCuotasPeriodo = estPeriodoDias === 0
-    ? DB.cuotas.length
-    : DB.cuotas.filter(c => {
-        const d = parseFecha(c.vencimiento);
-        return d && d >= desde && d <= hoy;
-      }).length;
-
+  const totalCuotasPeriodo = estPeriodoDias === 0 ? DB.cuotas.length : DB.cuotas.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hoy; }).length;
   const tasaMora = totalCuotasPeriodo > 0 ? (cuotasVencPeriodo.length / totalCuotasPeriodo * 100).toFixed(1) : 0;
-
   document.getElementById('est-mora').textContent = fmt(montoMora);
   document.getElementById('est-mora-meta').textContent = cuotasVencPeriodo.length + ' cuotas vencidas sin pagar';
   document.getElementById('est-tasa-mora').textContent = tasaMora + '%';
-
-  // Clientes nuevos
-  const clientesNuevos = estPeriodoDias === 0
-    ? DB.clientes
-    : DB.clientes.filter(c => {
-        const d = parseFecha(c.alta);
-        return d && d >= desde && d <= hoy;
-      });
-
+  const clientesNuevos = estPeriodoDias === 0 ? DB.clientes : DB.clientes.filter(c => { const d = parseFecha(c.alta); return d && d >= desde && d <= hoy; });
   document.getElementById('est-cli-nuevos').textContent = clientesNuevos.length;
-  document.getElementById('est-cli-nuevos-meta').textContent =
-    clientesNuevos.length ? clientesNuevos.map(c => c.apellido).join(', ') : 'en el período';
-
-  // Propio vs Tercero
+  document.getElementById('est-cli-nuevos-meta').textContent = clientesNuevos.length ? clientesNuevos.map(c => c.apellido).join(', ') : 'en el período';
   const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
   const terceros = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero');
-
   const capPropios = propios.reduce((a,p) => a + (p.capital || 0), 0);
   const capTerceros = terceros.reduce((a,p) => a + (p.capital || 0), 0);
   const gnPropios = propios.reduce((a,p) => a + (p.ganNeta || 0), 0);
   const gnTerceros = terceros.reduce((a,p) => a + (p.ganNeta || 0), 0);
-
   document.getElementById('est-tipo-body').innerHTML = prestPeriodo.length === 0
     ? '<p style="color:var(--muted);font-size:13px">Sin préstamos en este período</p>'
-    : `<div style="margin-bottom:16px">
-        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px">
-          <span style="color:var(--muted)">Propios (${propios.length})</span>
-          <span style="font-family:var(--mono)">${fmt(capPropios)}</span>
-        </div>
-        <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px">
-          <div style="height:100%;width:${capitalTotal>0?(capPropios/capitalTotal*100).toFixed(0):0}%;background:var(--accent);border-radius:4px;transition:width .4s"></div>
-        </div>
-        <div style="font-size:11px;color:var(--green);text-align:right">Ganancia neta: ${fmt(gnPropios)}</div>
-      </div>
-      <div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px">
-          <span style="color:var(--muted)">Terceros (${terceros.length})</span>
-          <span style="font-family:var(--mono)">${fmt(capTerceros)}</span>
-        </div>
-        <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px">
-          <div style="height:100%;width:${capitalTotal>0?(capTerceros/capitalTotal*100).toFixed(0):0}%;background:var(--amber);border-radius:4px;transition:width .4s"></div>
-        </div>
-        <div style="font-size:11px;color:var(--amber);text-align:right">Ganancia neta (después comisión): ${fmt(gnTerceros)}</div>
-      </div>`;
-
-  // Top clientes por capital
+    : `<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span style="color:var(--muted)">Propios (${propios.length})</span><span style="font-family:var(--mono)">${fmt(capPropios)}</span></div><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${capitalTotal>0?(capPropios/capitalTotal*100).toFixed(0):0}%;background:var(--accent);border-radius:4px;transition:width .4s"></div></div><div style="font-size:11px;color:var(--green);text-align:right">Ganancia neta: ${fmt(gnPropios)}</div></div><div><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span style="color:var(--muted)">Terceros (${terceros.length})</span><span style="font-family:var(--mono)">${fmt(capTerceros)}</span></div><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${capitalTotal>0?(capTerceros/capitalTotal*100).toFixed(0):0}%;background:var(--amber);border-radius:4px;transition:width .4s"></div></div><div style="font-size:11px;color:var(--amber);text-align:right">Ganancia neta (después comisión): ${fmt(gnTerceros)}</div></div>`;
   const volClientes = {};
-  prestPeriodo.forEach(p => {
-    if (!volClientes[p.clienteId]) volClientes[p.clienteId] = { capital:0, count:0, gn:0 };
-    volClientes[p.clienteId].capital += p.capital || 0;
-    volClientes[p.clienteId].count++;
-    volClientes[p.clienteId].gn += p.ganNeta || 0;
-  });
-
-  const topClis = Object.entries(volClientes)
-    .sort((a,b) => b[1].capital - a[1].capital)
-    .slice(0, 5);
-
+  prestPeriodo.forEach(p => { if (!volClientes[p.clienteId]) volClientes[p.clienteId] = { capital:0, count:0, gn:0 }; volClientes[p.clienteId].capital += p.capital || 0; volClientes[p.clienteId].count++; volClientes[p.clienteId].gn += p.ganNeta || 0; });
+  const topClis = Object.entries(volClientes).sort((a,b) => b[1].capital - a[1].capital).slice(0, 5);
   const maxCap = topClis[0]?.[1].capital || 1;
-
   document.getElementById('est-top-body').innerHTML = topClis.length === 0
     ? '<div style="padding:16px;color:var(--muted);font-size:13px">Sin datos</div>'
-    : topClis.map(([cliId, v]) => {
-        const cl = DB.clientes.find(x => x.id === cliId) || {apellido:'?', nombre:''};
-        const pct = (v.capital / maxCap * 100).toFixed(0);
-        return `<div style="padding:10px 16px;border-bottom:1px solid var(--border)">
-          <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px">
-            <span style="font-weight:600">${cl.apellido}, ${cl.nombre}</span>
-            <span style="font-family:var(--mono)">${fmt(v.capital)}</span>
-          </div>
-          <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px">
-            <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px"></div>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">
-            <span>${v.count} préstamo${v.count!==1?'s':''}</span>
-            <span style="color:var(--green)">Gan. neta: ${fmt(v.gn)}</span>
-          </div>
-        </div>`;
-      }).join('');
-
-  // Tabla de pagos
-  const pagosOrdenados = [...pagosPeriodo].sort((a,b) => {
-    const da = parseFecha(a.fecha), db = parseFecha(b.fecha);
-    return (db || 0) - (da || 0);
-  });
-
+    : topClis.map(([cliId, v]) => { const cl = DB.clientes.find(x => x.id === cliId) || {apellido:'?', nombre:''}; const pct = (v.capital / maxCap * 100).toFixed(0); return `<div style="padding:10px 16px;border-bottom:1px solid var(--border)"><div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px"><span style="font-weight:600">${cl.apellido}, ${cl.nombre}</span><span style="font-family:var(--mono)">${fmt(v.capital)}</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>${v.count} préstamo${v.count!==1?'s':''}</span><span style="color:var(--green)">Gan. neta: ${fmt(v.gn)}</span></div></div>`; }).join('');
+  const pagosOrdenados = [...pagosPeriodo].sort((a,b) => { const da = parseFecha(a.fecha), db = parseFecha(b.fecha); return (db || 0) - (da || 0); });
   document.getElementById('est-pagos-count').textContent = pagosOrdenados.length + ' pagos';
   document.getElementById('est-pagos-tabla').innerHTML = pagosOrdenados.length === 0
     ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Sin pagos en este período</td></tr>'
-    : pagosOrdenados.map(p => {
-        const cl = DB.clientes.find(x => x.id === p.clienteId) || {apellido:'?', nombre:''};
-        return `<tr>
-          <td class="td-mono">${p.fecha}</td>
-          <td><div class="td-name">${cl.apellido}, ${cl.nombre}</div></td>
-          <td class="td-mono">${p.prestId}</td>
-          <td class="td-mono">${p.cuotaId}</td>
-          <td class="td-mono">${fmt(p.monto)}</td>
-          <td>${p.diasAtraso > 0 ? '<span class="pill pill-red">'+p.diasAtraso+'d</span>' : '<span class="pill pill-green">A tiempo</span>'}</td>
-        </tr>`;
-      }).join('');
-
+    : pagosOrdenados.map(p => { const cl = DB.clientes.find(x => x.id === p.clienteId) || {apellido:'?', nombre:''}; return `<tr><td class="td-mono">${p.fecha}</td><td><div class="td-name">${cl.apellido}, ${cl.nombre}</div></td><td class="td-mono">${p.prestId}</td><td class="td-mono">${p.cuotaId}</td><td class="td-mono">${fmt(p.monto)}</td><td>${p.diasAtraso > 0 ? '<span class="pill pill-red">'+p.diasAtraso+'d</span>' : '<span class="pill pill-green">A tiempo</span>'}</td></tr>`; }).join('');
   document.getElementById('est-loading').style.display = 'none';
   document.getElementById('est-content').style.display = 'block';
-}
-
-
-// Auto-formatea input de fecha mientras escribís (dd/mm/aaaa)
-function formatearInputFecha(input) {
-  let v = input.value.replace(/\D/g, ''); // solo números
-  if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
-  if (v.length >= 6) v = v.slice(0,5) + '/' + v.slice(5,9);
-  input.value = v;
 }
 
 // ============================================================
@@ -2548,29 +2485,18 @@ function pedirEliminarPrestamo(prestId) {
 
 async function eliminarPrestamo(prestId) {
   showToast('Eliminando préstamo...');
-
   try {
-    // 1. Leer cuotas DIRECTO del Sheet (no del cache, puede estar desactualizado)
     const cuotasRaw = await sheetsGet('Cuotas!A:J');
-    const cuotasPrest = cuotasRaw
-      .filter(r => r[1] === prestId)
-      .map(rowToCuota);
+    const cuotasPrest = cuotasRaw.filter(r => r[1] === prestId).map(rowToCuota);
     const todasPagas = cuotasPrest.length > 0 && cuotasPrest.every(c => c.estado.startsWith('Pagada'));
-
-    // 2. Borrar eventos Calendar de cuotas NO pagadas
     if (!todasPagas && CFG.calId) {
       const pendientes = cuotasPrest.filter(c => !c.estado.startsWith('Pagada') && c.eventId);
-      for (const c of pendientes) {
-        await borrarEventoCalendar(c.eventId);
-      }
+      for (const c of pendientes) { await borrarEventoCalendar(c.eventId); }
     }
-
-    // 2. Borrar filas en Sheets — leer todas las hojas y filtrar
-    await eliminarFilasSheets('Cuotas!A:J', 1, prestId);   // col B = prestId
-    await eliminarFilasSheets('Pagos!A:H', 2, prestId);    // col C = prestId
-    await eliminarFilasSheets('Calendario!A:F', 1, prestId); // col B = prestId
-    await eliminarFilasSheets('Préstamos!A:P', 0, prestId); // col A = prestId
-
+    await eliminarFilasSheets('Cuotas!A:J', 1, prestId);
+    await eliminarFilasSheets('Pagos!A:H', 2, prestId);
+    await eliminarFilasSheets('Calendario!A:F', 1, prestId);
+    await eliminarFilasSheets('Préstamos!A:P', 0, prestId);
     invalidateCache();
     await loadAll(true);
     showToast('✓ Préstamo eliminado' + (todasPagas ? ' (Calendar conservado)' : ' y eventos Calendar borrados'));
@@ -2580,42 +2506,23 @@ async function eliminarPrestamo(prestId) {
   }
 }
 
-// Elimina filas de una hoja donde la columna colIdx coincide con valor
 async function eliminarFilasSheets(range, colIdx, valor) {
   const hoja = range.split('!')[0];
-  // Leer datos desde fila 2 (sin header)
   const datos = await sheetsGet(range);
   if (!datos || datos.length === 0) return;
-  // Filtrar: sacar la fila objetivo Y cualquier fila que sea header duplicado
-  // (headers no empiezan con CLI-, PREST-, PAGO-)
-  const esHeader = row => {
-    const v = (row[0] || '').toString();
-    return !v.match(/^(CLI-|PREST-|PAGO-|DOC-)/);
-  };
+  const esHeader = row => { const v = (row[0] || '').toString(); return !v.match(/^(CLI-|PREST-|PAGO-|DOC-)/); };
   const nuevas = datos.filter(row => !esHeader(row) && (row[colIdx] || '') !== valor);
-  if (nuevas.length === datos.length && !datos.some(esHeader)) return; // nada que borrar
-  // Limpiar desde fila 2 hasta el final de los datos actuales
+  if (nuevas.length === datos.length && !datos.some(esHeader)) return;
   const ultimaFila = datos.length + 1;
   await sheetsClear(hoja + '!A2:Z' + ultimaFila);
-  // Reescribir los datos filtrados desde fila 2 (header fila 1 intacto)
   if (nuevas.length > 0) {
-    const r = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(hoja + '!A2')}?valueInputOption=USER_ENTERED`,
-      {
-        method: 'PUT',
-        headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values: nuevas })
-      }
-    );
+    const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(hoja + '!A2')}?valueInputOption=USER_ENTERED`, { method: 'PUT', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: nuevas }) });
     if (!r.ok) throw new Error('Sheets UPDATE error ' + r.status);
   }
 }
 
 async function sheetsClear(range) {
-  const r = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(range)}:clear`,
-    { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN } }
-  );
+  const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(range)}:clear`, { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN } });
   if (!r.ok) throw new Error('Sheets CLEAR error ' + r.status);
   return r.json();
 }
@@ -2624,7 +2531,6 @@ async function sheetsClear(range) {
 // EDITAR PRÉSTAMO
 // ============================================================
 let editPrestId = null;
-
 function abrirEditPrestModal(prestId) {
   const p = DB.prestamos.find(x => x.id === prestId);
   if (!p) return;
@@ -2636,28 +2542,18 @@ function abrirEditPrestModal(prestId) {
   toggleEpTercero();
   document.getElementById('editPrestModal').classList.add('open');
 }
-
-function toggleEpTercero() {
-  document.getElementById('ep-tercero-field').style.display =
-    document.getElementById('ep-tipo').value === 'tercero' ? 'flex' : 'none';
-}
-
-function closeEditPrestModal() {
-  document.getElementById('editPrestModal').classList.remove('open');
-  editPrestId = null;
-}
-
+function toggleEpTercero() { document.getElementById('ep-tercero-field').style.display = document.getElementById('ep-tipo').value === 'tercero' ? 'flex' : 'none'; }
+function closeEditPrestModal() { document.getElementById('editPrestModal').classList.remove('open'); editPrestId = null; }
 async function guardarEditPrest() {
   if (!editPrestId) return;
   const tipo = document.getElementById('ep-tipo').value;
   const tercero = document.getElementById('ep-tercero').value.trim();
   const notas = document.getElementById('ep-notas').value.trim();
-
   try {
     const datos = await sheetsGet('Préstamos!A1:P');
     const rowIdx = datos.findIndex(r => r[0] === editPrestId);
     if (rowIdx < 0) throw new Error('Préstamo no encontrado en Sheets');
-    const sheetRow = rowIdx + 1; // rowIdx 0 = fila 1 del sheet
+    const sheetRow = rowIdx + 1;
     const tipoStr = tipo === 'tercero' ? 'De tercero' : 'propio';
     await sheetsUpdate(`Préstamos!I${sheetRow}:K${sheetRow}`, [[tipoStr, '', tercero]]);
     await sheetsUpdate(`Préstamos!P${sheetRow}`, [[notas]]);
@@ -2666,20 +2562,14 @@ async function guardarEditPrest() {
     showToast('✓ Préstamo actualizado');
     await loadAll(true);
     renderDetallePrestamo(editPrestId);
-  } catch(e) {
-    showToast('Error: ' + e.message, 'error');
-  }
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
-
-document.getElementById('editPrestModal').addEventListener('click', e => {
-  if (e.target === document.getElementById('editPrestModal')) closeEditPrestModal();
-});
+document.getElementById('editPrestModal').addEventListener('click', e => { if (e.target === document.getElementById('editPrestModal')) closeEditPrestModal(); });
 
 // ============================================================
 // EDITAR CLIENTE
 // ============================================================
 let editClienteId = null;
-
 function abrirEditClienteModal(clienteId) {
   const c = DB.clientes.find(x => x.id === clienteId);
   if (!c) return;
@@ -2696,12 +2586,7 @@ function abrirEditClienteModal(clienteId) {
   document.getElementById('ec-notas').value = c.notas || '';
   document.getElementById('editClienteModal').classList.add('open');
 }
-
-function closeEditClienteModal() {
-  document.getElementById('editClienteModal').classList.remove('open');
-  editClienteId = null;
-}
-
+function closeEditClienteModal() { document.getElementById('editClienteModal').classList.remove('open'); editClienteId = null; }
 async function guardarEditCliente() {
   if (!editClienteId) return;
   const apellido = document.getElementById('ec-apellido').value.trim();
@@ -2714,62 +2599,37 @@ async function guardarEditCliente() {
   const dir      = document.getElementById('ec-dir').value.trim();
   const notas    = document.getElementById('ec-notas').value.trim();
   if (!apellido || !nombre || !dni) { showToast('Apellido, nombre y DNI son obligatorios', 'error'); return; }
-
   try {
-    // Leer desde A1 con header para calcular fila exacta en Sheets
     const datos = await sheetsGet('Clientes!A1:L');
-    // rowIdx 0 = header (fila 1), rowIdx 1 = primer dato (fila 2)
     const rowIdx = datos.findIndex(r => r[0] === editClienteId);
     if (rowIdx < 0) throw new Error('Cliente no encontrado en Sheets');
-    const sheetRow = rowIdx + 1; // fila real en Sheets (1-based)
+    const sheetRow = rowIdx + 1;
     await sheetsUpdate(`Clientes!B${sheetRow}:L${sheetRow}`, [[apellido, nombre, alias, dni, tel, tel2, email, dir, datos[rowIdx][9]||'', datos[rowIdx][10]||'Si', notas]]);
-
-    // Actualizar nombre en hoja Préstamos (columna C = nombre cliente)
     const nuevoNombre = apellido + ', ' + nombre;
     const prestData = await sheetsGet('Préstamos!A1:P');
     for (let i = 0; i < prestData.length; i++) {
-      if (prestData[i][1] === editClienteId) {
-        await sheetsUpdate(`Préstamos!C${i+1}`, [[nuevoNombre]]);
-      }
+      if (prestData[i][1] === editClienteId) { await sheetsUpdate(`Préstamos!C${i+1}`, [[nuevoNombre]]); }
     }
-
-    // Actualizar nombre en hoja Cuotas (columna C = clienteId — no hay nombre, no hace falta)
-    // El nombre en Calendar sí se actualiza abajo
-
-    // Actualizar eventos Calendar pendientes con el nuevo nombre
     if (CFG.calId) {
       const cuotasPend = DB.cuotas.filter(c => c.clienteId === editClienteId && !c.estado.startsWith('Pagada') && c.eventId);
       for (const c of cuotasPend) {
         try {
           const totalCuotas = DB.cuotas.filter(x => x.prestId === c.prestId).length;
-          await fetch(
-            'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId,
-            {
-              method: 'PATCH',
-              headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ summary: '\u{1F4B0} ' + nuevoNombre + ' \u2014 Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(c.saldo) + ' (' + c.prestId + ')' })
-            }
-          );
+          await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: '\u{1F4B0} ' + nuevoNombre + ' \u2014 Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(c.saldo) + ' (' + c.prestId + ')' }) });
         } catch(calErr) { console.warn('Error actualizando Calendar:', c.eventId, calErr); }
       }
     }
-
     invalidateCache();
     closeEditClienteModal();
     showToast('Cliente actualizado');
     await loadAll(true);
     renderDetalleCliente(editClienteId);
-  } catch(e) {
-    showToast('Error: ' + e.message, 'error');
-  }
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
-
-document.getElementById('editClienteModal').addEventListener('click', e => {
-  if (e.target === document.getElementById('editClienteModal')) closeEditClienteModal();
-});
+document.getElementById('editClienteModal').addEventListener('click', e => { if (e.target === document.getElementById('editClienteModal')) closeEditClienteModal(); });
 
 // ============================================================
-// REPROGRAMAR CUOTAS
+// REPROGRAMAR CUOTAS (con datepicker nativo)
 // ============================================================
 let reprogPrestId = null;
 
@@ -2779,28 +2639,19 @@ function abrirReprogModal(prestId) {
   const cuotas = DB.cuotas.filter(c => c.prestId === prestId).sort((a,b) => a.nro - b.nro);
   const pendientes = cuotas.filter(c => !c.estado.startsWith('Pagada'));
   const pagadas = cuotas.filter(c => c.estado.startsWith('Pagada'));
-
-  if (pendientes.length === 0) {
-    showToast('Este préstamo no tiene cuotas pendientes para reprogramar', 'error');
-    return;
-  }
-
+  if (pendientes.length === 0) { showToast('Este préstamo no tiene cuotas pendientes para reprogramar', 'error'); return; }
   reprogPrestId = prestId;
   document.getElementById('reprog-sub').textContent = prestId + ' · ' + pendientes.length + ' cuotas pendientes';
   document.getElementById('reprog-pagadas').textContent = pagadas.length;
   document.getElementById('reprog-pendientes').textContent = pendientes.length;
   document.getElementById('reprog-monto').textContent = fmt(pendientes[0].monto);
-
-  // Fecha default: próxima cuota pendiente
+  // Fecha default: usar datepicker nativo (type="date" → yyyy-mm-dd)
   const proxFecha = parseFecha(pendientes[0].vencimiento);
   const hoy = new Date();
   const fechaDefault = proxFecha && proxFecha > hoy ? proxFecha : hoy;
-  document.getElementById('reprog-fecha').value = fmtFechaES(fechaDefault);
+  document.getElementById('reprog-fecha').value = fechaDefault.toISOString().split('T')[0];
   document.getElementById('reprog-freq').value = '30';
-
   actualizarPreviewReprog();
-  document.getElementById('reprog-freq').onchange = actualizarPreviewReprog;
-  document.getElementById('reprog-freq').onchange = actualizarPreviewReprog;
   document.getElementById('reprogModal').classList.add('open');
 }
 
@@ -2808,64 +2659,39 @@ function actualizarPreviewReprog() {
   const fechaStr = document.getElementById('reprog-fecha').value;
   const freq = parseInt(document.getElementById('reprog-freq').value) || 30;
   if (!reprogPrestId || !fechaStr) return;
-
-  const base = parseFecha(fechaStr);
-  if (!base) return;
-  base.setHours(12,0,0,0);
-
+  // type="date" devuelve yyyy-mm-dd
+  const base = new Date(fechaStr + 'T12:00:00');
+  if (isNaN(base)) return;
   const cuotas = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada')).sort((a,b) => a.nro - b.nro);
   const ds = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const preview = document.getElementById('reprog-preview');
-
   preview.innerHTML = cuotas.map((c, i) => {
-    const d = calcularFechaCuota(base, i, freq); // i=0 da la fecha base misma
-    // Para que la primer cuota sea exactamente la fecha elegida, usamos i=0
     const fecha = i === 0 ? base : calcularFechaCuota(base, i, freq);
-    return `<div class="preview-item">
-      <span class="preview-num">${String(c.nro).padStart(2,'0')}</span>
-      <span class="preview-fecha">${ds[fecha.getDay()]} ${fmtFecha(fecha)}</span>
-      <span class="preview-dias">${i === 0 ? 'Primera' : '+' + (freq * i) + 'd'}</span>
-      <span class="preview-monto">${fmt(c.saldo)}</span>
-    </div>`;
+    return `<div class="preview-item"><span class="preview-num">${String(c.nro).padStart(2,'0')}</span><span class="preview-fecha">${ds[fecha.getDay()]} ${fmtFecha(fecha)}</span><span class="preview-dias">${i === 0 ? 'Primera' : '+' + (freq * i) + 'd'}</span><span class="preview-monto">${fmt(c.saldo)}</span></div>`;
   }).join('');
 }
 
-function closeReprogModal() {
-  document.getElementById('reprogModal').classList.remove('open');
-  reprogPrestId = null;
-}
+function closeReprogModal() { document.getElementById('reprogModal').classList.remove('open'); reprogPrestId = null; }
 
 async function confirmarReprogramar() {
   if (!reprogPrestId) return;
   const fechaStr = document.getElementById('reprog-fecha').value;
   const freq = parseInt(document.getElementById('reprog-freq').value) || 30;
   if (!fechaStr) { showToast('Elegí una fecha', 'error'); return; }
-
-  const base = parseFecha(fechaStr);
-  if (!base) { showToast('Fecha inválida. Usá dd/mm/aaaa', 'error'); return; }
-  base.setHours(12,0,0,0);
-
+  const base = new Date(fechaStr + 'T12:00:00');
+  if (isNaN(base)) { showToast('Fecha inválida', 'error'); return; }
   const cuotasPend = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada')).sort((a,b) => a.nro - b.nro);
   if (cuotasPend.length === 0) { showToast('No hay cuotas pendientes', 'error'); return; }
   closeReprogModal();
   showToast('Reprogramando cuotas...');
-
   try {
     const cuotasData = await sheetsGet('Cuotas!A:J');
-
     for (let i = 0; i < cuotasPend.length; i++) {
       const c = cuotasPend[i];
       const nuevaFecha = i === 0 ? base : calcularFechaCuota(base, i, freq);
       const nuevaFechaES = fmtFechaES(nuevaFecha);
       const nuevaFechaISO = nuevaFecha.toISOString().split('T')[0];
-
-      // 1. Borrar evento Calendar viejo
-      if (c.eventId) {
-        showToast(`Borrando evento Calendar cuota ${c.nro}...`);
-        await borrarEventoCalendar(c.eventId);
-      }
-
-      // 2. Crear nuevo evento Calendar
+      if (c.eventId) { showToast(`Borrando evento Calendar cuota ${c.nro}...`); await borrarEventoCalendar(c.eventId); }
       let nuevoEventId = '';
       if (CFG.calId) {
         try {
@@ -2882,15 +2708,10 @@ async function confirmarReprogramar() {
             colorId: '5',
             reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
           };
-          const calRes = await fetch(
-            'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events',
-            { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) }
-          );
+          const calRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events', { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) });
           if (calRes.ok) { const calData = await calRes.json(); nuevoEventId = calData.id || ''; }
         } catch(calErr) { console.warn('Calendar error reprog cuota', c.nro, calErr); }
       }
-
-      // 3. Actualizar fecha y eventId en Sheets
       const rowIdx = cuotasData.findIndex(r => r[0] === c.id);
       if (rowIdx >= 0) {
         const sheetRow = rowIdx + 2;
@@ -2898,20 +2719,14 @@ async function confirmarReprogramar() {
         if (nuevoEventId) await sheetsUpdate(`Cuotas!J${sheetRow}`, [[nuevoEventId]]);
       }
     }
-
     invalidateCache();
     await loadAll(true);
     showToast('✓ ' + cuotasPend.length + ' cuotas reprogramadas y Calendar actualizado');
     renderDetallePrestamo(reprogPrestId);
-  } catch(e) {
-    showToast('Error al reprogramar: ' + e.message, 'error');
-  }
+  } catch(e) { showToast('Error al reprogramar: ' + e.message, 'error'); }
 }
 
-document.getElementById('reprogModal').addEventListener('click', e => {
-  if (e.target === document.getElementById('reprogModal')) closeReprogModal();
-});
-
+document.getElementById('reprogModal').addEventListener('click', e => { if (e.target === document.getElementById('reprogModal')) closeReprogModal(); });
 
 // ============================================================
 // ELIMINAR CLIENTE
@@ -2922,52 +2737,32 @@ function pedirEliminarCliente(clienteId) {
   const ps = DB.prestamos.filter(p => p.clienteId === clienteId);
   const cuotasPend = DB.cuotas.filter(cu => cu.clienteId === clienteId && !cu.estado.startsWith('Pagada'));
   if (cuotasPend.length > 0) {
-    mostrarConfirm(
-      'Eliminar cliente con préstamos activos',
-      c.apellido + ', ' + c.nombre + ' tiene ' + cuotasPend.length + ' cuota/s pendiente/s. Se eliminarán el cliente, todos sus préstamos, cuotas y eventos Calendar pendientes. Esta acción no se puede deshacer.',
-      () => eliminarCliente(clienteId)
-    );
+    mostrarConfirm('Eliminar cliente con préstamos activos', c.apellido + ', ' + c.nombre + ' tiene ' + cuotasPend.length + ' cuota/s pendiente/s. Se eliminarán el cliente, todos sus préstamos, cuotas y eventos Calendar pendientes. Esta acción no se puede deshacer.', () => eliminarCliente(clienteId));
   } else if (ps.length > 0) {
-    mostrarConfirm(
-      'Eliminar cliente',
-      c.apellido + ', ' + c.nombre + ' tiene préstamos completamente pagados. Se eliminará el cliente y sus datos de Sheets. Los eventos Calendar pagados se conservan.',
-      () => eliminarCliente(clienteId)
-    );
+    mostrarConfirm('Eliminar cliente', c.apellido + ', ' + c.nombre + ' tiene préstamos completamente pagados. Se eliminará el cliente y sus datos de Sheets. Los eventos Calendar pagados se conservan.', () => eliminarCliente(clienteId));
   } else {
-    mostrarConfirm(
-      'Eliminar cliente',
-      'Eliminar a ' + c.apellido + ', ' + c.nombre + ' (' + clienteId + ')? Esta acción no se puede deshacer.',
-      () => eliminarCliente(clienteId)
-    );
+    mostrarConfirm('Eliminar cliente', 'Eliminar a ' + c.apellido + ', ' + c.nombre + ' (' + clienteId + ')? Esta acción no se puede deshacer.', () => eliminarCliente(clienteId));
   }
 }
 
 async function eliminarCliente(clienteId) {
   showToast('Eliminando cliente...');
   try {
-    // 1. Leer cuotas DIRECTO del Sheet antes de borrar nada
     if (CFG.calId) {
       const cuotasRaw = await sheetsGet('Cuotas!A:J');
-      const cuotasPend = cuotasRaw
-        .filter(r => r[2] === clienteId && r[8] && !r[8].startsWith('Pagada') && r[9])
-        .map(rowToCuota);
-      for (const c of cuotasPend) {
-        await borrarEventoCalendar(c.eventId);
-      }
+      const cuotasPend = cuotasRaw.filter(r => r[2] === clienteId && r[8] && !r[8].startsWith('Pagada') && r[9]).map(rowToCuota);
+      for (const c of cuotasPend) { await borrarEventoCalendar(c.eventId); }
     }
-    // 2. Borrar filas en Sheets
-    await eliminarFilasSheets('Cuotas!A:J', 2, clienteId);    // col C = clienteId
-    await eliminarFilasSheets('Pagos!A:H', 3, clienteId);     // col D = clienteId
-    await eliminarFilasSheets('Calendario!A:F', 2, clienteId); // col C = clienteId
-    await eliminarFilasSheets('Préstamos!A:P', 1, clienteId); // col B = clienteId
-    await eliminarFilasSheets('Clientes!A:L', 0, clienteId);  // col A = clienteId
+    await eliminarFilasSheets('Cuotas!A:J', 2, clienteId);
+    await eliminarFilasSheets('Pagos!A:H', 3, clienteId);
+    await eliminarFilasSheets('Calendario!A:F', 2, clienteId);
+    await eliminarFilasSheets('Préstamos!A:P', 1, clienteId);
+    await eliminarFilasSheets('Clientes!A:L', 0, clienteId);
     invalidateCache();
     await loadAll(true);
     showToast('✓ Cliente eliminado');
     nav('clientes');
-  } catch(e) {
-    showToast('Error al eliminar: ' + e.message, 'error');
-  }
+  } catch(e) { showToast('Error al eliminar: ' + e.message, 'error'); }
 }
 
 // ============================================================
