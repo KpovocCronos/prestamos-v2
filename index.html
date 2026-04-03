@@ -1202,8 +1202,8 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     <div class="form-grid">
       <div class="form-field">
         <label class="form-label">Nueva fecha de la 1era cuota pendiente</label>
-        <input class="form-input" type="date" id="reprog-fecha">
-        <div class="form-hint">Las siguientes se calculan automáticamente desde esta fecha</div>
+        <input class="form-input" type="text" id="reprog-fecha" placeholder="dd/mm/aaaa" maxlength="10" oninput="formatearInputFecha(this);actualizarPreviewReprog()">
+        <div class="form-hint">Ingresá la fecha en formato dd/mm/aaaa</div>
       </div>
       <div class="form-field">
         <label class="form-label">Nueva frecuencia</label>
@@ -1799,7 +1799,7 @@ function renderDetallePrestamo(prestId) {
           return `<div class="cuota-item" onclick="abrirPagoModal('${c.id}')">
             <div class="cuota-num" style="${vencida?'border-color:rgba(248,113,113,.3);color:var(--red)':pagada?'border-color:rgba(52,211,153,.3);color:var(--green)':''}">${String(c.nro).padStart(2,'0')}</div>
             <div style="flex:1">
-              <div class="cuota-fecha">${c.vencimiento} ${vencida?'<span style="color:var(--red);font-size:11px">● Vencida</span>':''}</div>
+              <div class="cuota-fecha">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} ${vencida?'<span style="color:var(--red);font-size:11px">● Vencida</span>':''}</div>
               <div class="cuota-sub">${c.estado} · Pagado: ${fmt(c.pagado)}</div>
               <div class="cuota-prog"><div class="cuota-prog-fill" style="width:${pct}%;background:${pagada?'var(--green)':pct>0?'var(--amber)':'var(--border2)'}"></div></div>
             </div>
@@ -2495,6 +2495,15 @@ async function renderEstadisticas() {
   document.getElementById('est-content').style.display = 'block';
 }
 
+
+// Auto-formatea input de fecha mientras escribís (dd/mm/aaaa)
+function formatearInputFecha(input) {
+  let v = input.value.replace(/\D/g, ''); // solo números
+  if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
+  if (v.length >= 6) v = v.slice(0,5) + '/' + v.slice(5,9);
+  input.value = v;
+}
+
 // ============================================================
 // HELPER: BORRAR EVENTO CALENDAR
 // ============================================================
@@ -2786,11 +2795,11 @@ function abrirReprogModal(prestId) {
   const proxFecha = parseFecha(pendientes[0].vencimiento);
   const hoy = new Date();
   const fechaDefault = proxFecha && proxFecha > hoy ? proxFecha : hoy;
-  document.getElementById('reprog-fecha').value = fechaDefault.toISOString().split('T')[0];
+  document.getElementById('reprog-fecha').value = fmtFechaES(fechaDefault);
   document.getElementById('reprog-freq').value = '30';
 
   actualizarPreviewReprog();
-  document.getElementById('reprog-fecha').oninput = actualizarPreviewReprog;
+  document.getElementById('reprog-freq').onchange = actualizarPreviewReprog;
   document.getElementById('reprog-freq').onchange = actualizarPreviewReprog;
   document.getElementById('reprogModal').classList.add('open');
 }
@@ -2800,8 +2809,11 @@ function actualizarPreviewReprog() {
   const freq = parseInt(document.getElementById('reprog-freq').value) || 30;
   if (!reprogPrestId || !fechaStr) return;
 
+  const base = parseFecha(fechaStr);
+  if (!base) return;
+  base.setHours(12,0,0,0);
+
   const cuotas = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada')).sort((a,b) => a.nro - b.nro);
-  const base = new Date(fechaStr + 'T12:00:00');
   const ds = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const preview = document.getElementById('reprog-preview');
 
@@ -2829,10 +2841,12 @@ async function confirmarReprogramar() {
   const freq = parseInt(document.getElementById('reprog-freq').value) || 30;
   if (!fechaStr) { showToast('Elegí una fecha', 'error'); return; }
 
+  const base = parseFecha(fechaStr);
+  if (!base) { showToast('Fecha inválida. Usá dd/mm/aaaa', 'error'); return; }
+  base.setHours(12,0,0,0);
+
   const cuotasPend = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada')).sort((a,b) => a.nro - b.nro);
   if (cuotasPend.length === 0) { showToast('No hay cuotas pendientes', 'error'); return; }
-
-  const base = new Date(fechaStr + 'T12:00:00');
   closeReprogModal();
   showToast('Reprogramando cuotas...');
 
