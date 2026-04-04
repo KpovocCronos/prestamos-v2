@@ -2583,9 +2583,7 @@ function actualizarPreviewCapital() {
   // Calcular cuotas pendientes y nuevo saldo por cuota
   const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada'));
   const totalCuotas = DB.cuotas.filter(c => c.prestId === editPrestId).length;
-  // Proporción: el saldo pendiente se ajusta proporcionalmente al cambio de capital
-  const proporcion = _epCapitalOriginal > 0 ? nuevoCapital / _epCapitalOriginal : 1;
-  const nuevaCuotaMonto = cuotasPend.length > 0 ? (cuotasPend[0].monto * proporcion) : 0;
+  const nuevaCuotaMonto = totalCuotas > 0 ? nuevoTotal / totalCuotas : 0;
   document.getElementById('ep-prev-capital').textContent = fmt(nuevoCapital);
   document.getElementById('ep-prev-total').textContent = fmt(nuevoTotal);
   document.getElementById('ep-prev-cuota').textContent = fmt(nuevaCuotaMonto) + ' c/u';
@@ -2609,7 +2607,6 @@ async function guardarEditPrest() {
     if (!p) throw new Error('Préstamo no encontrado en memoria');
     const capitalCambio = nuevoCapital !== _epCapitalOriginal;
     const tasaPct = parseFloat(String(p.interes).replace('%','')) || 0;
-    const proporcion = _epCapitalOriginal > 0 ? nuevoCapital / _epCapitalOriginal : 1;
     const nuevoTotal = nuevoCapital * (1 + tasaPct / 100);
     const ganBruta = nuevoTotal - nuevoCapital;
     const comision = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? ganBruta * 0.5 : 0;
@@ -2635,8 +2632,11 @@ async function guardarEditPrest() {
       const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
       const nombreCliente = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.clienteId;
 
+      // Calcular el nuevo monto fijo por cuota: total / cantidad de cuotas del préstamo
+      const nuevoMontoPorCuota = parseFloat((nuevoTotal / totalCuotasN).toFixed(2));
+
       for (const c of cuotasPend) {
-        const nuevoMonto  = parseFloat((c.monto  * proporcion).toFixed(2));
+        const nuevoMonto  = nuevoMontoPorCuota;
         const nuevoPagado = c.pagado; // lo pagado no cambia
         const nuevoSaldo  = parseFloat(Math.max(0, nuevoMonto - nuevoPagado).toFixed(2));
 
