@@ -2627,7 +2627,7 @@ async function guardarEditPrest() {
     // 2. Si cambió el capital, actualizar cuotas pendientes
     if (capitalCambio) {
       const cuotasData = await sheetsGet('Cuotas!A:J');
-      const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada'));
+      const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada')).sort((a,b) => a.nro - b.nro);
       const totalCuotasN = DB.cuotas.filter(c => c.prestId === editPrestId).length;
       const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
       const nombreCliente = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.clienteId;
@@ -2642,9 +2642,12 @@ async function guardarEditPrest() {
 
         // Actualizar Cuotas en Sheets (cuotasData incluye header en [0], fila real = rowIdx + 2)
         const rowCuota = cuotasData.findIndex(r => r[0] === c.id);
+        console.log(`Cuota ${c.nro} | id=${c.id} | rowCuota=${rowCuota} | sheetRow=${rowCuota + 2} | nuevoMonto=${nuevoMonto}`);
         if (rowCuota >= 0) {
           const sheetRowC = rowCuota + 2;
           await sheetsUpdate(`Cuotas!F${sheetRowC}:H${sheetRowC}`, [[nuevoMonto, nuevoPagado, nuevoSaldo]]);
+        } else {
+          console.warn(`⚠ No se encontró cuota ${c.id} en cuotasData`);
         }
 
         // Actualizar evento Calendar
@@ -2900,3 +2903,4 @@ init();
 </script>
 </body>
 </html>
+
