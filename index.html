@@ -2578,8 +2578,9 @@ function actualizarPreviewCapital() {
   hint.textContent = (diff > 0 ? '▲ +' : '▼ ') + fmt(diff) + ' respecto al original';
   hint.style.color = diff > 0 ? 'var(--amber)' : 'var(--red)';
   // Calcular nuevo total
-  const tasaPct = parseFloat(String(p.interes).replace('%','').replace(',','.')) || 0;
-  const nuevoTotal = nuevoCapital * (1 + tasaPct / 100);
+  // Calcular tasa real desde los valores originales del préstamo (evita problemas de formato string)
+  const tasaReal = _epCapitalOriginal > 0 ? (p.total / _epCapitalOriginal) : 1;
+  const nuevoTotal = nuevoCapital * tasaReal;
   // Calcular cuotas pendientes y nuevo saldo por cuota
   const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada'));
   const totalCuotas = DB.cuotas.filter(c => c.prestId === editPrestId).length;
@@ -2606,7 +2607,8 @@ async function guardarEditPrest() {
     const p = DB.prestamos.find(x => x.id === editPrestId);
     if (!p) throw new Error('Préstamo no encontrado en memoria');
     const capitalCambio = nuevoCapital !== _epCapitalOriginal;
-    const tasaPct = parseFloat(String(p.interes).replace('%','').replace(',','.')) || 0;
+    const tasaReal = _epCapitalOriginal > 0 ? (p.total / _epCapitalOriginal) : 1;
+    const nuevoTotal = nuevoCapital * tasaReal;
     const ganBruta = nuevoTotal - nuevoCapital;
     const comision = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? ganBruta * 0.5 : 0;
     const ganNeta = ganBruta - comision;
