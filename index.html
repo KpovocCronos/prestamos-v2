@@ -1160,6 +1160,15 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     <div class="modal-sub" id="edit-prest-sub">PREST-0001</div>
     <div class="form-grid">
       <div class="form-field">
+        <label class="form-label">Capital prestado ($)</label>
+        <input class="form-input" id="ep-capital" type="number" min="0" step="100" placeholder="0" oninput="actualizarPreviewCapital()">
+        <div class="form-hint" id="ep-capital-hint" style="color:var(--amber)"></div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Interés actual</label>
+        <input class="form-input" id="ep-interes-display" disabled style="opacity:.5">
+      </div>
+      <div class="form-field">
         <label class="form-label">Tipo de crédito</label>
         <select class="form-select" id="ep-tipo" onchange="toggleEpTercero()">
           <option value="propio">Propio</option>
@@ -1169,6 +1178,14 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
       <div class="form-field" id="ep-tercero-field" style="display:none">
         <label class="form-label">Nombre del tercero</label>
         <input class="form-input" id="ep-tercero" placeholder="Nombre del financiador">
+      </div>
+      <div class="form-field full" id="ep-capital-preview" style="display:none">
+        <div class="calc-box">
+          <div class="calc-row"><span class="calc-label">Capital nuevo</span><span class="calc-val" id="ep-prev-capital">—</span></div>
+          <div class="calc-row"><span class="calc-label">Total a cobrar</span><span class="calc-val" id="ep-prev-total">—</span></div>
+          <div class="calc-row"><span class="calc-label">Nueva cuota (saldo pendiente)</span><span class="calc-val" id="ep-prev-cuota">—</span></div>
+          <div class="calc-row" style="border-top:1px solid rgba(124,111,255,.2);padding-top:10px;margin-top:2px"><span class="calc-label">⚠ Cuotas pendientes afectadas</span><span class="calc-val" id="ep-prev-cuotas-n" style="color:var(--amber)">—</span></div>
+        </div>
       </div>
       <div class="form-field full">
         <label class="form-label">Notas</label>
@@ -2526,35 +2543,133 @@ async function sheetsClear(range) {
 // EDITAR PRÉSTAMO
 // ============================================================
 let editPrestId = null;
+let _epCapitalOriginal = 0;
+
 function abrirEditPrestModal(prestId) {
   const p = DB.prestamos.find(x => x.id === prestId);
   if (!p) return;
   editPrestId = prestId;
+  _epCapitalOriginal = p.capital || 0;
   document.getElementById('edit-prest-sub').textContent = prestId + ' · ' + p.nombre;
+  document.getElementById('ep-capital').value = p.capital || '';
+  document.getElementById('ep-interes-display').value = (p.interes || '') + (String(p.interes).includes('%') ? '' : '%');
+  document.getElementById('ep-capital-hint').textContent = '';
+  document.getElementById('ep-capital-preview').style.display = 'none';
   document.getElementById('ep-tipo').value = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? 'tercero' : 'propio';
   document.getElementById('ep-tercero').value = p.terceroNombre || '';
   document.getElementById('ep-notas').value = p.notas || '';
   toggleEpTercero();
   document.getElementById('editPrestModal').classList.add('open');
 }
+
+function actualizarPreviewCapital() {
+  if (!editPrestId) return;
+  const p = DB.prestamos.find(x => x.id === editPrestId);
+  if (!p) return;
+  const nuevoCapital = parseFloat(document.getElementById('ep-capital').value) || 0;
+  const preview = document.getElementById('ep-capital-preview');
+  const hint = document.getElementById('ep-capital-hint');
+  if (!nuevoCapital || nuevoCapital === _epCapitalOriginal) {
+    preview.style.display = 'none';
+    hint.textContent = '';
+    return;
+  }
+  const diff = nuevoCapital - _epCapitalOriginal;
+  hint.textContent = (diff > 0 ? '▲ +' : '▼ ') + fmt(diff) + ' respecto al original';
+  hint.style.color = diff > 0 ? 'var(--amber)' : 'var(--red)';
+  // Calcular nuevo total
+  const tasaPct = parseFloat(String(p.interes).replace('%','')) || 0;
+  const nuevoTotal = nuevoCapital * (1 + tasaPct / 100);
+  // Calcular cuotas pendientes y nuevo saldo por cuota
+  const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada'));
+  const totalCuotas = DB.cuotas.filter(c => c.prestId === editPrestId).length;
+  // Proporción: el saldo pendiente se ajusta proporcionalmente al cambio de capital
+  const proporcion = _epCapitalOriginal > 0 ? nuevoCapital / _epCapitalOriginal : 1;
+  const nuevaCuotaMonto = cuotasPend.length > 0 ? (cuotasPend[0].monto * proporcion) : 0;
+  document.getElementById('ep-prev-capital').textContent = fmt(nuevoCapital);
+  document.getElementById('ep-prev-total').textContent = fmt(nuevoTotal);
+  document.getElementById('ep-prev-cuota').textContent = fmt(nuevaCuotaMonto) + ' c/u';
+  document.getElementById('ep-prev-cuotas-n').textContent = cuotasPend.length + ' cuota/s se actualizarán en Calendar';
+  preview.style.display = 'block';
+}
+
 function toggleEpTercero() { document.getElementById('ep-tercero-field').style.display = document.getElementById('ep-tipo').value === 'tercero' ? 'flex' : 'none'; }
 function closeEditPrestModal() { document.getElementById('editPrestModal').classList.remove('open'); editPrestId = null; }
+
 async function guardarEditPrest() {
   if (!editPrestId) return;
+  const nuevoCapital = parseFloat(document.getElementById('ep-capital').value) || 0;
   const tipo = document.getElementById('ep-tipo').value;
   const tercero = document.getElementById('ep-tercero').value.trim();
   const notas = document.getElementById('ep-notas').value.trim();
+  if (!nuevoCapital || nuevoCapital <= 0) { showToast('El capital debe ser mayor a 0', 'error'); return; }
+
   try {
+    const p = DB.prestamos.find(x => x.id === editPrestId);
+    if (!p) throw new Error('Préstamo no encontrado en memoria');
+    const capitalCambio = nuevoCapital !== _epCapitalOriginal;
+    const tasaPct = parseFloat(String(p.interes).replace('%','')) || 0;
+    const proporcion = _epCapitalOriginal > 0 ? nuevoCapital / _epCapitalOriginal : 1;
+    const nuevoTotal = nuevoCapital * (1 + tasaPct / 100);
+    const ganBruta = nuevoTotal - nuevoCapital;
+    const comision = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? ganBruta * 0.5 : 0;
+    const ganNeta = ganBruta - comision;
+
+    // 1. Actualizar Préstamos en Sheets
     const datos = await sheetsGet('Préstamos!A1:P');
     const rowIdx = datos.findIndex(r => r[0] === editPrestId);
     if (rowIdx < 0) throw new Error('Préstamo no encontrado en Sheets');
     const sheetRow = rowIdx + 1;
     const tipoStr = tipo === 'tercero' ? 'De tercero' : 'propio';
+    // Columnas: E=capital, F=interes, G=total, I=tipo, J=terceroId, K=terceroNombre, L=ganBruta, M=comision, N=ganNeta, P=notas
+    await sheetsUpdate(`Préstamos!E${sheetRow}:G${sheetRow}`, [[nuevoCapital, p.interes, nuevoTotal.toFixed(2)]]);
     await sheetsUpdate(`Préstamos!I${sheetRow}:K${sheetRow}`, [[tipoStr, '', tercero]]);
+    await sheetsUpdate(`Préstamos!L${sheetRow}:N${sheetRow}`, [[ganBruta.toFixed(2), comision.toFixed(2), ganNeta.toFixed(2)]]);
     await sheetsUpdate(`Préstamos!P${sheetRow}`, [[notas]]);
+
+    // 2. Si cambió el capital, actualizar cuotas pendientes
+    if (capitalCambio) {
+      const cuotasData = await sheetsGet('Cuotas!A:J');
+      const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada'));
+      const totalCuotasN = DB.cuotas.filter(c => c.prestId === editPrestId).length;
+      const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
+      const nombreCliente = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.clienteId;
+
+      for (const c of cuotasPend) {
+        const nuevoMonto  = parseFloat((c.monto  * proporcion).toFixed(2));
+        const nuevoPagado = c.pagado; // lo pagado no cambia
+        const nuevoSaldo  = parseFloat(Math.max(0, nuevoMonto - nuevoPagado).toFixed(2));
+
+        // Actualizar Cuotas en Sheets (cuotasData incluye header en [0], fila real = rowIdx + 2)
+        const rowCuota = cuotasData.findIndex(r => r[0] === c.id);
+        if (rowCuota >= 0) {
+          const sheetRowC = rowCuota + 2;
+          await sheetsUpdate(`Cuotas!F${sheetRowC}:H${sheetRowC}`, [[nuevoMonto, nuevoPagado, nuevoSaldo]]);
+        }
+
+        // Actualizar evento Calendar
+        if (c.eventId && CFG.calId) {
+          try {
+            showToast(`Actualizando Calendar cuota ${c.nro}/${totalCuotasN}...`);
+            await fetch(
+              'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId,
+              {
+                method: 'PATCH',
+                headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  summary: '💰 ' + nombreCliente + ' — Cuota ' + c.nro + '/' + totalCuotasN + ' | ' + fmt(nuevoSaldo) + ' (' + editPrestId + ')',
+                  description: 'Préstamo: ' + editPrestId + '\nCliente: ' + nombreCliente + '\nMonto cuota: ' + fmt(nuevoMonto) + '\n⚠ Capital modificado: ' + fmt(_epCapitalOriginal) + ' → ' + fmt(nuevoCapital)
+                })
+              }
+            );
+          } catch(calErr) { console.warn('Error actualizando Calendar cuota', c.nro, calErr); }
+        }
+      }
+    }
+
     invalidateCache();
     closeEditPrestModal();
-    showToast('✓ Préstamo actualizado');
+    showToast(capitalCambio ? '✓ Préstamo actualizado y Calendar sincronizado' : '✓ Préstamo actualizado');
     await loadAll(true);
     renderDetallePrestamo(editPrestId);
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
