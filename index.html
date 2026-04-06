@@ -815,6 +815,9 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <div class="nav-item" data-screen="nuevo-cliente" onclick="nav('nuevo-cliente')">
           <span class="nav-icon">⊞</span> Nuevo cliente
         </div>
+        <div class="nav-item" onclick="escanearCalendar()" style="margin-top:8px;border-top:1px solid var(--border);padding-top:10px">
+          <span class="nav-icon">🔧</span> Reparar Calendar
+        </div>
       </div>
     </nav>
     <div class="sidebar-footer">
@@ -1288,6 +1291,19 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeReprogModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmarReprogramar()">Reprogramar →</button>
+    </div>
+  </div>
+</div>
+
+<!-- REPARAR CALENDAR MODAL -->
+<div class="modal-overlay" id="repairCalModal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title">🔧 Reparar Calendar</div>
+    <div class="modal-sub" id="repair-sub">Escaneando cuotas...</div>
+    <div id="repair-body" style="max-height:50vh;overflow-y:auto"></div>
+    <div class="modal-footer" id="repair-footer" style="display:none">
+      <button class="btn btn-ghost" onclick="closeRepairModal()">Cancelar</button>
+      <button class="btn btn-primary" id="repair-confirm-btn" onclick="ejecutarReparacion()">Crear eventos seleccionados</button>
     </div>
   </div>
 </div>
@@ -3150,6 +3166,146 @@ ${rows}
 <div style="text-align:center;margin-top:24px;font-size:11px;color:#3a3d4d">Créditos & Cobros</div>
 </div></body></html>`;
 }
+
+// ============================================================
+// REPARAR CALENDAR
+// ============================================================
+let _repairCuotas = [];
+
+function closeRepairModal() {
+  document.getElementById('repairCalModal').classList.remove('open');
+  _repairCuotas = [];
+}
+
+async function escanearCalendar() {
+  if (!CFG.calId) { showToast('No tenés Calendar ID configurado', 'error'); return; }
+  document.getElementById('repair-sub').textContent = 'Escaneando cuotas...';
+  document.getElementById('repair-body').innerHTML = '<div class="loading"><div class="spinner"></div> Cargando datos desde Sheets...</div>';
+  document.getElementById('repair-footer').style.display = 'none';
+  document.getElementById('repairCalModal').classList.add('open');
+
+  try {
+    await loadAll(true);
+    const sinEvento = DB.cuotas.filter(c =>
+      (!c.eventId || c.eventId.trim() === '') &&
+      c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con')
+    );
+
+    if (sinEvento.length === 0) {
+      document.getElementById('repair-sub').textContent = 'Todo en orden';
+      document.getElementById('repair-body').innerHTML = '<div class="empty-state" style="padding:24px"><div class="empty-icon">✅</div><div class="empty-title">Sin problemas</div><div class="empty-sub">Todas las cuotas pendientes tienen su evento en Calendar.</div></div>';
+      return;
+    }
+
+    _repairCuotas = sinEvento;
+    document.getElementById('repair-sub').textContent = sinEvento.length + ' cuota(s) sin evento en Calendar';
+
+    let html = '<div style="margin-bottom:12px;font-size:12px;color:var(--muted)">Revisá la lista y desmarcá las que no querés reparar. Solo se crearán eventos para las seleccionadas.</div>';
+    html += '<table style="width:100%"><thead><tr><th style="width:30px;text-align:center"><input type="checkbox" checked onchange="toggleAllRepair(this)"></th><th>Cuota</th><th>Cliente</th><th>Préstamo</th><th>Vencimiento</th><th>Monto</th></tr></thead><tbody>';
+
+    sinEvento.forEach((c, idx) => {
+      const cl = DB.clientes.find(x => x.id === c.clienteId) || {};
+      const nombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : c.clienteId;
+      const f = parseFecha(c.vencimiento);
+      const fechaStr = f ? fmtFecha(f) : c.vencimiento;
+      const vencida = f && f < new Date();
+      html += `<tr>
+        <td style="text-align:center"><input type="checkbox" checked class="repair-check" data-idx="${idx}"></td>
+        <td class="td-mono">${c.id}</td>
+        <td><div class="td-name">${nombre}</div></td>
+        <td class="td-mono">${c.prestId}</td>
+        <td${vencida ? ' class="text-red"' : ''}>${fechaStr}</td>
+        <td class="td-mono">${fmt(c.monto)}</td>
+      </tr>`;
+    });
+
+    html += '</tbody></table>';
+    document.getElementById('repair-body').innerHTML = html;
+    document.getElementById('repair-footer').style.display = 'flex';
+  } catch(e) {
+    document.getElementById('repair-body').innerHTML = '<div style="color:var(--red);padding:20px">Error: ' + e.message + '</div>';
+  }
+}
+
+function toggleAllRepair(master) {
+  document.querySelectorAll('.repair-check').forEach(cb => cb.checked = master.checked);
+}
+
+async function ejecutarReparacion() {
+  const checks = document.querySelectorAll('.repair-check');
+  const seleccionadas = [];
+  checks.forEach(cb => { if (cb.checked) seleccionadas.push(_repairCuotas[parseInt(cb.dataset.idx)]); });
+
+  if (seleccionadas.length === 0) { showToast('No seleccionaste ninguna cuota', 'error'); return; }
+
+  const btn = document.getElementById('repair-confirm-btn');
+  btn.disabled = true;
+  btn.textContent = 'Creando eventos...';
+
+  try {
+    const cuotasData = await sheetsGet('Cuotas!A:J');
+    let creados = 0;
+
+    for (let i = 0; i < seleccionadas.length; i++) {
+      const c = seleccionadas[i];
+      const p = DB.prestamos.find(x => x.id === c.prestId) || {};
+      const cl = DB.clientes.find(x => x.id === c.clienteId) || {};
+      const nombreCliente = cl.apellido ? cl.apellido + ', ' + cl.nombre : c.clienteId;
+      const totalCuotas = DB.cuotas.filter(x => x.prestId === c.prestId).length;
+      const f = parseFecha(c.vencimiento);
+      if (!f) { console.warn('Fecha inválida para', c.id); continue; }
+      const fechaISO = f.toISOString().split('T')[0];
+
+      showToast(`Creando evento ${i + 1}/${seleccionadas.length}: ${c.id}...`);
+
+      try {
+        const eventoBody = {
+          summary: '💰 ' + nombreCliente + ' — Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(c.saldo) + ' (' + c.prestId + ')',
+          description: 'Préstamo: ' + c.prestId + '\nCliente: ' + nombreCliente + ' (' + c.clienteId + ')\nMonto cuota: ' + fmt(c.monto) + '\nTipo: ' + (p.tipo || 'propio') + '\n🔧 Reparado',
+          start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
+          end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
+          colorId: '5',
+          reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
+        };
+        const calRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventoBody)
+        });
+
+        if (calRes.ok) {
+          const calData = await calRes.json();
+          const nuevoEventId = calData.id || '';
+          if (nuevoEventId) {
+            const rowIdx = cuotasData.findIndex(r => r[0] === c.id);
+            if (rowIdx >= 0) {
+              const sheetRow = rowIdx + 1;
+              await sheetsUpdate(`Cuotas!J${sheetRow}`, [[nuevoEventId]]);
+            }
+            await sheetsAppend('Calendario!A:F', [[c.id, c.prestId, c.clienteId, nuevoEventId, CFG.calId, 'Activo']]);
+            creados++;
+          }
+        } else {
+          console.warn('Calendar API error para', c.id, calRes.status);
+        }
+      } catch(calErr) {
+        console.warn('Error creando evento para', c.id, calErr);
+      }
+    }
+
+    invalidateCache();
+    await loadAll(true);
+    closeRepairModal();
+    showToast('✓ ' + creados + '/' + seleccionadas.length + ' eventos creados en Calendar');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Crear eventos seleccionados';
+  }
+}
+
+document.getElementById('repairCalModal').addEventListener('click', e => { if (e.target === document.getElementById('repairCalModal')) closeRepairModal(); });
 
 init();
 </script>
