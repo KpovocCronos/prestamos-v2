@@ -3000,15 +3000,12 @@ function abrirPlanCuotas(clienteId) {
     pendientes.forEach(cu => {
       const d = parseFecha(cu.vencimiento);
       if (!d) return;
-      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-      const dayKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       if (!monthMap[key]) monthMap[key] = { fecha: d, items: [] };
-      // Use the actual date from the first cuota that falls in this month
-      if (d < monthMap[key].fecha) monthMap[key].fecha = d;
       monthMap[key].items.push({
         prestId: p.id,
         label: `Crédito ${idx + 1}`,
-        monto: cu.saldo > 0 ? cu.monto : cu.monto,
+        monto: cu.monto,
         nro: cu.nro,
         totalCuotas: totalCuotasReal,
         isLast: cu.nro === Math.max(...pendientes.map(x => x.nro)),
