@@ -613,6 +613,35 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
+/* Plan de cuotas timeline */
+.plan-modal { max-width: 580px; }
+.plan-timeline { position: relative; padding-left: 22px; max-height: 55vh; overflow-y: auto; }
+.plan-timeline::before { content:''; position:absolute; left:7px; top:8px; bottom:8px; width:2px; background:linear-gradient(to bottom, var(--accent), var(--green)); border-radius:2px; }
+.plan-row { position:relative; margin-bottom:6px; }
+.plan-row::before { content:''; position:absolute; left:-17px; top:16px; width:10px; height:10px; border-radius:50%; background:var(--accent); border:2px solid var(--bg2); z-index:1; }
+.plan-row.plan-highlight::before { background:var(--amber); box-shadow:0 0 8px rgba(251,191,36,.4); }
+.plan-row.plan-final::before { background:var(--green); box-shadow:0 0 8px rgba(52,211,153,.4); }
+.plan-card { background:var(--bg3); border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+.plan-row.plan-highlight .plan-card { border-color:rgba(251,191,36,.25); background:rgba(251,191,36,.04); }
+.plan-row.plan-final .plan-card { border-color:rgba(52,211,153,.25); }
+.plan-card-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.plan-date { font-size:13px; font-weight:600; }
+.plan-total { font-family:var(--mono); font-size:15px; font-weight:700; }
+.plan-row.plan-highlight .plan-total { color:var(--amber); }
+.plan-row.plan-final .plan-total { color:var(--green); }
+.plan-tags { display:flex; gap:5px; flex-wrap:wrap; }
+.plan-tag { display:inline-flex; align-items:center; gap:3px; font-size:11px; padding:3px 9px; border-radius:16px; font-weight:500; }
+.plan-tag-last { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-left:3px; }
+.plan-badge-alert { display:inline-block; font-size:9px; font-weight:700; background:var(--amber); color:#000; padding:2px 7px; border-radius:5px; margin-left:6px; }
+.plan-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin-bottom:16px; }
+.plan-summary-card { background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:10px; text-align:center; }
+.plan-summary-label { font-size:9px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:4px; }
+.plan-summary-value { font-family:var(--mono); font-size:13px; font-weight:700; }
+.plan-summary-sub { font-size:10px; color:var(--muted); margin-top:2px; }
+.plan-legend { display:flex; flex-wrap:wrap; gap:12px; margin-top:14px; padding:12px; background:var(--bg3); border:1px solid var(--border); border-radius:10px; }
+.plan-legend-item { display:flex; align-items:center; gap:6px; font-size:12px; }
+.plan-legend-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
 /* Utility */
 .mt-12 { margin-top: 12px; }
 .mt-16 { margin-top: 16px; }
@@ -1263,6 +1292,23 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
   </div>
 </div>
 
+<!-- PLAN DE CUOTAS MODAL -->
+<div class="modal-overlay" id="planCuotasModal">
+  <div class="modal plan-modal">
+    <div class="flex-between" style="margin-bottom:16px">
+      <div>
+        <div class="modal-title" id="plan-title">Plan de Cuotas</div>
+        <div class="modal-sub" style="margin-bottom:0" id="plan-sub">—</div>
+      </div>
+      <div class="flex-row">
+        <button class="btn btn-ghost btn-sm" onclick="planCuotasNewWindow()">↗ Abrir en ventana</button>
+        <button class="btn btn-ghost btn-sm" onclick="closePlanCuotasModal()">✕</button>
+      </div>
+    </div>
+    <div id="plan-body"></div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -1691,6 +1737,7 @@ function renderDetalleCliente(clienteId) {
         </div>
       </div>
       <div class="flex-row">
+        <button class="btn btn-ghost btn-sm" onclick="abrirPlanCuotas('${c.id}')" style="border-color:rgba(124,111,255,.3);color:var(--accent2)">📊 Plan de cuotas</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirEditClienteModal('${c.id}')">✏ Editar cliente</button>
         <button class="btn btn-danger btn-sm" onclick="pedirEliminarCliente('${c.id}')">🗑 Eliminar cliente</button>
         <button class="btn btn-primary btn-sm" onclick="nav('nuevo-prestamo')">+ Nuevo préstamo</button>
@@ -2898,6 +2945,213 @@ async function init() {
     if (CFG.calId) document.getElementById('cfg-cal-id').value = CFG.calId;
     if (CFG.nombre) document.getElementById('cfg-nombre').value = CFG.nombre;
   }
+}
+
+// ============================================================
+// PLAN DE CUOTAS (Timeline visual para el cliente)
+// ============================================================
+const PLAN_COLORS = [
+  { bg:'rgba(96,165,250,.12)', color:'#60a5fa', border:'rgba(96,165,250,.2)', dot:'#60a5fa' },
+  { bg:'rgba(192,132,252,.12)', color:'#c084fc', border:'rgba(192,132,252,.2)', dot:'#c084fc' },
+  { bg:'rgba(251,191,36,.12)', color:'#fbbf24', border:'rgba(251,191,36,.2)', dot:'#fbbf24' },
+  { bg:'rgba(52,211,153,.12)', color:'#34d399', border:'rgba(52,211,153,.2)', dot:'#34d399' },
+  { bg:'rgba(248,113,113,.12)', color:'#f87171', border:'rgba(248,113,113,.2)', dot:'#f87171' },
+  { bg:'rgba(168,85,247,.12)', color:'#a855f7', border:'rgba(168,85,247,.2)', dot:'#a855f7' },
+];
+
+let _planHtmlCache = '';
+
+function abrirPlanCuotas(clienteId) {
+  const c = DB.clientes.find(x => x.id === clienteId);
+  if (!c) return;
+  const prestActivos = DB.prestamos.filter(p => p.clienteId === clienteId && calcEstadoPrestamo(p.id) !== 'Cancelado');
+  const prestConPendientes = prestActivos.filter(p => {
+    const cuotas = DB.cuotas.filter(cu => cu.prestId === p.id && cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con'));
+    return cuotas.length > 0;
+  });
+
+  if (prestConPendientes.length === 0) {
+    showToast('Este cliente no tiene cuotas pendientes', 'error');
+    return;
+  }
+
+  document.getElementById('plan-title').textContent = `Plan de Cuotas`;
+  document.getElementById('plan-sub').textContent = `${c.apellido}, ${c.nombre} — ${prestConPendientes.length} crédito${prestConPendientes.length > 1 ? 's' : ''} activo${prestConPendientes.length > 1 ? 's' : ''}`;
+
+  // Build month map: { 'YYYY-MM': [ {prestId, monto, nro, totalCuotas, isLast, color} ] }
+  const monthMap = {};
+  const prestInfo = [];
+
+  prestConPendientes.forEach((p, idx) => {
+    const colorIdx = idx % PLAN_COLORS.length;
+    const allCuotas = DB.cuotas.filter(cu => cu.prestId === p.id).sort((a,b) => a.nro - b.nro);
+    const pendientes = allCuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con')).sort((a,b) => a.nro - b.nro);
+    const totalCuotasReal = allCuotas.length;
+    const cuotaMonto = pendientes.length > 0 ? pendientes[0].monto : 0;
+
+    prestInfo.push({
+      id: p.id,
+      label: `Crédito ${idx + 1}`,
+      monto: cuotaMonto,
+      restantes: pendientes.length,
+      colorIdx
+    });
+
+    pendientes.forEach(cu => {
+      const d = parseFecha(cu.vencimiento);
+      if (!d) return;
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      const dayKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      if (!monthMap[key]) monthMap[key] = { fecha: d, items: [] };
+      // Use the actual date from the first cuota that falls in this month
+      if (d < monthMap[key].fecha) monthMap[key].fecha = d;
+      monthMap[key].items.push({
+        prestId: p.id,
+        label: `Crédito ${idx + 1}`,
+        monto: cu.saldo > 0 ? cu.monto : cu.monto,
+        nro: cu.nro,
+        totalCuotas: totalCuotasReal,
+        isLast: cu.nro === Math.max(...pendientes.map(x => x.nro)),
+        colorIdx,
+        fecha: d
+      });
+    });
+  });
+
+  // Sort months
+  const sortedMonths = Object.keys(monthMap).sort();
+
+  // Find highest month
+  let maxTotal = 0;
+  let maxKey = '';
+  sortedMonths.forEach(k => {
+    const total = monthMap[k].items.reduce((a, it) => a + it.monto, 0);
+    if (total > maxTotal) { maxTotal = total; maxKey = k; }
+  });
+
+  // Build summary cards
+  let summaryHtml = '<div class="plan-summary">';
+  prestInfo.forEach(pi => {
+    const c = PLAN_COLORS[pi.colorIdx];
+    summaryHtml += `<div class="plan-summary-card">
+      <div class="plan-summary-label" style="color:${c.color}">${pi.label}</div>
+      <div class="plan-summary-value">${fmt(pi.monto)}</div>
+      <div class="plan-summary-sub">${pi.restantes} cuota${pi.restantes > 1 ? 's' : ''}</div>
+    </div>`;
+  });
+  summaryHtml += '</div>';
+
+  // Build timeline
+  let timelineHtml = '<div class="plan-timeline">';
+  sortedMonths.forEach((k, idx) => {
+    const entry = monthMap[k];
+    const total = entry.items.reduce((a, it) => a + it.monto, 0);
+    const isHighest = k === maxKey && sortedMonths.length > 1;
+    const isLast = idx === sortedMonths.length - 1;
+    const rowClass = isHighest ? 'plan-highlight' : isLast ? 'plan-final' : '';
+
+    // Format date from first item
+    const d = entry.fecha;
+    const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const dateStr = d.getDate() + ' ' + monthNames[d.getMonth()] + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '');
+
+    timelineHtml += `<div class="plan-row ${rowClass}">
+      <div class="plan-card">
+        <div class="plan-card-top">
+          <span class="plan-date">${dateStr}${isHighest ? '<span class="plan-badge-alert">CUOTA MÁS ALTA</span>' : ''}</span>
+          <span class="plan-total">${fmt(total)}</span>
+        </div>
+        <div class="plan-tags">`;
+
+    entry.items.forEach(it => {
+      const c = PLAN_COLORS[it.colorIdx];
+      timelineHtml += `<span class="plan-tag" style="background:${c.bg};color:${c.color};border:1px solid ${c.border}">${fmt(it.monto)}${it.isLast ? '<span class="plan-tag-last">última</span>' : ''}</span>`;
+    });
+
+    timelineHtml += `</div></div></div>`;
+  });
+  timelineHtml += '</div>';
+
+  // Legend
+  let legendHtml = '<div class="plan-legend">';
+  prestInfo.forEach(pi => {
+    const c = PLAN_COLORS[pi.colorIdx];
+    legendHtml += `<div class="plan-legend-item"><div class="plan-legend-dot" style="background:${c.dot}"></div>${pi.label} · ${fmt(pi.monto)} x ${pi.restantes}</div>`;
+  });
+  legendHtml += '</div>';
+
+  const bodyHtml = summaryHtml + timelineHtml + legendHtml;
+  document.getElementById('plan-body').innerHTML = bodyHtml;
+  _planHtmlCache = buildPlanFullHtml(c, prestInfo, sortedMonths, monthMap, maxKey);
+  document.getElementById('planCuotasModal').classList.add('open');
+}
+
+function closePlanCuotasModal() {
+  document.getElementById('planCuotasModal').classList.remove('open');
+}
+
+function planCuotasNewWindow() {
+  if (!_planHtmlCache) return;
+  const w = window.open('', '_blank');
+  w.document.write(_planHtmlCache);
+  w.document.close();
+}
+
+function buildPlanFullHtml(cliente, prestInfo, sortedMonths, monthMap, maxKey) {
+  const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  let rows = '';
+  sortedMonths.forEach((k, idx) => {
+    const entry = monthMap[k];
+    const total = entry.items.reduce((a, it) => a + it.monto, 0);
+    const isHighest = k === maxKey && sortedMonths.length > 1;
+    const isLast = idx === sortedMonths.length - 1;
+    const d = entry.fecha;
+    const dateStr = d.getDate() + ' ' + monthNames[d.getMonth()] + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '');
+    const rowClass = isHighest ? 'highlight' : isLast ? 'final' : '';
+
+    let tags = '';
+    entry.items.forEach(it => {
+      const c = PLAN_COLORS[it.colorIdx];
+      tags += `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:4px 10px;border-radius:20px;font-weight:500;background:${c.bg};color:${c.color};border:1px solid ${c.border}">$${Math.round(it.monto).toLocaleString('es-AR')}${it.isLast ? '<span style="font-size:9px;color:#7874a0;text-transform:uppercase;letter-spacing:.5px;margin-left:3px">última</span>' : ''}</span> `;
+    });
+
+    rows += `<div style="position:relative;margin-bottom:6px" class="${rowClass}">
+      <div style="background:#181a23;border:1px solid ${isHighest?'rgba(251,191,36,.25)':'rgba(255,255,255,.07)'};border-radius:14px;padding:14px 16px;${isHighest?'background:#1a1820;':''}${isLast&&!isHighest?'border-color:rgba(52,211,153,.25);':''}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-size:13px;font-weight:600;color:#fff">${dateStr}${isHighest?'<span style="display:inline-block;font-size:10px;font-weight:700;background:#fbbf24;color:#0f1117;padding:2px 8px;border-radius:6px;margin-left:6px">CUOTA MÁS ALTA</span>':''}</span>
+          <span style="font-family:monospace;font-size:16px;font-weight:700;color:${isHighest?'#fbbf24':isLast&&!isHighest?'#34d399':'#fff'}">$${Math.round(total).toLocaleString('es-AR')}</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${tags}</div>
+      </div>
+    </div>`;
+  });
+
+  let summaryCards = '';
+  prestInfo.forEach(pi => {
+    const c = PLAN_COLORS[pi.colorIdx];
+    summaryCards += `<div style="background:#181a23;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:14px 12px;text-align:center;flex:1;min-width:120px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:${c.color};margin-bottom:6px">${pi.label}</div>
+      <div style="font-family:monospace;font-size:14px;font-weight:700;color:#fff">$${Math.round(pi.monto).toLocaleString('es-AR')}</div>
+      <div style="font-size:10px;color:#7874a0;margin-top:4px">${pi.restantes} cuotas</div>
+    </div>`;
+  });
+
+  let legendItems = '';
+  prestInfo.forEach(pi => {
+    const c = PLAN_COLORS[pi.colorIdx];
+    legendItems += `<div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:${c.dot}"></div><span style="font-size:13px;color:#e8e8ed">${pi.label}</span><span style="font-family:monospace;font-size:12px;color:#7874a0;margin-left:auto">$${Math.round(pi.monto).toLocaleString('es-AR')} x ${pi.restantes}</span></div>`;
+  });
+
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Plan de Cuotas — ${cliente.apellido}, ${cliente.nombre}</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;background:#0f1117;color:#e8e8ed;min-height:100vh;padding:24px 16px;display:flex;justify-content:center;align-items:flex-start}</style></head>
+<body><div style="max-width:520px;width:100%">
+<div style="text-align:center;margin-bottom:32px"><h1 style="font-size:20px;font-weight:700;color:#fff;margin-bottom:6px">Plan de Cuotas</h1><p style="font-size:13px;color:#7874a0">${cliente.apellido}, ${cliente.nombre} · ${new Date().toLocaleDateString('es-AR',{month:'long',year:'numeric'})}</p></div>
+<div style="display:flex;gap:10px;margin-bottom:28px;flex-wrap:wrap">${summaryCards}</div>
+${rows}
+<div style="margin-top:28px;padding:16px;background:#181a23;border:1px solid rgba(255,255,255,.07);border-radius:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7874a0;margin-bottom:12px">Referencias</div><div style="display:flex;flex-direction:column;gap:8px">${legendItems}</div></div>
+<div style="text-align:center;margin-top:24px;font-size:11px;color:#3a3d4d">Créditos & Cobros</div>
+</div></body></html>`;
 }
 
 init();
