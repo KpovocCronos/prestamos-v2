@@ -2688,7 +2688,7 @@ async function guardarEditPrest() {
         const nuevoPagado = c.pagado; // lo pagado no cambia
         const nuevoSaldo  = parseFloat(Math.max(0, nuevoMonto - nuevoPagado).toFixed(2));
 
-        // Actualizar Cuotas en Sheets (cuotasData incluye header en [0], fila real = rowIdx + 2)
+        // Actualizar Cuotas en Sheets (cuotasData incluye header en [0], fila real = rowIdx + 1)
         const rowCuota = cuotasData.findIndex(r => r[0] === c.id);
         console.log(`Cuota ${c.nro} | id=${c.id} | rowCuota=${rowCuota} | sheetRow=${rowCuota + 2} | nuevoMonto=${nuevoMonto}`);
         if (rowCuota >= 0) {
@@ -2875,7 +2875,7 @@ async function confirmarReprogramar() {
       }
       const rowIdx = cuotasData.findIndex(r => r[0] === c.id);
       if (rowIdx >= 0) {
-        const sheetRow = rowIdx + 2;
+        const sheetRow = rowIdx + 1;
         await sheetsUpdate(`Cuotas!E${sheetRow}`, [[nuevaFechaES]]);
         if (nuevoEventId) await sheetsUpdate(`Cuotas!J${sheetRow}`, [[nuevoEventId]]);
       }
