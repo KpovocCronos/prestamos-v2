@@ -818,6 +818,9 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <div class="nav-item" onclick="escanearCalendar()" style="margin-top:8px;border-top:1px solid var(--border);padding-top:10px">
           <span class="nav-icon">🔧</span> Reparar Calendar
         </div>
+        <div class="nav-item" data-screen="calculadora" onclick="nav('calculadora')" style="margin-top:4px">
+          <span class="nav-icon">🧮</span> Calculadora
+        </div>
       </div>
     </nav>
     <div class="sidebar-footer">
@@ -1170,6 +1173,72 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
       </div>
 
     </div>
+
+    <!-- ============================================================
+         SCREEN: CALCULADORA
+         ============================================================ -->
+    <div class="screen" id="screen-calculadora">
+      <div style="max-width:560px">
+
+        <!-- Monto -->
+        <div class="form-section">
+          <div class="form-section-title">Datos del préstamo</div>
+          <div class="form-grid">
+            <div class="form-field">
+              <label class="form-label">Monto solicitado ($)</label>
+              <input class="form-input" type="number" id="calc-monto" placeholder="Ej: 300000" oninput="calcActualizarTodos()">
+            </div>
+          </div>
+        </div>
+
+        <!-- Perfil cliente -->
+        <div class="form-section">
+          <div class="form-section-title">Perfil del cliente</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
+            <div id="cp-nuevo"    class="calc-perfil-btn" onclick="calcPerfil('nuevo')"    style="border:1px solid var(--border2);border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;background:var(--card)">
+              <div style="font-size:15px;margin-bottom:3px">🔴</div><div style="font-size:11px;color:var(--muted);line-height:1.3">Nuevo /<br>desconocido</div>
+            </div>
+            <div id="cp-conocido" class="calc-perfil-btn" onclick="calcPerfil('conocido')" style="border:1px solid var(--border2);border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;background:var(--card)">
+              <div style="font-size:15px;margin-bottom:3px">🟡</div><div style="font-size:11px;color:var(--muted);line-height:1.3">Conocido<br>sin historial</div>
+            </div>
+            <div id="cp-historial" class="calc-perfil-btn" onclick="calcPerfil('historial')" style="border:1px solid var(--border2);border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;background:var(--card)">
+              <div style="font-size:15px;margin-bottom:3px">🔵</div><div style="font-size:11px;color:var(--muted);line-height:1.3">Con historial<br>bueno</div>
+            </div>
+            <div id="cp-vip"      class="calc-perfil-btn" onclick="calcPerfil('vip')"      style="border:1px solid var(--border2);border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;background:var(--card)">
+              <div style="font-size:15px;margin-bottom:3px">🟢</div><div style="font-size:11px;color:var(--muted);line-height:1.3">VIP —<br>siempre paga</div>
+            </div>
+          </div>
+          <div id="calc-perfil-desc" style="font-size:12px;color:var(--muted);padding:8px 12px;background:var(--bg3);border-radius:8px">Seleccioná un perfil para ver tasas sugeridas.</div>
+        </div>
+
+        <!-- Opciones -->
+        <div class="form-section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div class="form-section-title" style="margin-bottom:0">Opciones de pago</div>
+            <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px" onclick="calcAgregarOpcion()">+ Agregar opción</button>
+          </div>
+          <div id="calc-opciones-container"></div>
+        </div>
+
+        <!-- Botón generar -->
+        <button class="btn btn-primary" style="width:100%;padding:12px;font-size:14px" onclick="calcGenerar()">Generar mensaje para cliente</button>
+
+        <!-- Resultado -->
+        <div id="calc-resultado" style="display:none;margin-top:20px">
+          <div class="form-section">
+            <div class="form-section-title">Resumen interno (solo para vos)</div>
+            <div id="calc-resumen-interno" style="font-size:13px"></div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Mensaje para cliente</div>
+            <div id="calc-wa-msg" style="font-family:var(--mono);font-size:13px;line-height:1.8;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:16px;white-space:pre-wrap;color:var(--text)"></div>
+            <button class="btn btn-ghost" style="width:100%;margin-top:10px;font-size:13px" id="calc-copy-btn" onclick="calcCopiar()">Copiar mensaje</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -1487,7 +1556,7 @@ function rowToPago(r)     { return { id:r[0]||'', cuotaId:r[1]||'', prestId:r[2]
 // ============================================================
 // NAVIGATION
 // ============================================================
-const TITLES = { dashboard:'Dashboard', estadisticas:'Estadísticas', clientes:'Clientes', 'detalle-cliente':'Detalle cliente', prestamos:'Préstamos', 'detalle-prestamo':'Detalle préstamo', vencimientos:'Vencimientos', 'nuevo-prestamo':'Nuevo préstamo', 'nuevo-cliente':'Nuevo cliente' };
+const TITLES = { dashboard:'Dashboard', estadisticas:'Estadísticas', clientes:'Clientes', 'detalle-cliente':'Detalle cliente', prestamos:'Préstamos', 'detalle-prestamo':'Detalle préstamo', vencimientos:'Vencimientos', 'nuevo-prestamo':'Nuevo préstamo', 'nuevo-cliente':'Nuevo cliente', calculadora:'Calculadora de préstamos' };
 
 async function nav(screen, data) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -1505,6 +1574,7 @@ async function nav(screen, data) {
   if (screen === 'detalle-cliente')  renderDetalleCliente(data);
   if (screen === 'detalle-prestamo') renderDetallePrestamo(data);
   if (screen === 'nuevo-prestamo')   initNuevoPrestamo();
+  if (screen === 'calculadora')      calcRenderOpciones();
 }
 
 // ============================================================
@@ -3306,6 +3376,210 @@ async function ejecutarReparacion() {
 }
 
 document.getElementById('repairCalModal').addEventListener('click', e => { if (e.target === document.getElementById('repairCalModal')) closeRepairModal(); });
+
+// ============================================================
+// CALCULADORA DE PRÉSTAMOS
+// ============================================================
+const CALC_PERFILES = {
+  nuevo:     { desc: 'Sin historial. Tasa llena, plazo corto. El primer préstamo es una prueba.', tasas: [80, 150, 180] },
+  conocido:  { desc: 'Lo conocés socialmente pero nunca le prestaste. Monto chico para empezar.', tasas: [70, 130, 160] },
+  historial: { desc: 'Pagó bien 1 o 2 veces. Tiene crédito ganado. Un escalón más abajo.',        tasas: [60, 110, 140] },
+  vip:       { desc: 'Tu activo más valioso. Riesgo bajo. Fidelizalo sin regalar.',               tasas: [50, 90,  120] },
+};
+const CALC_FREQ_PLURAL   = { semanal:'semanas', quincenal:'quincenas', mensual:'meses', unico:'' };
+const CALC_FREQ_SINGULAR = { semanal:'semana',  quincenal:'quincena',  mensual:'mes',   unico:'' };
+
+let calcPerfilActual = null;
+let calcOpciones = [
+  { cuotas: 2, freq: 'quincenal', tasa: 0 },
+  { cuotas: 4, freq: 'quincenal', tasa: 0 },
+  { cuotas: 6, freq: 'quincenal', tasa: 0 },
+];
+
+function calcFmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
+
+// cuántos meses equivale una combinación cuotas+freq
+function calcMeses(cuotas, freq) {
+  if (freq === 'unico')    return 0;
+  if (freq === 'mensual')  return cuotas;
+  if (freq === 'quincenal') return cuotas / 2;
+  if (freq === 'semanal')   return cuotas / 4;
+  return 0;
+}
+
+function calcMesesLabel(cuotas, freq) {
+  if (freq === 'unico') return '';
+  const m = calcMeses(cuotas, freq);
+  if (m <= 0) return '';
+  // mostrar como entero si es exacto
+  const display = Number.isInteger(m) ? m : m.toFixed(1);
+  return display + (m === 1 ? ' mes' : ' meses');
+}
+
+function calcPerfil(key) {
+  calcPerfilActual = key;
+  const p = CALC_PERFILES[key];
+  document.querySelectorAll('.calc-perfil-btn').forEach(b => {
+    b.style.borderColor = 'var(--border2)';
+    b.style.background  = 'var(--card)';
+  });
+  const colors = { nuevo:'#f87171', conocido:'#fbbf24', historial:'#7c6fff', vip:'#34d399' };
+  const el = document.getElementById('cp-' + key);
+  if (el) { el.style.borderColor = colors[key]; el.style.background = colors[key] + '18'; }
+  document.getElementById('calc-perfil-desc').textContent = p.desc;
+  calcOpciones.forEach((op, i) => { if (p.tasas[i] !== undefined) op.tasa = p.tasas[i]; });
+  calcRenderOpciones();
+}
+
+function calcGetSugerida(i) {
+  return calcPerfilActual && CALC_PERFILES[calcPerfilActual].tasas[i] != null
+    ? CALC_PERFILES[calcPerfilActual].tasas[i] : null;
+}
+
+function calcActualizarTodos() {
+  const monto = parseFloat(document.getElementById('calc-monto').value) || 0;
+  calcOpciones.forEach((_, i) => calcActualizarPreview(i, monto));
+}
+
+function calcActualizarPreview(i, monto) {
+  const el = document.getElementById('calc-prev-' + i);
+  if (!el) return;
+  const op = calcOpciones[i];
+  if (!monto || !op.tasa) {
+    el.style.background = 'var(--bg3)';
+    el.style.borderColor = 'var(--border)';
+    el.style.color = 'var(--muted)';
+    el.textContent = '—';
+    return;
+  }
+  const total    = monto * (1 + op.tasa / 100);
+  const porCuota = total / op.cuotas;
+  const ganancia = total - monto;
+  const tpc      = op.tasa / op.cuotas;
+  const sug      = calcGetSugerida(i);
+  const diff     = sug ? op.tasa - sug : 0;
+
+  let bg, border, color, icono, extra = '';
+  if (!sug || op.tasa >= sug)          { bg = 'rgba(52,211,153,0.08)';  border = 'rgba(52,211,153,0.3)';  color = '#34d399'; icono = '✓'; }
+  else if (op.tasa >= sug * 0.85)      { bg = 'rgba(251,191,36,0.08)';  border = 'rgba(251,191,36,0.3)';  color = '#fbbf24'; icono = '▲'; extra = ` — ${Math.abs(diff).toFixed(0)}pts bajo lo sugerido`; }
+  else                                 { bg = 'rgba(248,113,113,0.08)';  border = 'rgba(248,113,113,0.3)'; color = '#f87171'; icono = '✕'; extra = ` — ${Math.abs(diff).toFixed(0)}pts bajo lo sugerido`; }
+
+  el.style.background  = bg;
+  el.style.borderColor = border;
+  el.style.color       = color;
+
+  const cuotaStr = op.cuotas === 1
+    ? `Pago único: ${calcFmt(total)}`
+    : `${calcFmt(porCuota)} x ${op.cuotas} ${CALC_FREQ_PLURAL[op.freq]} = ${calcFmt(total)}`;
+  el.textContent = `${icono} ${cuotaStr} — ganancia ${calcFmt(ganancia)} (${tpc.toFixed(1)}%/período)${extra}`;
+}
+
+function calcRenderOpciones() {
+  const container = document.getElementById('calc-opciones-container');
+  if (!container) return;
+  const freqOpts = [
+    { val:'unico',    label:'Pago único' },
+    { val:'semanal',  label:'Semanal' },
+    { val:'quincenal',label:'Quincenal' },
+    { val:'mensual',  label:'Mensual' },
+  ];
+  container.innerHTML = calcOpciones.map((op, i) => {
+    const sug = calcGetSugerida(i);
+    return `<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:13px;font-weight:600;color:var(--muted)">Opción ${i+1}</span>
+        ${calcOpciones.length > 1 ? `<button class="btn btn-ghost" style="padding:3px 10px;font-size:12px" onclick="calcEliminarOpcion(${i})">× Eliminar</button>` : ''}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label class="form-label">Cuotas</label>
+          <select class="form-input" onchange="calcUpdate(${i},'cuotas',this.value)">
+            ${[1,2,3,4,6,12].map(n => `<option value="${n}" ${op.cuotas==n?'selected':''}>${n}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Frecuencia</label>
+          <select class="form-input" onchange="calcUpdate(${i},'freq',this.value)">
+            ${freqOpts.map(f => `<option value="${f.val}" ${op.freq===f.val?'selected':''}>${f.label}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Tasa total (%)</label>
+          <input class="form-input" type="number" value="${op.tasa||''}" min="0" placeholder="${sug||'0'}" oninput="calcUpdate(${i},'tasa',this.value)">
+          ${sug ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">sugerida: ${sug}%</div>` : ''}
+        </div>
+      </div>
+      <div id="calc-prev-${i}" style="font-size:12px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);min-height:32px;transition:all .2s">—</div>
+    </div>`;
+  }).join('');
+  calcActualizarTodos();
+}
+
+function calcUpdate(i, campo, val) {
+  if (campo === 'cuotas' || campo === 'tasa') calcOpciones[i][campo] = parseFloat(val) || 0;
+  else calcOpciones[i][campo] = val;
+  if (campo === 'freq' && val === 'unico') calcOpciones[i].cuotas = 1;
+  const monto = parseFloat(document.getElementById('calc-monto').value) || 0;
+  calcActualizarPreview(i, monto);
+}
+
+function calcAgregarOpcion() {
+  calcOpciones.push({ cuotas: 1, freq: 'unico', tasa: 0 });
+  calcRenderOpciones();
+}
+
+function calcEliminarOpcion(i) {
+  calcOpciones.splice(i, 1);
+  calcRenderOpciones();
+}
+
+function calcGenerar() {
+  const monto = parseFloat(document.getElementById('calc-monto').value);
+  if (!monto || monto <= 0) { showToast('Ingresá el monto solicitado', 'error'); return; }
+  if (calcOpciones.some(op => !op.tasa || op.tasa <= 0)) { showToast('Completá la tasa de todas las opciones', 'error'); return; }
+
+  // resumen interno
+  const filas = calcOpciones.map((op, i) => {
+    const total    = monto * (1 + op.tasa / 100);
+    const ganancia = total - monto;
+    const tpc      = (op.tasa / op.cuotas).toFixed(1);
+    return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <span style="color:var(--muted)">Opción ${i+1}</span>
+      <span style="font-family:var(--mono);color:var(--text)">Total ${calcFmt(total)} — Ganancia ${calcFmt(ganancia)} — ${tpc}%/período</span>
+    </div>`;
+  }).join('');
+  document.getElementById('calc-resumen-interno').innerHTML = filas;
+
+  // mensaje cliente limpio
+  const letras = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣'];
+  const lineas = calcOpciones.map((op, i) => {
+    const total    = monto * (1 + op.tasa / 100);
+    const porCuota = total / op.cuotas;
+    if (op.cuotas === 1) {
+      return `${letras[i]} 1 pago de ${calcFmt(total)}`;
+    }
+    const mesesLabel = calcMesesLabel(op.cuotas, op.freq);
+    const equiv = mesesLabel ? `  (${mesesLabel})` : '';
+    return `${letras[i]} ${op.cuotas} ${CALC_FREQ_PLURAL[op.freq]} de ${calcFmt(porCuota)}${equiv}`;
+  });
+
+  const msg = `Hola! Te paso las opciones disponibles:\n\n${lineas.join('\n')}\n\nCualquier duda lo vemos 👍`;
+  document.getElementById('calc-wa-msg').textContent = msg;
+  document.getElementById('calc-resultado').style.display = 'block';
+  document.getElementById('calc-resultado').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function calcCopiar() {
+  const txt = document.getElementById('calc-wa-msg').textContent;
+  navigator.clipboard.writeText(txt).then(() => {
+    const btn = document.getElementById('calc-copy-btn');
+    btn.textContent = '✓ Copiado';
+    setTimeout(() => btn.textContent = 'Copiar mensaje', 1500);
+  });
+}
+
+// inicializar calculadora cuando se navega a ella
+const _navOriginal = nav;
 
 init();
 </script>
