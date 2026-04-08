@@ -2999,10 +2999,12 @@ async function confirmarReprogramar() {
           const p = DB.prestamos.find(x => x.id === reprogPrestId) || {};
           const cl = DB.clientes.find(x => x.id === c.clienteId) || {};
           const nombreCliente = cl.apellido ? cl.apellido + ', ' + cl.nombre : c.clienteId;
-          const totalCuotas = DB.cuotas.filter(x => x.prestId === reprogPrestId).length;
+          const todasLasCuotas = DB.cuotas.filter(x => x.prestId === reprogPrestId);
+          const totalCuotas = todasLasCuotas.length || p.cuotas || cuotasPend.length;
+          const montoCuota = c.monto || c.saldo || 0;
           const eventoBody = {
-            summary: '💰 ' + nombreCliente + ' — Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(c.saldo) + ' (' + reprogPrestId + ')',
-            description: 'Préstamo: ' + reprogPrestId + '\nCliente: ' + nombreCliente + '\nMonto cuota: ' + fmt(c.saldo) + '\n⚠ Reprogramada',
+            summary: '💰 ' + nombreCliente + ' — Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(montoCuota) + ' (' + reprogPrestId + ')',
+            description: 'Préstamo: ' + reprogPrestId + '\nCliente: ' + nombreCliente + ' (' + c.clienteId + ')\nMonto cuota: ' + fmt(montoCuota) + '\nTipo: ' + (p.tipo || 'propio') + '\n⚠ Reprogramada',
             start: { dateTime: nuevaFechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
             end:   { dateTime: nuevaFechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
             colorId: '5',
