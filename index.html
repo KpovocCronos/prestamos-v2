@@ -1179,10 +1179,11 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
          SCREEN: CALCULADORA
          ============================================================ -->
     <div class="screen" id="screen-calculadora">
-      <div style="max-width:640px">
+      <div style="max-width:640px;margin:0 auto">
 
       <!-- TABLA DE REFERENCIA COMPACTA -->
-      <div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:20px">
+      <div style="position:sticky;top:0;z-index:10;background:var(--bg);padding-bottom:8px">
+      <div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted)">Referencia de tasas (mensuales)</div>
         </div>
@@ -1230,6 +1231,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
       </div>
 
       <!-- FORMULARIO CALCULADORA -->
+      </div><!-- fin sticky wrapper -->
 
         <!-- Monto -->
         <div class="form-section">
