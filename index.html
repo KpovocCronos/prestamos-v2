@@ -3182,9 +3182,9 @@ function abrirPlanCuotas(clienteId) {
   sortedMonths.forEach((k, idx) => {
     const entry = monthMap[k];
     const total = entry.items.reduce((a, it) => a + it.monto, 0);
-    const isHighest = k === maxKey && sortedMonths.length > 1;
+    const isHighest = false;
     const isLast = idx === sortedMonths.length - 1;
-    const rowClass = isHighest ? 'plan-highlight' : isLast ? 'plan-final' : '';
+    const rowClass = isLast ? 'plan-final' : '';
 
     // Format date from first item
     const d = entry.fecha;
@@ -3194,7 +3194,7 @@ function abrirPlanCuotas(clienteId) {
     timelineHtml += `<div class="plan-row ${rowClass}">
       <div class="plan-card">
         <div class="plan-card-top">
-          <span class="plan-date">${dateStr}${isHighest ? '<span class="plan-badge-alert">CUOTA MÁS ALTA</span>' : ''}</span>
+          <span class="plan-date">${dateStr}</span>
           <span class="plan-total">${fmt(total)}</span>
         </div>
         <div class="plan-tags">`;
@@ -3239,11 +3239,11 @@ function buildPlanFullHtml(cliente, prestInfo, sortedMonths, monthMap, maxKey) {
   sortedMonths.forEach((k, idx) => {
     const entry = monthMap[k];
     const total = entry.items.reduce((a, it) => a + it.monto, 0);
-    const isHighest = k === maxKey && sortedMonths.length > 1;
+    const isHighest = false;
     const isLast = idx === sortedMonths.length - 1;
     const d = entry.fecha;
     const dateStr = d.getDate() + ' ' + monthNames[d.getMonth()] + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '');
-    const rowClass = isHighest ? 'highlight' : isLast ? 'final' : '';
+    const rowClass = isLast ? 'final' : '';
 
     let tags = '';
     entry.items.forEach(it => {
@@ -3252,10 +3252,10 @@ function buildPlanFullHtml(cliente, prestInfo, sortedMonths, monthMap, maxKey) {
     });
 
     rows += `<div style="position:relative;margin-bottom:6px" class="${rowClass}">
-      <div style="background:#181a23;border:1px solid ${isHighest?'rgba(251,191,36,.25)':'rgba(255,255,255,.07)'};border-radius:14px;padding:14px 16px;${isHighest?'background:#1a1820;':''}${isLast&&!isHighest?'border-color:rgba(52,211,153,.25);':''}">
+      <div style="background:#181a23;border:1px solid ${isLast?'rgba(52,211,153,.25)':'rgba(255,255,255,.07)'};border-radius:14px;padding:14px 16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <span style="font-size:13px;font-weight:600;color:#fff">${dateStr}${isHighest?'<span style="display:inline-block;font-size:10px;font-weight:700;background:#fbbf24;color:#0f1117;padding:2px 8px;border-radius:6px;margin-left:6px">CUOTA MÁS ALTA</span>':''}</span>
-          <span style="font-family:monospace;font-size:16px;font-weight:700;color:${isHighest?'#fbbf24':isLast&&!isHighest?'#34d399':'#fff'}">$${Math.round(total).toLocaleString('es-AR')}</span>
+          <span style="font-size:13px;font-weight:600;color:#fff">${dateStr}</span>
+          <span style="font-family:monospace;font-size:16px;font-weight:700;color:${isLast?'#34d399':'#fff'}">$${Math.round(total).toLocaleString('es-AR')}</span>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">${tags}</div>
       </div>
