@@ -1179,56 +1179,57 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
          SCREEN: CALCULADORA
          ============================================================ -->
     <div class="screen" id="screen-calculadora">
-      <div style="display:flex;gap:24px;align-items:flex-start">
+      <div style="max-width:640px">
 
-      <!-- TABLA DE REFERENCIA -->
-      <div style="flex-shrink:0;width:320px;order:2;position:sticky;top:0">
-        <div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:16px">
-          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:12px">Referencia de tasas</div>
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
-            <thead>
-              <tr>
-                <th style="text-align:left;color:var(--muted);font-weight:500;padding:5px 8px 8px 0;border-bottom:1px solid var(--border2)">Perfil</th>
-                <th style="text-align:center;color:var(--muted);font-weight:500;padding:5px 4px 8px;border-bottom:1px solid var(--border2)">1 cuota</th>
-                <th style="text-align:center;color:var(--muted);font-weight:500;padding:5px 4px 8px;border-bottom:1px solid var(--border2)">2 cuotas</th>
-                <th style="text-align:center;color:var(--muted);font-weight:500;padding:5px 4px 8px;border-bottom:1px solid var(--border2)">3 cuotas</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="padding:7px 8px 7px 0;border-bottom:1px solid var(--border)"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:#f87171;flex-shrink:0"></span>Nuevo</span></td>
-                <td style="text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--text)">80%</td>
-                <td style="text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--text)">150%</td>
-                <td style="text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--text)">180%</td>
-              </tr>
-              <tr>
-                <td style="padding:7px 8px 7px 0;border-bottom:1px solid var(--border)"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:#fbbf24;flex-shrink:0"></span>Conocido</span></td>
-                <td style="text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--text)">70%</td>
-                <td style="text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--text)">130%</td>
-                <td style="text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--text)">160%</td>
-              </tr>
-              <tr>
-                <td style="padding:7px 8px 7px 0;border-bottom:1px solid var(--border)"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:#7c6fff;flex-shrink:0"></span>Historial</span></td>
-                <td style="text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--text)">60%</td>
-                <td style="text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--text)">110%</td>
-                <td style="text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);font-family:var(--mono);color:var(--text)">140%</td>
-              </tr>
-              <tr>
-                <td style="padding:7px 8px 7px 0"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:#34d399;flex-shrink:0"></span>VIP</span></td>
-                <td style="text-align:center;padding:7px 4px;font-family:var(--mono);color:var(--text)">50%</td>
-                <td style="text-align:center;padding:7px 4px;font-family:var(--mono);color:var(--text)">90%</td>
-                <td style="text-align:center;padding:7px 4px;font-family:var(--mono);color:var(--text)">120%</td>
-              </tr>
-            </tbody>
-          </table>
-          <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--muted2);line-height:1.5">
-            Tasas de referencia para cuotas mensuales.<br>Ajustá según frecuencia y criterio propio.
-          </div>
+      <!-- TABLA DE REFERENCIA COMPACTA -->
+      <div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted)">Referencia de tasas (mensuales)</div>
         </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr>
+              <th style="text-align:left;color:var(--muted);font-weight:500;padding:4px 8px 6px 0;border-bottom:1px solid var(--border2)">Perfil</th>
+              <th style="text-align:center;color:var(--muted);font-weight:500;padding:4px 8px 6px;border-bottom:1px solid var(--border2)">1 cuota</th>
+              <th style="text-align:center;color:var(--muted);font-weight:500;padding:4px 8px 6px;border-bottom:1px solid var(--border2)">2 cuotas</th>
+              <th style="text-align:center;color:var(--muted);font-weight:500;padding:4px 8px 6px;border-bottom:1px solid var(--border2)">3 cuotas</th>
+              <th style="text-align:left;color:var(--muted);font-weight:500;padding:4px 0 6px 8px;border-bottom:1px solid var(--border2)">Monto máx.</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:5px 8px 5px 0;border-bottom:1px solid var(--border)"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#f87171;flex-shrink:0"></span>Nuevo</span></td>
+              <td style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono)">80%</td>
+              <td style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono)">150%</td>
+              <td style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono)">180%</td>
+              <td style="padding:5px 0 5px 8px;border-bottom:1px solid var(--border);color:var(--muted);font-size:11px">Chico, a prueba</td>
+            </tr>
+            <tr>
+              <td style="padding:5px 8px 5px 0;border-bottom:1px solid var(--border)"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#fbbf24;flex-shrink:0"></span>Conocido</span></td>
+              <td style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono)">70%</td>
+              <td style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono)">130%</td>
+              <td style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono)">160%</td>
+              <td style="padding:5px 0 5px 8px;border-bottom:1px solid var(--border);color:var(--muted);font-size:11px">Medio</td>
+            </tr>
+            <tr>
+              <td style="padding:5px 8px 5px 0;border-bottom:1px solid var(--border)"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#7c6fff;flex-shrink:0"></span>Historial</span></td>
+              <td style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono)">60%</td>
+              <td style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono)">110%</td>
+              <td style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono)">140%</td>
+              <td style="padding:5px 0 5px 8px;border-bottom:1px solid var(--border);color:var(--muted);font-size:11px">Normal</td>
+            </tr>
+            <tr>
+              <td style="padding:5px 8px 5px 0"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#34d399;flex-shrink:0"></span>VIP</span></td>
+              <td style="text-align:center;padding:5px 8px;font-family:var(--mono)">50%</td>
+              <td style="text-align:center;padding:5px 8px;font-family:var(--mono)">90%</td>
+              <td style="text-align:center;padding:5px 8px;font-family:var(--mono)">120%</td>
+              <td style="padding:5px 0 5px 8px;color:var(--muted);font-size:11px">El que pida</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <!-- FORMULARIO CALCULADORA -->
-      <div style="flex:1;min-width:0">
 
         <!-- Monto -->
         <div class="form-section">
@@ -1286,8 +1287,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
           </div>
         </div>
 
-      </div><!-- fin columna formulario -->
-      </div><!-- fin flex layout -->
+      </div><!-- fin max-width -->
     </div><!-- fin screen calculadora -->
 
   </main>
@@ -3432,10 +3432,10 @@ document.getElementById('repairCalModal').addEventListener('click', e => { if (e
 // CALCULADORA DE PRÉSTAMOS
 // ============================================================
 const CALC_PERFILES = {
-  nuevo:     { desc: 'Sin historial. Tasa llena, plazo corto. El primer préstamo es una prueba.', tasaMensual: 80 },
-  conocido:  { desc: 'Lo conocés socialmente pero nunca le prestaste. Monto chico para empezar.', tasaMensual: 65 },
-  historial: { desc: 'Pagó bien 1 o 2 veces. Tiene crédito ganado. Un escalón más abajo.',        tasaMensual: 55 },
-  vip:       { desc: 'Tu activo más valioso. Riesgo bajo. Fidelizalo sin regalar.',               tasaMensual: 45 },
+  nuevo:     { desc: 'Sin historial. Tasa llena, plazo corto. El primer préstamo es una prueba.', tasas: [80, 150, 180], color: '#f87171' },
+  conocido:  { desc: 'Lo conocés socialmente pero nunca le prestaste. Monto chico para empezar.', tasas: [70, 130, 160], color: '#fbbf24' },
+  historial: { desc: 'Pagó bien 1 o 2 veces. Tiene crédito ganado. Un escalón más abajo.',        tasas: [60, 110, 140], color: '#7c6fff' },
+  vip:       { desc: 'Tu activo más valioso. Riesgo bajo. Fidelizalo sin regalar.',               tasas: [50,  90, 120], color: '#34d399' },
 };
 const CALC_FREQ_PLURAL   = { semanal:'semanas', quincenal:'quincenas', mensual:'meses', unico:'' };
 const CALC_FREQ_SINGULAR = { semanal:'semana',  quincenal:'quincena',  mensual:'mes',   unico:'' };
@@ -3474,24 +3474,28 @@ function calcPerfil(key) {
     b.style.borderColor = 'var(--border2)';
     b.style.background  = 'var(--card)';
   });
-  const colors = { nuevo:'#f87171', conocido:'#fbbf24', historial:'#7c6fff', vip:'#34d399' };
   const el = document.getElementById('cp-' + key);
-  if (el) { el.style.borderColor = colors[key]; el.style.background = colors[key] + '18'; }
-  document.getElementById('calc-perfil-desc').textContent = p.desc + ` (base: ${p.tasaMensual}%/mes)`;
-  // aplicar tasa proporcional a cada opción según su duración
-  calcOpciones.forEach(op => {
-    const meses = calcMeses(op.cuotas, op.freq);
-    op.tasa = meses > 0 ? Math.round(p.tasaMensual * meses) : p.tasaMensual;
-  });
+  if (el) { el.style.borderColor = p.color; el.style.background = p.color + '18'; }
+  document.getElementById('calc-perfil-desc').textContent = p.desc;
+  // aplicar tasa sugerida a cada opción existente
+  calcOpciones.forEach((op, i) => { op.tasa = calcGetSugerida(i) || p.tasas[0]; });
   calcRenderOpciones();
 }
 
 function calcGetSugerida(i) {
   if (!calcPerfilActual) return null;
   const op = calcOpciones[i];
+  const tasas = CALC_PERFILES[calcPerfilActual].tasas; // [1 cuota, 2 cuotas, 3 cuotas]
+  // para mensuales: mapear cuotas directo a la tabla (1→idx0, 2→idx1, 3→idx2)
+  if (op.freq === 'mensual' || op.freq === 'unico') {
+    const idx = Math.min(op.cuotas - 1, 2);
+    return tasas[idx];
+  }
+  // para quincenal/semanal: proporcional en base a la tasa de 1 cuota mensual
   const meses = calcMeses(op.cuotas, op.freq);
-  if (meses <= 0) return CALC_PERFILES[calcPerfilActual].tasaMensual;
-  return Math.round(CALC_PERFILES[calcPerfilActual].tasaMensual * meses);
+  if (meses <= 0) return tasas[0];
+  // interpolamos: tasa base mensual = tasas[0], escala proporcional
+  return Math.round(tasas[0] * meses);
 }
 
 function calcActualizarTodos() {
@@ -3577,13 +3581,9 @@ function calcUpdate(i, campo, val) {
   if (campo === 'cuotas' || campo === 'tasa') calcOpciones[i][campo] = parseFloat(val) || 0;
   else calcOpciones[i][campo] = val;
   if (campo === 'freq' && val === 'unico') calcOpciones[i].cuotas = 1;
-  // si cambia cuotas o freq y hay perfil seleccionado, actualizar tasa sugerida automáticamente
+  // si cambia cuotas o freq y hay perfil, actualizar tasa sugerida automáticamente
   if ((campo === 'cuotas' || campo === 'freq') && calcPerfilActual) {
-    const meses = calcMeses(calcOpciones[i].cuotas, calcOpciones[i].freq);
-    const nuevaTasa = meses > 0
-      ? Math.round(CALC_PERFILES[calcPerfilActual].tasaMensual * meses)
-      : CALC_PERFILES[calcPerfilActual].tasaMensual;
-    calcOpciones[i].tasa = nuevaTasa;
+    calcOpciones[i].tasa = calcGetSugerida(i) || CALC_PERFILES[calcPerfilActual].tasas[0];
     calcRenderOpciones();
     return;
   }
