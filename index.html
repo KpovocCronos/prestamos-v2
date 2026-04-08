@@ -3439,34 +3439,32 @@ const CALC_PERFILES = {
   historial: { desc: 'Pagó bien 1 o 2 veces. Tiene crédito ganado. Un escalón más abajo.',        tasas: [60, 110, 140], color: '#7c6fff' },
   vip:       { desc: 'Tu activo más valioso. Riesgo bajo. Fidelizalo sin regalar.',               tasas: [50,  90, 120], color: '#34d399' },
 };
-const CALC_FREQ_PLURAL   = { semanal:'semanas', quincenal:'quincenas', mensual:'meses', unico:'' };
-const CALC_FREQ_SINGULAR = { semanal:'semana',  quincenal:'quincena',  mensual:'mes',   unico:'' };
+const CALC_FREQ_PLURAL = { semanal:'semanas', quincenal:'quincenas', mensual:'meses', unico:'' };
 
 let calcPerfilActual = null;
 let calcOpciones = [
-  { cuotas: 2, freq: 'quincenal', tasa: 0 },
-  { cuotas: 4, freq: 'quincenal', tasa: 0 },
-  { cuotas: 6, freq: 'quincenal', tasa: 0 },
+  { meses: 1, freq: 'quincenal', tasa: 0 },
+  { meses: 2, freq: 'quincenal', tasa: 0 },
+  { meses: 3, freq: 'mensual',   tasa: 0 },
 ];
+
+function calcCuotas(meses, freq) {
+  if (freq === 'unico')     return 1;
+  if (freq === 'mensual')   return meses;
+  if (freq === 'quincenal') return meses * 2;
+  if (freq === 'semanal')   return meses * 4;
+  return meses;
+}
 
 function calcFmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
 
-// cuántos meses equivale una combinación cuotas+freq
-function calcMeses(cuotas, freq) {
-  if (freq === 'unico')    return 0;
-  if (freq === 'mensual')  return cuotas;
-  if (freq === 'quincenal') return cuotas / 2;
-  if (freq === 'semanal')   return cuotas / 4;
-  return 0;
-}
-
-function calcMesesLabel(cuotas, freq) {
-  if (freq === 'unico') return '';
-  const m = calcMeses(cuotas, freq);
-  if (m <= 0) return '';
-  // mostrar como entero si es exacto
-  const display = Number.isInteger(m) ? m : m.toFixed(1);
-  return display + (m === 1 ? ' mes' : ' meses');
+function calcGetSugerida(i) {
+  if (!calcPerfilActual) return null;
+  const op = calcOpciones[i];
+  const tasas = CALC_PERFILES[calcPerfilActual].tasas;
+  if (op.freq === 'unico') return tasas[0];
+  const idx = Math.min(op.meses - 1, 2);
+  return tasas[idx];
 }
 
 function calcPerfil(key) {
@@ -3479,25 +3477,8 @@ function calcPerfil(key) {
   const el = document.getElementById('cp-' + key);
   if (el) { el.style.borderColor = p.color; el.style.background = p.color + '18'; }
   document.getElementById('calc-perfil-desc').textContent = p.desc;
-  // aplicar tasa sugerida a cada opción existente
   calcOpciones.forEach((op, i) => { op.tasa = calcGetSugerida(i) || p.tasas[0]; });
   calcRenderOpciones();
-}
-
-function calcGetSugerida(i) {
-  if (!calcPerfilActual) return null;
-  const op = calcOpciones[i];
-  const tasas = CALC_PERFILES[calcPerfilActual].tasas; // [1 cuota, 2 cuotas, 3 cuotas]
-  // para mensuales: mapear cuotas directo a la tabla (1→idx0, 2→idx1, 3→idx2)
-  if (op.freq === 'mensual' || op.freq === 'unico') {
-    const idx = Math.min(op.cuotas - 1, 2);
-    return tasas[idx];
-  }
-  // para quincenal/semanal: proporcional en base a la tasa de 1 cuota mensual
-  const meses = calcMeses(op.cuotas, op.freq);
-  if (meses <= 0) return tasas[0];
-  // interpolamos: tasa base mensual = tasas[0], escala proporcional
-  return Math.round(tasas[0] * meses);
 }
 
 function calcActualizarTodos() {
@@ -3509,33 +3490,28 @@ function calcActualizarPreview(i, monto) {
   const el = document.getElementById('calc-prev-' + i);
   if (!el) return;
   const op = calcOpciones[i];
+  const cuotas = calcCuotas(op.meses, op.freq);
   if (!monto || !op.tasa) {
-    el.style.background = 'var(--bg3)';
-    el.style.borderColor = 'var(--border)';
-    el.style.color = 'var(--muted)';
-    el.textContent = '—';
-    return;
+    el.style.background = 'var(--bg3)'; el.style.borderColor = 'var(--border)';
+    el.style.color = 'var(--muted)'; el.textContent = '—'; return;
   }
   const total    = monto * (1 + op.tasa / 100);
-  const porCuota = total / op.cuotas;
+  const porCuota = total / cuotas;
   const ganancia = total - monto;
-  const tpc      = op.tasa / op.cuotas;
+  const tpc      = op.tasa / op.meses;
   const sug      = calcGetSugerida(i);
   const diff     = sug ? op.tasa - sug : 0;
 
   let bg, border, color, icono, extra = '';
-  if (!sug || op.tasa >= sug)          { bg = 'rgba(52,211,153,0.08)';  border = 'rgba(52,211,153,0.3)';  color = '#34d399'; icono = '✓'; }
-  else if (op.tasa >= sug * 0.85)      { bg = 'rgba(251,191,36,0.08)';  border = 'rgba(251,191,36,0.3)';  color = '#fbbf24'; icono = '▲'; extra = ` — ${Math.abs(diff).toFixed(0)}pts bajo lo sugerido`; }
-  else                                 { bg = 'rgba(248,113,113,0.08)';  border = 'rgba(248,113,113,0.3)'; color = '#f87171'; icono = '✕'; extra = ` — ${Math.abs(diff).toFixed(0)}pts bajo lo sugerido`; }
+  if (!sug || op.tasa >= sug)     { bg='rgba(52,211,153,0.08)';  border='rgba(52,211,153,0.3)';  color='#34d399'; icono='✓'; }
+  else if (op.tasa >= sug * 0.85) { bg='rgba(251,191,36,0.08)';  border='rgba(251,191,36,0.3)';  color='#fbbf24'; icono='▲'; extra=` — ${Math.abs(diff).toFixed(0)}pts bajo lo sugerido`; }
+  else                            { bg='rgba(248,113,113,0.08)'; border='rgba(248,113,113,0.3)'; color='#f87171'; icono='✕'; extra=` — ${Math.abs(diff).toFixed(0)}pts bajo lo sugerido`; }
 
-  el.style.background  = bg;
-  el.style.borderColor = border;
-  el.style.color       = color;
-
-  const cuotaStr = op.cuotas === 1
+  el.style.background = bg; el.style.borderColor = border; el.style.color = color;
+  const cuotaStr = cuotas === 1
     ? `Pago único: ${calcFmt(total)}`
-    : `${calcFmt(porCuota)} x ${op.cuotas} ${CALC_FREQ_PLURAL[op.freq]} = ${calcFmt(total)}`;
-  el.textContent = `${icono} ${cuotaStr} — ganancia ${calcFmt(ganancia)} (${tpc.toFixed(1)}%/período)${extra}`;
+    : `${calcFmt(porCuota)} x ${cuotas} ${CALC_FREQ_PLURAL[op.freq]} = ${calcFmt(total)}`;
+  el.textContent = `${icono} ${cuotaStr} — ganancia ${calcFmt(ganancia)} (${tpc.toFixed(1)}%/mes)${extra}`;
 }
 
 function calcRenderOpciones() {
@@ -3547,8 +3523,11 @@ function calcRenderOpciones() {
     { val:'quincenal',label:'Quincenal' },
     { val:'mensual',  label:'Mensual' },
   ];
+  const mesesOpts = [1,2,3,4,6,9,12];
   container.innerHTML = calcOpciones.map((op, i) => {
-    const sug = calcGetSugerida(i);
+    const sug    = calcGetSugerida(i);
+    const cuotas = calcCuotas(op.meses, op.freq);
+    const esUnico = op.freq === 'unico';
     return `<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <span style="font-size:13px;font-weight:600;color:var(--muted)">Opción ${i+1}</span>
@@ -3556,13 +3535,13 @@ function calcRenderOpciones() {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
         <div>
-          <label class="form-label">Cuotas</label>
-          <select class="form-input" onchange="calcUpdate(${i},'cuotas',this.value)">
-            ${[1,2,3,4,6,12].map(n => `<option value="${n}" ${op.cuotas==n?'selected':''}>${n}</option>`).join('')}
+          <label class="form-label">Duración</label>
+          <select class="form-input" onchange="calcUpdate(${i},'meses',this.value)" ${esUnico?'disabled':''}>
+            ${mesesOpts.map(n => `<option value="${n}" ${op.meses==n?'selected':''}>${n} ${n===1?'mes':'meses'}</option>`).join('')}
           </select>
         </div>
         <div>
-          <label class="form-label">Frecuencia</label>
+          <label class="form-label">Frecuencia de pago</label>
           <select class="form-input" onchange="calcUpdate(${i},'freq',this.value)">
             ${freqOpts.map(f => `<option value="${f.val}" ${op.freq===f.val?'selected':''}>${f.label}</option>`).join('')}
           </select>
@@ -3573,6 +3552,7 @@ function calcRenderOpciones() {
           ${sug ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">sugerida: ${sug}%</div>` : ''}
         </div>
       </div>
+      ${!esUnico ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;padding:0 2px">${cuotas} cuota${cuotas>1?'s':''} de pago</div>` : ''}
       <div id="calc-prev-${i}" style="font-size:12px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);min-height:32px;transition:all .2s">—</div>
     </div>`;
   }).join('');
@@ -3580,11 +3560,10 @@ function calcRenderOpciones() {
 }
 
 function calcUpdate(i, campo, val) {
-  if (campo === 'cuotas' || campo === 'tasa') calcOpciones[i][campo] = parseFloat(val) || 0;
+  if (campo === 'meses' || campo === 'tasa') calcOpciones[i][campo] = parseFloat(val) || 0;
   else calcOpciones[i][campo] = val;
-  if (campo === 'freq' && val === 'unico') calcOpciones[i].cuotas = 1;
-  // si cambia cuotas o freq y hay perfil, actualizar tasa sugerida automáticamente
-  if ((campo === 'cuotas' || campo === 'freq') && calcPerfilActual) {
+  if (campo === 'freq' && val === 'unico') calcOpciones[i].meses = 1;
+  if ((campo === 'meses' || campo === 'freq') && calcPerfilActual) {
     calcOpciones[i].tasa = calcGetSugerida(i) || CALC_PERFILES[calcPerfilActual].tasas[0];
     calcRenderOpciones();
     return;
@@ -3594,7 +3573,7 @@ function calcUpdate(i, campo, val) {
 }
 
 function calcAgregarOpcion() {
-  calcOpciones.push({ cuotas: 1, freq: 'unico', tasa: 0 });
+  calcOpciones.push({ meses: 1, freq: 'mensual', tasa: 0 });
   calcRenderOpciones();
 }
 
@@ -3602,35 +3581,39 @@ function calcEliminarOpcion(i) {
   calcOpciones.splice(i, 1);
   calcRenderOpciones();
 }
+    const btn = document.getElementById('calc-copy-btn');
+    btn.textContent = '\u2713 Copiado';
+    setTimeout(() => btn.textContent = 'Copiar mensaje', 1500);
+  });
+}
+
+
 
 function calcGenerar() {
   const monto = parseFloat(document.getElementById('calc-monto').value);
   if (!monto || monto <= 0) { showToast('Ingresá el monto solicitado', 'error'); return; }
   if (calcOpciones.some(op => !op.tasa || op.tasa <= 0)) { showToast('Completá la tasa de todas las opciones', 'error'); return; }
 
-  // resumen interno
   const filas = calcOpciones.map((op, i) => {
+    const cuotas = calcCuotas(op.meses, op.freq);
     const total    = monto * (1 + op.tasa / 100);
     const ganancia = total - monto;
-    const tpc      = (op.tasa / op.cuotas).toFixed(1);
+    const tpc      = (op.tasa / op.meses).toFixed(1);
     return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
       <span style="color:var(--muted)">Opción ${i+1}</span>
-      <span style="font-family:var(--mono);color:var(--text)">Total ${calcFmt(total)} — Ganancia ${calcFmt(ganancia)} — ${tpc}%/período</span>
+      <span style="font-family:var(--mono);color:var(--text)">Total ${calcFmt(total)} — Ganancia ${calcFmt(ganancia)} — ${tpc}%/mes</span>
     </div>`;
   }).join('');
   document.getElementById('calc-resumen-interno').innerHTML = filas;
 
-  // mensaje cliente limpio
   const letras = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣'];
   const lineas = calcOpciones.map((op, i) => {
+    const cuotas   = calcCuotas(op.meses, op.freq);
     const total    = monto * (1 + op.tasa / 100);
-    const porCuota = total / op.cuotas;
-    if (op.cuotas === 1) {
-      return `${letras[i]} 1 pago de ${calcFmt(total)}`;
-    }
-    const mesesLabel = calcMesesLabel(op.cuotas, op.freq);
-    const equiv = mesesLabel ? `  (${mesesLabel})` : '';
-    return `${letras[i]} ${op.cuotas} ${CALC_FREQ_PLURAL[op.freq]} de ${calcFmt(porCuota)}${equiv}`;
+    const porCuota = total / cuotas;
+    if (cuotas === 1) return `${letras[i]} 1 pago de ${calcFmt(total)}`;
+    const mesesLabel = op.meses + (op.meses === 1 ? ' mes' : ' meses');
+    return `${letras[i]} ${cuotas} ${CALC_FREQ_PLURAL[op.freq]} de ${calcFmt(porCuota)}  (${mesesLabel})`;
   });
 
   const msg = `Hola! Te paso las opciones disponibles:\n\n${lineas.join('\n')}\n\nCualquier duda lo vemos 👍`;
@@ -3640,16 +3623,12 @@ function calcGenerar() {
 }
 
 function calcCopiar() {
-  const txt = document.getElementById('calc-wa-msg').textContent;
-  navigator.clipboard.writeText(txt).then(() => {
+  navigator.clipboard.writeText(document.getElementById('calc-wa-msg').textContent).then(() => {
     const btn = document.getElementById('calc-copy-btn');
     btn.textContent = '✓ Copiado';
     setTimeout(() => btn.textContent = 'Copiar mensaje', 1500);
   });
 }
-
-// inicializar calculadora cuando se navega a ella
-const _navOriginal = nav;
 
 init();
 </script>
