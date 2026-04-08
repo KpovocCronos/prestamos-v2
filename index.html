@@ -3581,13 +3581,6 @@ function calcEliminarOpcion(i) {
   calcOpciones.splice(i, 1);
   calcRenderOpciones();
 }
-    const btn = document.getElementById('calc-copy-btn');
-    btn.textContent = '\u2713 Copiado';
-    setTimeout(() => btn.textContent = 'Copiar mensaje', 1500);
-  });
-}
-
-
 
 function calcGenerar() {
   const monto = parseFloat(document.getElementById('calc-monto').value);
