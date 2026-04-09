@@ -3614,7 +3614,7 @@ function calcRenderOpciones() {
         <div>
           <label class="form-label">Tasa total (%)</label>
           <input class="form-input" type="number" value="${op.tasa||''}" min="0" placeholder="${sug||'0'}" oninput="calcUpdate(${i},'tasa',this.value)">
-          ${sug ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">sugerida: ${sug}%</div>` : ''}
+          ${sug ? `<div id="calc-sug-hint-${i}" style="font-size:11px;color:var(--muted);margin-top:3px">sugerida: ${sug}%</div>` : `<div id="calc-sug-hint-${i}" style="font-size:11px;color:var(--muted);margin-top:3px"></div>`}
         </div>
       </div>
       ${!esCorto && cuotas > 1 ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;padding:0 2px">${cuotas} cuota${cuotas>1?'s':''} de pago</div>` : ''}
@@ -3632,8 +3632,14 @@ function calcUpdate(i, campo, val) {
     if (calcEsCorto(calcOpciones[i])) calcOpciones[i].freq = 'unico';
     if (calcPerfilActual) {
       calcOpciones[i].tasa = calcGetSugerida(i) || 0;
+      // Update tasa input + sugerida hint without full re-render
+      const tasaInput = document.querySelector(`#calc-opciones-container > div:nth-child(${i+1}) input[oninput*="'tasa'"]`);
+      if (tasaInput) tasaInput.value = calcOpciones[i].tasa || '';
+      const sugHint = document.getElementById('calc-sug-hint-' + i);
+      if (sugHint) sugHint.textContent = calcOpciones[i].tasa ? `sugerida: ${calcGetSugerida(i)}%` : '';
     }
-    calcRenderOpciones();
+    const monto = parseFloat(document.getElementById('calc-monto').value) || 0;
+    calcActualizarPreview(i, monto);
     return;
   }
   else if (campo === 'duracion') {
