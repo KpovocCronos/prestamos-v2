@@ -3443,40 +3443,51 @@ const CALC_PERFILES = {
 };
 const CALC_FREQ_PLURAL = { semanal:'semanas', quincenal:'quincenas', mensual:'meses', unico:'' };
 
-// Duraciones disponibles: value es un key interno, meses es el equivalente decimal para cálculos de tasa/mes
+// Duraciones predefinidas + opción custom de días
 const CALC_DURACIONES = [
-  { value: '0.25',  label: '1 semana',   meses: 0.25,  forceUnico: true  },
-  { value: '0.5',   label: '2 semanas',  meses: 0.5,   forceUnico: true  },
-  { value: '0.5q',  label: '15 días',    meses: 0.5,   forceUnico: true  },
-  { value: '1',     label: '1 mes',      meses: 1,     forceUnico: false },
-  { value: '2',     label: '2 meses',    meses: 2,     forceUnico: false },
-  { value: '3',     label: '3 meses',    meses: 3,     forceUnico: false },
-  { value: '4',     label: '4 meses',    meses: 4,     forceUnico: false },
-  { value: '6',     label: '6 meses',    meses: 6,     forceUnico: false },
-  { value: '9',     label: '9 meses',    meses: 9,     forceUnico: false },
-  { value: '12',    label: '12 meses',   meses: 12,    forceUnico: false },
+  { value: '7d',   label: '1 semana',   dias: 7,    forceUnico: true  },
+  { value: '15d',  label: '15 días',    dias: 15,   forceUnico: true  },
+  { value: 'custom', label: 'Días (manual)', dias: 0, forceUnico: true },
+  { value: '1m',   label: '1 mes',      dias: 30,   forceUnico: false },
+  { value: '2m',   label: '2 meses',    dias: 60,   forceUnico: false },
+  { value: '3m',   label: '3 meses',    dias: 90,   forceUnico: false },
+  { value: '4m',   label: '4 meses',    dias: 120,  forceUnico: false },
+  { value: '6m',   label: '6 meses',    dias: 180,  forceUnico: false },
+  { value: '9m',   label: '9 meses',    dias: 270,  forceUnico: false },
+  { value: '12m',  label: '12 meses',   dias: 360,  forceUnico: false },
 ];
 
 function calcGetDuracion(durVal) {
-  return CALC_DURACIONES.find(d => d.value === durVal) || CALC_DURACIONES[3]; // default 1 mes
+  return CALC_DURACIONES.find(d => d.value === durVal) || CALC_DURACIONES.find(d => d.value === '1m');
+}
+
+function calcGetDias(op) {
+  const dur = calcGetDuracion(op.duracion);
+  if (dur.value === 'custom') return op.diasCustom || 0;
+  return dur.dias;
+}
+
+function calcGetMeses(op) {
+  return calcGetDias(op) / 30;
+}
+
+function calcEsCorto(op) {
+  const dur = calcGetDuracion(op.duracion);
+  if (dur.value === 'custom') return (op.diasCustom || 0) < 30;
+  return dur.forceUnico;
 }
 
 let calcPerfilActual = null;
 let calcOpciones = [
-  { duracion: '1', freq: 'quincenal', tasa: 0 },
-  { duracion: '2', freq: 'quincenal', tasa: 0 },
-  { duracion: '3', freq: 'mensual',   tasa: 0 },
+  { duracion: '1m', freq: 'quincenal', tasa: 0, diasCustom: 0 },
+  { duracion: '2m', freq: 'quincenal', tasa: 0, diasCustom: 0 },
+  { duracion: '3m', freq: 'mensual',   tasa: 0, diasCustom: 0 },
 ];
 
-function calcMesesEquiv(op) {
-  const dur = calcGetDuracion(op.duracion);
-  return dur.meses;
-}
-
 function calcCuotas(op) {
-  const dur = calcGetDuracion(op.duracion);
-  if (dur.forceUnico || op.freq === 'unico') return 1;
-  const meses = dur.meses;
+  const esCorto = calcEsCorto(op);
+  if (esCorto || op.freq === 'unico') return 1;
+  const meses = calcGetMeses(op);
   if (op.freq === 'mensual')   return Math.max(1, Math.round(meses));
   if (op.freq === 'quincenal') return Math.max(1, Math.round(meses * 2));
   if (op.freq === 'semanal')   return Math.max(1, Math.round(meses * 4));
@@ -3485,14 +3496,22 @@ function calcCuotas(op) {
 
 function calcFmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
 
+// Tasa sugerida proporcional: si 1 mes = tasas[0], entonces 7 días = tasas[0] * 7/30
 function calcGetSugerida(i) {
   if (!calcPerfilActual) return null;
   const op = calcOpciones[i];
   const tasas = CALC_PERFILES[calcPerfilActual].tasas;
-  const dur = calcGetDuracion(op.duracion);
-  if (dur.forceUnico || op.freq === 'unico') return tasas[0];
-  const idx = Math.min(Math.max(Math.round(dur.meses) - 1, 0), 2);
-  return tasas[idx];
+  const dias = calcGetDias(op);
+  if (!dias || dias <= 0) return null;
+  const meses = dias / 30;
+  // Interpolar: mes 1 = tasas[0], mes 2 = tasas[1], mes 3+ = tasas[2]
+  let tasaMensualBase;
+  if (meses <= 1)      tasaMensualBase = tasas[0];
+  else if (meses <= 2) tasaMensualBase = tasas[1] / 2;  // tasa total / meses = tasa por mes
+  else                 tasaMensualBase = tasas[2] / 3;
+  // Para el plazo elegido, la tasa total sugerida = tasaMensualBase * meses
+  const sugerida = Math.round(tasaMensualBase * meses * 10) / 10;
+  return Math.round(sugerida);
 }
 
 function calcPerfil(key) {
@@ -3518,10 +3537,11 @@ function calcActualizarPreview(i, monto) {
   const el = document.getElementById('calc-prev-' + i);
   if (!el) return;
   const op = calcOpciones[i];
-  const dur = calcGetDuracion(op.duracion);
-  const mesesEq = dur.meses;
+  const dias = calcGetDias(op);
+  const mesesEq = dias / 30;
   const cuotas = calcCuotas(op);
-  if (!monto || !op.tasa) {
+  const esCorto = calcEsCorto(op);
+  if (!monto || !op.tasa || !dias) {
     el.style.background = 'var(--bg3)'; el.style.borderColor = 'var(--border)';
     el.style.color = 'var(--muted)'; el.textContent = '—'; return;
   }
@@ -3538,7 +3558,7 @@ function calcActualizarPreview(i, monto) {
   else                            { bg='rgba(248,113,113,0.08)'; border='rgba(248,113,113,0.3)'; color='#f87171'; icono='✕'; extra=` — ${Math.abs(diff).toFixed(0)}pts bajo lo sugerido`; }
 
   el.style.background = bg; el.style.borderColor = border; el.style.color = color;
-  const tpcLabel = mesesEq >= 1 ? `${tpc.toFixed(1)}%/mes` : `${op.tasa}% total`;
+  const tpcLabel = mesesEq >= 1 ? `${tpc.toFixed(1)}%/mes` : `${op.tasa}% total en ${dias}d`;
   const cuotaStr = cuotas === 1
     ? `Pago único: ${calcFmt(total)}`
     : `${calcFmt(porCuota)} x ${cuotas} ${CALC_FREQ_PLURAL[op.freq]} = ${calcFmt(total)}`;
@@ -3558,24 +3578,29 @@ function calcRenderOpciones() {
     const sug    = calcGetSugerida(i);
     const dur    = calcGetDuracion(op.duracion);
     const cuotas = calcCuotas(op);
-    const esCorto = dur.forceUnico;
+    const esCorto = calcEsCorto(op);
+    const esCustom = dur.value === 'custom';
     return `<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <span style="font-size:13px;font-weight:600;color:var(--muted)">Opción ${i+1}</span>
         ${calcOpciones.length > 1 ? `<button class="btn btn-ghost" style="padding:3px 10px;font-size:12px" onclick="calcEliminarOpcion(${i})">× Eliminar</button>` : ''}
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:${esCustom ? '1fr 0.6fr' : '1fr'} 1fr 1fr;gap:10px;margin-bottom:10px">
         <div>
           <label class="form-label">Duración</label>
           <select class="form-input" onchange="calcUpdate(${i},'duracion',this.value)">
             <optgroup label="Corto plazo">
-              ${CALC_DURACIONES.filter(d=>d.forceUnico).map(d => `<option value="${d.value}" ${op.duracion===d.value?'selected':''}>${d.label}</option>`).join('')}
+              ${CALC_DURACIONES.filter(d=>d.forceUnico || d.value==='custom').map(d => `<option value="${d.value}" ${op.duracion===d.value?'selected':''}>${d.label}</option>`).join('')}
             </optgroup>
             <optgroup label="Meses">
-              ${CALC_DURACIONES.filter(d=>!d.forceUnico).map(d => `<option value="${d.value}" ${op.duracion===d.value?'selected':''}>${d.label}</option>`).join('')}
+              ${CALC_DURACIONES.filter(d=>!d.forceUnico && d.value!=='custom').map(d => `<option value="${d.value}" ${op.duracion===d.value?'selected':''}>${d.label}</option>`).join('')}
             </optgroup>
           </select>
         </div>
+        ${esCustom ? `<div>
+          <label class="form-label">Días</label>
+          <input class="form-input" type="number" min="1" max="365" value="${op.diasCustom||''}" placeholder="ej: 20" oninput="calcUpdate(${i},'diasCustom',this.value)">
+        </div>` : ''}
         <div>
           <label class="form-label">Frecuencia de pago</label>
           <select class="form-input" onchange="calcUpdate(${i},'freq',this.value)" ${esCorto?'disabled':''}>
@@ -3601,13 +3626,24 @@ function calcRenderOpciones() {
 
 function calcUpdate(i, campo, val) {
   if (campo === 'tasa') calcOpciones[i].tasa = parseFloat(val) || 0;
+  else if (campo === 'diasCustom') {
+    calcOpciones[i].diasCustom = parseInt(val) || 0;
+    // Auto-set freq based on duration
+    if (calcEsCorto(calcOpciones[i])) calcOpciones[i].freq = 'unico';
+    if (calcPerfilActual) {
+      calcOpciones[i].tasa = calcGetSugerida(i) || 0;
+    }
+    calcRenderOpciones();
+    return;
+  }
   else if (campo === 'duracion') {
     calcOpciones[i].duracion = val;
     const dur = calcGetDuracion(val);
-    if (dur.forceUnico) calcOpciones[i].freq = 'unico';
+    if (dur.forceUnico || (dur.value === 'custom' && calcEsCorto(calcOpciones[i]))) {
+      calcOpciones[i].freq = 'unico';
+    }
   }
   else calcOpciones[i][campo] = val;
-  if (campo === 'freq' && val === 'unico') { /* keep duracion as is */ }
   if ((campo === 'duracion' || campo === 'freq') && calcPerfilActual) {
     calcOpciones[i].tasa = calcGetSugerida(i) || CALC_PERFILES[calcPerfilActual].tasas[0];
     calcRenderOpciones();
@@ -3619,7 +3655,7 @@ function calcUpdate(i, campo, val) {
 }
 
 function calcAgregarOpcion() {
-  calcOpciones.push({ duracion: '1', freq: 'mensual', tasa: 0 });
+  calcOpciones.push({ duracion: '1m', freq: 'mensual', tasa: 0, diasCustom: 0 });
   calcRenderOpciones();
 }
 
@@ -3632,10 +3668,11 @@ function calcGenerar() {
   const monto = parseFloat(document.getElementById('calc-monto').value);
   if (!monto || monto <= 0) { showToast('Ingresá el monto solicitado', 'error'); return; }
   if (calcOpciones.some(op => !op.tasa || op.tasa <= 0)) { showToast('Completá la tasa de todas las opciones', 'error'); return; }
+  if (calcOpciones.some(op => calcGetDias(op) <= 0)) { showToast('Completá la duración de todas las opciones', 'error'); return; }
 
   const filas = calcOpciones.map((op, i) => {
-    const dur      = calcGetDuracion(op.duracion);
-    const mesesEq  = dur.meses;
+    const dias     = calcGetDias(op);
+    const mesesEq  = dias / 30;
     const cuotas   = calcCuotas(op);
     const total    = monto * (1 + op.tasa / 100);
     const ganancia = total - monto;
@@ -3650,11 +3687,19 @@ function calcGenerar() {
   const letras = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣'];
   const lineas = calcOpciones.map((op, i) => {
     const dur      = calcGetDuracion(op.duracion);
+    const dias     = calcGetDias(op);
     const cuotas   = calcCuotas(op);
     const total    = monto * (1 + op.tasa / 100);
     const porCuota = total / cuotas;
-    if (cuotas === 1) return `${letras[i]} 1 pago de ${calcFmt(total)} (${dur.label})`;
-    return `${letras[i]} ${cuotas} ${CALC_FREQ_PLURAL[op.freq]} de ${calcFmt(porCuota)}  (${dur.label})`;
+    // Label para el cliente
+    let plazoLabel;
+    if (dur.value === 'custom') {
+      plazoLabel = dias + ' días';
+    } else {
+      plazoLabel = dur.label;
+    }
+    if (cuotas === 1) return `${letras[i]} 1 pago de ${calcFmt(total)} (${plazoLabel})`;
+    return `${letras[i]} ${cuotas} ${CALC_FREQ_PLURAL[op.freq]} de ${calcFmt(porCuota)}  (${plazoLabel})`;
   });
 
   const msg = `Hola! Te paso las opciones disponibles:\n\n${lineas.join('\n')}\n\nCualquier duda lo vemos 👍`;
