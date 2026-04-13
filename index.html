@@ -1093,7 +1093,8 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
       <div class="screen" id="screen-estadisticas">
         <div id="est-loading" class="loading"><div class="spinner"></div> Calculando...</div>
         <div id="est-content" style="display:none">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+          <!-- Period selector + Sub-tabs -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
             <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Período:</span>
             <div class="mode-toggle" style="margin-bottom:0">
               <button class="mode-btn active" id="est-btn-7"   onclick="setEstPeriodo(7,this)">7 días</button>
@@ -1104,72 +1105,179 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
             </div>
             <span id="est-rango-label" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
           </div>
-          <div class="stats-grid" style="margin-bottom:20px">
-            <div class="stat-card">
-              <div class="stat-label">Capital prestado</div>
-              <div class="stat-value text-accent" id="est-capital">$0</div>
-              <div class="stat-meta" id="est-capital-meta">0 préstamos</div>
+          <div style="display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap">
+            <button class="mode-btn active" id="est-tab-resumen" onclick="setEstTab('resumen')" style="padding:7px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s;border:none;background:var(--card);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.4)">Resumen</button>
+            <button class="mode-btn" id="est-tab-balance" onclick="setEstTab('balance')" style="padding:7px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s;border:none;background:none">Balance real</button>
+            <button class="mode-btn" id="est-tab-rendimiento" onclick="setEstTab('rendimiento')" style="padding:7px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s;border:none;background:none">Rendimiento</button>
+            <button class="mode-btn" id="est-tab-clientes" onclick="setEstTab('clientes')" style="padding:7px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s;border:none;background:none">Clientes</button>
+          </div>
+
+          <!-- ===================== TAB: RESUMEN ===================== -->
+          <div id="est-panel-resumen">
+            <div class="stats-grid" style="margin-bottom:20px">
+              <div class="stat-card">
+                <div class="stat-label">Capital prestado</div>
+                <div class="stat-value text-accent" id="est-capital">$0</div>
+                <div class="stat-meta" id="est-capital-meta">0 préstamos</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Ganancia bruta</div>
+                <div class="stat-value text-green" id="est-gb">$0</div>
+                <div class="stat-meta" id="est-gb-meta">sobre el capital</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Comisiones pagadas</div>
+                <div class="stat-value text-amber" id="est-com">$0</div>
+                <div class="stat-meta" id="est-com-meta">0 de tercero</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Ganancia neta</div>
+                <div class="stat-value text-green" id="est-gn">$0</div>
+                <div class="stat-meta" id="est-gn-meta">lo que queda para vos</div>
+              </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-label">Ganancia bruta</div>
-              <div class="stat-value text-green" id="est-gb">$0</div>
-              <div class="stat-meta" id="est-gb-meta">sobre el capital</div>
+            <div class="stats-grid" style="margin-bottom:20px">
+              <div class="stat-card">
+                <div class="stat-label">Cobrado en el período</div>
+                <div class="stat-value" id="est-cobrado">$0</div>
+                <div class="stat-meta" id="est-cobrado-meta">0 pagos</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Mora generada</div>
+                <div class="stat-value text-red" id="est-mora">$0</div>
+                <div class="stat-meta" id="est-mora-meta">0 cuotas vencidas</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Clientes nuevos</div>
+                <div class="stat-value" id="est-cli-nuevos">0</div>
+                <div class="stat-meta" id="est-cli-nuevos-meta">en el período</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Tasa mora</div>
+                <div class="stat-value text-red" id="est-tasa-mora">0%</div>
+                <div class="stat-meta">cuotas vencidas / total</div>
+              </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-label">Comisiones pagadas</div>
-              <div class="stat-value text-amber" id="est-com">$0</div>
-              <div class="stat-meta" id="est-com-meta">0 de tercero</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+              <div class="card">
+                <div class="card-header"><span class="card-title">Propio vs Tercero</span></div>
+                <div class="card-body" id="est-tipo-body">—</div>
+              </div>
+              <div class="card">
+                <div class="card-header"><span class="card-title">Top clientes</span></div>
+                <div id="est-top-body" style="padding:0">—</div>
+              </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-label">Ganancia neta</div>
-              <div class="stat-value text-green" id="est-gn">$0</div>
-              <div class="stat-meta" id="est-gn-meta">lo que queda para vos</div>
+            <div class="table-wrap">
+              <div class="card-header">
+                <span class="card-title">Pagos cobrados en el período</span>
+                <span class="text-mono text-muted" id="est-pagos-count">0 pagos</span>
+              </div>
+              <table>
+                <thead><tr>
+                  <th>Fecha</th><th>Cliente</th><th>Préstamo</th><th>Cuota</th><th>Monto</th><th>Días atraso</th>
+                </tr></thead>
+                <tbody id="est-pagos-tabla"></tbody>
+              </table>
             </div>
           </div>
-          <div class="stats-grid" style="margin-bottom:20px">
-            <div class="stat-card">
-              <div class="stat-label">Cobrado en el período</div>
-              <div class="stat-value" id="est-cobrado">$0</div>
-              <div class="stat-meta" id="est-cobrado-meta">0 pagos</div>
+
+          <!-- ===================== TAB: BALANCE REAL ===================== -->
+          <div id="est-panel-balance" style="display:none">
+            <!-- Balance: Flujo de plata -->
+            <div class="card" style="margin-bottom:20px;overflow:visible">
+              <div class="card-header"><span class="card-title">Flujo de plata</span><span class="text-mono text-muted" id="bal-subtitle"></span></div>
+              <div class="card-body" style="padding:0">
+                <div id="bal-flow-body"></div>
+              </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-label">Mora generada</div>
-              <div class="stat-value text-red" id="est-mora">$0</div>
-              <div class="stat-meta" id="est-mora-meta">0 cuotas vencidas</div>
+            <!-- Balance: Evolución mensual -->
+            <div class="card" style="margin-bottom:20px">
+              <div class="card-header"><span class="card-title">Evolución mensual</span></div>
+              <div class="card-body" id="bal-evo-body" style="overflow-x:auto">—</div>
             </div>
-            <div class="stat-card">
-              <div class="stat-label">Clientes nuevos</div>
-              <div class="stat-value" id="est-cli-nuevos">0</div>
-              <div class="stat-meta" id="est-cli-nuevos-meta">en el período</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-label">Tasa mora</div>
-              <div class="stat-value text-red" id="est-tasa-mora">0%</div>
-              <div class="stat-meta">cuotas vencidas / total</div>
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-            <div class="card">
-              <div class="card-header"><span class="card-title">Propio vs Tercero</span></div>
-              <div class="card-body" id="est-tipo-body">—</div>
-            </div>
-            <div class="card">
-              <div class="card-header"><span class="card-title">Top clientes</span></div>
-              <div id="est-top-body" style="padding:0">—</div>
+            <!-- Balance: Capital en la calle -->
+            <div class="card" style="margin-bottom:20px">
+              <div class="card-header"><span class="card-title">Capital en la calle</span><span class="text-mono text-muted" id="bal-calle-sub"></span></div>
+              <div class="card-body" id="bal-calle-body">—</div>
             </div>
           </div>
-          <div class="table-wrap">
-            <div class="card-header">
-              <span class="card-title">Pagos cobrados en el período</span>
-              <span class="text-mono text-muted" id="est-pagos-count">0 pagos</span>
+
+          <!-- ===================== TAB: RENDIMIENTO ===================== -->
+          <div id="est-panel-rendimiento" style="display:none">
+            <div class="stats-grid" style="margin-bottom:20px">
+              <div class="stat-card">
+                <div class="stat-label">ROI real</div>
+                <div class="stat-value text-green" id="rend-roi">0%</div>
+                <div class="stat-meta" id="rend-roi-meta">cobrado vs invertido</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">ROI prometido</div>
+                <div class="stat-value text-accent" id="rend-roi-prom">0%</div>
+                <div class="stat-meta" id="rend-roi-prom-meta">si se cobra todo</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Tasa cobro efectivo</div>
+                <div class="stat-value" id="rend-cobro">0%</div>
+                <div class="stat-meta" id="rend-cobro-meta">de lo que venció, cuánto se cobró</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Prom. días atraso</div>
+                <div class="stat-value" id="rend-atraso">0</div>
+                <div class="stat-meta" id="rend-atraso-meta">en pagos del período</div>
+              </div>
             </div>
-            <table>
-              <thead><tr>
-                <th>Fecha</th><th>Cliente</th><th>Préstamo</th><th>Cuota</th><th>Monto</th><th>Días atraso</th>
-              </tr></thead>
-              <tbody id="est-pagos-tabla"></tbody>
-            </table>
+            <div class="stats-grid" style="margin-bottom:20px">
+              <div class="stat-card">
+                <div class="stat-label">Pagaron a tiempo</div>
+                <div class="stat-value text-green" id="rend-atiempo">0%</div>
+                <div class="stat-meta" id="rend-atiempo-meta">0 de 0 pagos</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Pagaron con atraso</div>
+                <div class="stat-value text-amber" id="rend-conatraso">0%</div>
+                <div class="stat-meta" id="rend-conatraso-meta">0 pagos tarde</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Ticket promedio</div>
+                <div class="stat-value text-accent" id="rend-ticket">$0</div>
+                <div class="stat-meta" id="rend-ticket-meta">capital por préstamo</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Ganancia por peso</div>
+                <div class="stat-value text-green" id="rend-ganxpeso">$0</div>
+                <div class="stat-meta" id="rend-ganxpeso-meta">ganancia neta / capital</div>
+              </div>
+            </div>
+            <!-- Rendimiento propio vs tercero -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+              <div class="card">
+                <div class="card-header"><span class="card-title">Rendimiento PROPIO</span></div>
+                <div class="card-body" id="rend-propio-body">—</div>
+              </div>
+              <div class="card">
+                <div class="card-header"><span class="card-title">Rendimiento TERCERO</span></div>
+                <div class="card-body" id="rend-tercero-body">—</div>
+              </div>
+            </div>
           </div>
+
+          <!-- ===================== TAB: CLIENTES ===================== -->
+          <div id="est-panel-clientes" style="display:none">
+            <div class="table-wrap" style="margin-bottom:20px">
+              <div class="card-header">
+                <span class="card-title">Scoring de clientes</span>
+                <span class="text-mono text-muted" id="cli-score-count">0 clientes</span>
+              </div>
+              <table>
+                <thead><tr>
+                  <th>Cliente</th><th>Préstamos</th><th>Capital total</th><th>Cobrado</th><th>% a tiempo</th><th>Prom. atraso</th><th>Score</th>
+                </tr></thead>
+                <tbody id="cli-score-tabla"></tbody>
+              </table>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -2563,6 +2671,21 @@ document.getElementById('setupModal').addEventListener('click', e => {
 // ESTADISTICAS
 // ============================================================
 let estPeriodoDias = 7;
+let estTabActivo = 'resumen';
+
+function setEstTab(tab) {
+  estTabActivo = tab;
+  ['resumen','balance','rendimiento','clientes'].forEach(t => {
+    const panel = document.getElementById('est-panel-' + t);
+    const btn = document.getElementById('est-tab-' + t);
+    if (panel) panel.style.display = t === tab ? 'block' : 'none';
+    if (btn) {
+      if (t === tab) { btn.style.background = 'var(--card)'; btn.style.color = 'var(--text)'; btn.style.boxShadow = '0 1px 4px rgba(0,0,0,.4)'; btn.classList.add('active'); }
+      else { btn.style.background = 'none'; btn.style.color = 'var(--muted)'; btn.style.boxShadow = 'none'; btn.classList.remove('active'); }
+    }
+  });
+  renderEstadisticas();
+}
 
 function setEstPeriodo(dias, btn) {
   estPeriodoDias = dias;
@@ -2580,63 +2703,472 @@ async function renderEstadisticas() {
   desde.setHours(0,0,0,0);
   const labels = {7:'Últimos 7 días', 30:'Último mes', 90:'Último trimestre', 365:'Último año', 0:'Desde siempre'};
   document.getElementById('est-rango-label').textContent = '(' + labels[estPeriodoDias] + ')';
-  const pagosPeriodo = estPeriodoDias === 0 ? DB.pagos : DB.pagos.filter(p => { const d = parseFecha(p.fecha); return d && d >= desde && d <= hoy; });
+
+  // ---- Datos base filtrados por período ----
+  // Préstamos del período: los que INICIARON en el período
+  const prestPeriodo = estPeriodoDias === 0
+    ? DB.prestamos
+    : DB.prestamos.filter(p => { const d = parseFecha(p.fechaInicio); return d && d >= desde && d <= hoy; });
+
+  // Pagos del período: los que se COBRARON en el período
+  const pagosPeriodo = estPeriodoDias === 0
+    ? DB.pagos
+    : DB.pagos.filter(p => { const d = parseFecha(p.fecha); return d && d >= desde && d <= hoy; });
+
   const montoCobrado = pagosPeriodo.reduce((a,p) => a + p.monto, 0);
-  document.getElementById('est-cobrado').textContent = fmt(montoCobrado);
-  document.getElementById('est-cobrado-meta').textContent = pagosPeriodo.length + ' pagos recibidos';
-  const prestIdsConPagos = new Set(pagosPeriodo.map(p => p.prestId));
-  const prestPeriodo = estPeriodoDias === 0 ? DB.prestamos : DB.prestamos.filter(p => prestIdsConPagos.has(p.id));
   const capitalTotal = prestPeriodo.reduce((a,p) => a + (p.capital || 0), 0);
   const gbTotal = prestPeriodo.reduce((a,p) => a + (p.ganBruta || 0), 0);
   const comTotal = prestPeriodo.reduce((a,p) => a + (p.comision || 0), 0);
   const gnTotal = prestPeriodo.reduce((a,p) => a + (p.ganNeta || 0), 0);
   const terceroCount = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero').length;
   const tasaPromedio = capitalTotal > 0 ? (gbTotal / capitalTotal * 100).toFixed(1) : 0;
-  document.getElementById('est-capital').textContent = fmt(capitalTotal);
-  document.getElementById('est-capital-meta').textContent = prestPeriodo.length + ' préstamos · tasa prom ' + tasaPromedio + '%';
-  document.getElementById('est-gb').textContent = fmt(gbTotal);
-  document.getElementById('est-gb-meta').textContent = capitalTotal > 0 ? (gbTotal / capitalTotal * 100).toFixed(1) + '% sobre el capital' : '—';
-  document.getElementById('est-com').textContent = fmt(comTotal);
-  document.getElementById('est-com-meta').textContent = terceroCount + ' préstamos de tercero';
-  document.getElementById('est-gn').textContent = fmt(gnTotal);
-  document.getElementById('est-gn-meta').textContent = gbTotal > 0 ? 'margen neto: ' + (gnTotal / gbTotal * 100).toFixed(1) + '%' : '—';
+
+  // Cuotas vencidas sin pagar en el período
+  const hoyMidnight = new Date(); hoyMidnight.setHours(0,0,0,0);
   const cuotasVencPeriodo = DB.cuotas.filter(c => {
     if (c.estado === 'Pagada' || c.estado.startsWith('Pagada con')) return false;
-    if (estPeriodoDias === 0) { const d = parseFecha(c.vencimiento); return d && d <= hoy; }
-    const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hoy;
+    const d = parseFecha(c.vencimiento);
+    if (!d) return false;
+    if (d > hoyMidnight) return false; // no venció aún
+    if (estPeriodoDias === 0) return true;
+    return d >= desde;
   });
   const montoMora = cuotasVencPeriodo.reduce((a,c) => a + c.saldo, 0);
-  const totalCuotasPeriodo = estPeriodoDias === 0 ? DB.cuotas.length : DB.cuotas.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hoy; }).length;
+  const totalCuotasPeriodo = estPeriodoDias === 0
+    ? DB.cuotas.length
+    : DB.cuotas.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hoy; }).length;
   const tasaMora = totalCuotasPeriodo > 0 ? (cuotasVencPeriodo.length / totalCuotasPeriodo * 100).toFixed(1) : 0;
-  document.getElementById('est-mora').textContent = fmt(montoMora);
-  document.getElementById('est-mora-meta').textContent = cuotasVencPeriodo.length + ' cuotas vencidas sin pagar';
-  document.getElementById('est-tasa-mora').textContent = tasaMora + '%';
-  const clientesNuevos = estPeriodoDias === 0 ? DB.clientes : DB.clientes.filter(c => { const d = parseFecha(c.alta); return d && d >= desde && d <= hoy; });
-  document.getElementById('est-cli-nuevos').textContent = clientesNuevos.length;
-  document.getElementById('est-cli-nuevos-meta').textContent = clientesNuevos.length ? clientesNuevos.map(c => c.apellido).join(', ') : 'en el período';
-  const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
-  const terceros = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero');
-  const capPropios = propios.reduce((a,p) => a + (p.capital || 0), 0);
-  const capTerceros = terceros.reduce((a,p) => a + (p.capital || 0), 0);
-  const gnPropios = propios.reduce((a,p) => a + (p.ganNeta || 0), 0);
-  const gnTerceros = terceros.reduce((a,p) => a + (p.ganNeta || 0), 0);
-  document.getElementById('est-tipo-body').innerHTML = prestPeriodo.length === 0
-    ? '<p style="color:var(--muted);font-size:13px">Sin préstamos en este período</p>'
-    : `<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span style="color:var(--muted)">Propios (${propios.length})</span><span style="font-family:var(--mono)">${fmt(capPropios)}</span></div><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${capitalTotal>0?(capPropios/capitalTotal*100).toFixed(0):0}%;background:var(--accent);border-radius:4px;transition:width .4s"></div></div><div style="font-size:11px;color:var(--green);text-align:right">Ganancia neta: ${fmt(gnPropios)}</div></div><div><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span style="color:var(--muted)">Terceros (${terceros.length})</span><span style="font-family:var(--mono)">${fmt(capTerceros)}</span></div><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${capitalTotal>0?(capTerceros/capitalTotal*100).toFixed(0):0}%;background:var(--amber);border-radius:4px;transition:width .4s"></div></div><div style="font-size:11px;color:var(--amber);text-align:right">Ganancia neta (después comisión): ${fmt(gnTerceros)}</div></div>`;
-  const volClientes = {};
-  prestPeriodo.forEach(p => { if (!volClientes[p.clienteId]) volClientes[p.clienteId] = { capital:0, count:0, gn:0 }; volClientes[p.clienteId].capital += p.capital || 0; volClientes[p.clienteId].count++; volClientes[p.clienteId].gn += p.ganNeta || 0; });
-  const topClis = Object.entries(volClientes).sort((a,b) => b[1].capital - a[1].capital).slice(0, 5);
-  const maxCap = topClis[0]?.[1].capital || 1;
-  document.getElementById('est-top-body').innerHTML = topClis.length === 0
-    ? '<div style="padding:16px;color:var(--muted);font-size:13px">Sin datos</div>'
-    : topClis.map(([cliId, v]) => { const cl = DB.clientes.find(x => x.id === cliId) || {apellido:'?', nombre:''}; const pct = (v.capital / maxCap * 100).toFixed(0); return `<div style="padding:10px 16px;border-bottom:1px solid var(--border)"><div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px"><span style="font-weight:600">${cl.apellido}, ${cl.nombre}</span><span style="font-family:var(--mono)">${fmt(v.capital)}</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>${v.count} préstamo${v.count!==1?'s':''}</span><span style="color:var(--green)">Gan. neta: ${fmt(v.gn)}</span></div></div>`; }).join('');
-  const pagosOrdenados = [...pagosPeriodo].sort((a,b) => { const da = parseFecha(a.fecha), db = parseFecha(b.fecha); return (db || 0) - (da || 0); });
-  document.getElementById('est-pagos-count').textContent = pagosOrdenados.length + ' pagos';
-  document.getElementById('est-pagos-tabla').innerHTML = pagosOrdenados.length === 0
-    ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Sin pagos en este período</td></tr>'
-    : pagosOrdenados.map(p => { const cl = DB.clientes.find(x => x.id === p.clienteId) || {apellido:'?', nombre:''}; return `<tr><td class="td-mono">${p.fecha}</td><td><div class="td-name">${cl.apellido}, ${cl.nombre}</div></td><td class="td-mono">${p.prestId}</td><td class="td-mono">${p.cuotaId}</td><td class="td-mono">${fmt(p.monto)}</td><td>${p.diasAtraso > 0 ? '<span class="pill pill-red">'+p.diasAtraso+'d</span>' : '<span class="pill pill-green">A tiempo</span>'}</td></tr>`; }).join('');
+
+  const clientesNuevos = estPeriodoDias === 0
+    ? DB.clientes
+    : DB.clientes.filter(c => { const d = parseFecha(c.alta); return d && d >= desde && d <= hoy; });
+
+  // ========================= TAB: RESUMEN =========================
+  if (estTabActivo === 'resumen') {
+    document.getElementById('est-cobrado').textContent = fmt(montoCobrado);
+    document.getElementById('est-cobrado-meta').textContent = pagosPeriodo.length + ' pagos recibidos';
+    document.getElementById('est-capital').textContent = fmt(capitalTotal);
+    document.getElementById('est-capital-meta').textContent = prestPeriodo.length + ' préstamos · tasa prom ' + tasaPromedio + '%';
+    document.getElementById('est-gb').textContent = fmt(gbTotal);
+    document.getElementById('est-gb-meta').textContent = capitalTotal > 0 ? (gbTotal / capitalTotal * 100).toFixed(1) + '% sobre el capital' : '—';
+    document.getElementById('est-com').textContent = fmt(comTotal);
+    document.getElementById('est-com-meta').textContent = terceroCount + ' préstamos de tercero';
+    document.getElementById('est-gn').textContent = fmt(gnTotal);
+    document.getElementById('est-gn-meta').textContent = gbTotal > 0 ? 'margen neto: ' + (gnTotal / gbTotal * 100).toFixed(1) + '%' : '—';
+    document.getElementById('est-mora').textContent = fmt(montoMora);
+    document.getElementById('est-mora-meta').textContent = cuotasVencPeriodo.length + ' cuotas vencidas sin pagar';
+    document.getElementById('est-tasa-mora').textContent = tasaMora + '%';
+    document.getElementById('est-cli-nuevos').textContent = clientesNuevos.length;
+    document.getElementById('est-cli-nuevos-meta').textContent = clientesNuevos.length ? clientesNuevos.map(c => c.apellido).join(', ') : 'en el período';
+
+    // Propio vs Tercero
+    const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
+    const terceros = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero');
+    const capPropios = propios.reduce((a,p) => a + (p.capital || 0), 0);
+    const capTerceros = terceros.reduce((a,p) => a + (p.capital || 0), 0);
+    const gnPropios = propios.reduce((a,p) => a + (p.ganNeta || 0), 0);
+    const gnTerceros = terceros.reduce((a,p) => a + (p.ganNeta || 0), 0);
+    document.getElementById('est-tipo-body').innerHTML = prestPeriodo.length === 0
+      ? '<p style="color:var(--muted);font-size:13px">Sin préstamos en este período</p>'
+      : `<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span style="color:var(--muted)">Propios (${propios.length})</span><span style="font-family:var(--mono)">${fmt(capPropios)}</span></div><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${capitalTotal>0?(capPropios/capitalTotal*100).toFixed(0):0}%;background:var(--accent);border-radius:4px;transition:width .4s"></div></div><div style="font-size:11px;color:var(--green);text-align:right">Ganancia neta: ${fmt(gnPropios)}</div></div><div><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span style="color:var(--muted)">Terceros (${terceros.length})</span><span style="font-family:var(--mono)">${fmt(capTerceros)}</span></div><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${capitalTotal>0?(capTerceros/capitalTotal*100).toFixed(0):0}%;background:var(--amber);border-radius:4px;transition:width .4s"></div></div><div style="font-size:11px;color:var(--amber);text-align:right">Ganancia neta (después comisión): ${fmt(gnTerceros)}</div></div>`;
+
+    // Top clientes
+    const volClientes = {};
+    prestPeriodo.forEach(p => { if (!volClientes[p.clienteId]) volClientes[p.clienteId] = { capital:0, count:0, gn:0 }; volClientes[p.clienteId].capital += p.capital || 0; volClientes[p.clienteId].count++; volClientes[p.clienteId].gn += p.ganNeta || 0; });
+    const topClis = Object.entries(volClientes).sort((a,b) => b[1].capital - a[1].capital).slice(0, 5);
+    const maxCap = topClis[0]?.[1].capital || 1;
+    document.getElementById('est-top-body').innerHTML = topClis.length === 0
+      ? '<div style="padding:16px;color:var(--muted);font-size:13px">Sin datos</div>'
+      : topClis.map(([cliId, v]) => { const cl = DB.clientes.find(x => x.id === cliId) || {apellido:'?', nombre:''}; const pct = (v.capital / maxCap * 100).toFixed(0); return `<div style="padding:10px 16px;border-bottom:1px solid var(--border)"><div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px"><span style="font-weight:600">${cl.apellido}, ${cl.nombre}</span><span style="font-family:var(--mono)">${fmt(v.capital)}</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>${v.count} préstamo${v.count!==1?'s':''}</span><span style="color:var(--green)">Gan. neta: ${fmt(v.gn)}</span></div></div>`; }).join('');
+
+    // Pagos tabla
+    const pagosOrdenados = [...pagosPeriodo].sort((a,b) => { const da = parseFecha(a.fecha), db = parseFecha(b.fecha); return (db || 0) - (da || 0); });
+    document.getElementById('est-pagos-count').textContent = pagosOrdenados.length + ' pagos';
+    document.getElementById('est-pagos-tabla').innerHTML = pagosOrdenados.length === 0
+      ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Sin pagos en este período</td></tr>'
+      : pagosOrdenados.map(p => { const cl = DB.clientes.find(x => x.id === p.clienteId) || {apellido:'?', nombre:''}; return `<tr><td class="td-mono">${p.fecha}</td><td><div class="td-name">${cl.apellido}, ${cl.nombre}</div></td><td class="td-mono">${p.prestId}</td><td class="td-mono">${p.cuotaId}</td><td class="td-mono">${fmt(p.monto)}</td><td>${p.diasAtraso > 0 ? '<span class="pill pill-red">'+p.diasAtraso+'d</span>' : '<span class="pill pill-green">A tiempo</span>'}</td></tr>`; }).join('');
+  }
+
+  // ========================= TAB: BALANCE REAL =========================
+  if (estTabActivo === 'balance') {
+    renderBalanceReal(prestPeriodo, pagosPeriodo, desde, hoy, hoyMidnight);
+  }
+
+  // ========================= TAB: RENDIMIENTO =========================
+  if (estTabActivo === 'rendimiento') {
+    renderRendimiento(prestPeriodo, pagosPeriodo, capitalTotal, gbTotal, gnTotal, comTotal, hoyMidnight, desde, hoy);
+  }
+
+  // ========================= TAB: CLIENTES =========================
+  if (estTabActivo === 'clientes') {
+    renderClienteScore(prestPeriodo, pagosPeriodo, hoyMidnight);
+  }
+
   document.getElementById('est-loading').style.display = 'none';
   document.getElementById('est-content').style.display = 'block';
+}
+
+// ---- BALANCE REAL ----
+function renderBalanceReal(prestPeriodo, pagosPeriodo, desde, hoy, hoyMidnight) {
+  // FLUJO DE PLATA
+  // Capital invertido (lo que salió de tu bolsillo para prestar)
+  // Solo contamos capital de préstamos PROPIOS, en terceros no ponés plata
+  const propiosPeriodo = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
+  const tercerosPeriodo = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero');
+
+  const capitalInvertidoPropio = propiosPeriodo.reduce((a,p) => a + (p.capital || 0), 0);
+  const capitalTotalPrestado = prestPeriodo.reduce((a,p) => a + (p.capital || 0), 0);
+
+  // Total que DEBERÍA volver: monto_total de todos los préstamos del período
+  // (capital + intereses = lo que el cliente te debe en total)
+  const totalDeberiaVolver = prestPeriodo.reduce((a,p) => a + (p.total || 0), 0);
+
+  // Total COBRADO efectivamente (pagos recibidos)
+  const totalCobrado = pagosPeriodo.reduce((a,p) => a + p.monto, 0);
+
+  // Pendiente de cobro: cuotas pendientes de préstamos del período
+  const prestIdsP = new Set(prestPeriodo.map(p => p.id));
+  const cuotasDePeriodo = DB.cuotas.filter(c => prestIdsP.has(c.prestId));
+  const pendienteCobro = cuotasDePeriodo.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con')).reduce((a,c) => a + c.saldo, 0);
+
+  // Ganancia neta prometida
+  const gnPrometida = prestPeriodo.reduce((a,p) => a + (p.ganNeta || 0), 0);
+
+  // Ganancia REALIZADA: de los pagos cobrados, cuánto es ganancia?
+  // Para cada pago, la proporción ganancia/total del préstamo correspondiente
+  let gananciaRealizada = 0;
+  pagosPeriodo.forEach(pago => {
+    const prest = DB.prestamos.find(p => p.id === pago.prestId);
+    if (prest && prest.total > 0) {
+      // Proporción de ganancia neta que corresponde a este pago
+      gananciaRealizada += pago.monto * (prest.ganNeta / prest.total);
+    }
+  });
+
+  // Comisiones de lo cobrado
+  let comisionRealizada = 0;
+  pagosPeriodo.forEach(pago => {
+    const prest = DB.prestamos.find(p => p.id === pago.prestId);
+    if (prest && prest.total > 0) {
+      comisionRealizada += pago.monto * (prest.comision / prest.total);
+    }
+  });
+
+  // Capital recuperado de lo cobrado
+  let capitalRecuperado = 0;
+  pagosPeriodo.forEach(pago => {
+    const prest = DB.prestamos.find(p => p.id === pago.prestId);
+    if (prest && prest.total > 0) {
+      capitalRecuperado += pago.monto * (prest.capital / prest.total);
+    }
+  });
+
+  document.getElementById('bal-subtitle').textContent = prestPeriodo.length + ' préstamos';
+
+  const flowRow = (label, value, color, bold, sub) => {
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);${bold?'font-weight:700;background:rgba(255,255,255,0.02)':''}">
+      <div><span style="font-size:13px;color:${color || 'var(--text)'}">${label}</span>${sub ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+sub+'</div>' : ''}</div>
+      <span style="font-family:var(--mono);font-size:${bold?'16px':'14px'};font-weight:${bold?'700':'500'};color:${color || 'var(--text)'}">${fmt(Math.round(value))}</span>
+    </div>`;
+  };
+
+  document.getElementById('bal-flow-body').innerHTML =
+    flowRow('Capital prestado (total)', capitalTotalPrestado, 'var(--accent2)', false, propiosPeriodo.length + ' propios · ' + tercerosPeriodo.length + ' de tercero') +
+    flowRow('Capital invertido (tu bolsillo)', capitalInvertidoPropio, 'var(--red)', false, 'Solo propios — en terceros no ponés capital') +
+    flowRow('Total que debe volver', totalDeberiaVolver, 'var(--text)', true, 'Capital + intereses de todos los préstamos') +
+    flowRow('Ganancia neta prometida', gnPrometida, 'var(--green)', false, 'Si se cobra absolutamente todo') +
+    '<div style="height:1px;background:var(--accent);opacity:0.3"></div>' +
+    flowRow('Total cobrado', totalCobrado, 'var(--green)', true, pagosPeriodo.length + ' pagos recibidos') +
+    flowRow('↳ Capital recuperado', capitalRecuperado, 'var(--muted)', false, 'Parte del cobro que es devolución de capital') +
+    flowRow('↳ Ganancia realizada', gananciaRealizada, 'var(--green)', false, 'Parte del cobro que es ganancia neta tuya') +
+    (comisionRealizada > 0.5 ? flowRow('↳ Comisiones pagadas', comisionRealizada, 'var(--amber)', false, 'Parte del cobro que va a terceros') : '') +
+    '<div style="height:1px;background:var(--accent);opacity:0.3"></div>' +
+    flowRow('Pendiente de cobro', pendienteCobro, 'var(--amber)', true, 'Cuotas sin pagar de estos préstamos');
+
+  // EVOLUCIÓN MENSUAL
+  // Agrupar TODOS los préstamos y pagos por mes (ignorando filtro de período para esta tabla)
+  const meses = {};
+  DB.prestamos.forEach(p => {
+    const d = parseFecha(p.fechaInicio);
+    if (!d) return;
+    const k = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    if (!meses[k]) meses[k] = { capitalPrestado:0, totalDeberia:0, gnPrometida:0, cobrado:0, gnRealizada:0, prestamos:0, pagos:0 };
+    meses[k].capitalPrestado += p.capital || 0;
+    meses[k].totalDeberia += p.total || 0;
+    meses[k].gnPrometida += p.ganNeta || 0;
+    meses[k].prestamos++;
+  });
+  DB.pagos.forEach(pago => {
+    const d = parseFecha(pago.fecha);
+    if (!d) return;
+    const k = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    if (!meses[k]) meses[k] = { capitalPrestado:0, totalDeberia:0, gnPrometida:0, cobrado:0, gnRealizada:0, prestamos:0, pagos:0 };
+    meses[k].cobrado += pago.monto;
+    meses[k].pagos++;
+    const prest = DB.prestamos.find(p => p.id === pago.prestId);
+    if (prest && prest.total > 0) {
+      meses[k].gnRealizada += pago.monto * (prest.ganNeta / prest.total);
+    }
+  });
+
+  const mesesKeys = Object.keys(meses).sort();
+  if (mesesKeys.length === 0) {
+    document.getElementById('bal-evo-body').innerHTML = '<p style="color:var(--muted);font-size:13px">Sin datos aún</p>';
+  } else {
+    const mNombres = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    let evoHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>' +
+      '<th style="text-align:left;padding:8px 12px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border)">Mes</th>' +
+      '<th style="text-align:right;padding:8px 12px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border)">Préstamos</th>' +
+      '<th style="text-align:right;padding:8px 12px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border)">Capital</th>' +
+      '<th style="text-align:right;padding:8px 12px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border)">Debe volver</th>' +
+      '<th style="text-align:right;padding:8px 12px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border)">Cobrado</th>' +
+      '<th style="text-align:right;padding:8px 12px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border)">Gan. realizada</th>' +
+      '</tr></thead><tbody>';
+    let acumCapital = 0, acumDeberia = 0, acumCobrado = 0, acumGn = 0, acumPrest = 0;
+    mesesKeys.forEach(k => {
+      const m = meses[k];
+      const [y, mm] = k.split('-');
+      const mesLabel = mNombres[parseInt(mm)-1] + ' ' + y;
+      acumCapital += m.capitalPrestado; acumDeberia += m.totalDeberia; acumCobrado += m.cobrado; acumGn += m.gnRealizada; acumPrest += m.prestamos;
+      evoHTML += `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px 12px;font-weight:600">${mesLabel}</td>
+        <td style="padding:10px 12px;text-align:right;font-family:var(--mono)">${m.prestamos}</td>
+        <td style="padding:10px 12px;text-align:right;font-family:var(--mono);color:var(--accent2)">${fmt(m.capitalPrestado)}</td>
+        <td style="padding:10px 12px;text-align:right;font-family:var(--mono)">${fmt(m.totalDeberia)}</td>
+        <td style="padding:10px 12px;text-align:right;font-family:var(--mono);color:var(--green)">${fmt(m.cobrado)}</td>
+        <td style="padding:10px 12px;text-align:right;font-family:var(--mono);color:var(--green)">${fmt(m.gnRealizada)}</td>
+      </tr>`;
+    });
+    // Totales
+    evoHTML += `<tr style="background:rgba(255,255,255,0.03);font-weight:700">
+      <td style="padding:10px 12px">TOTAL</td>
+      <td style="padding:10px 12px;text-align:right;font-family:var(--mono)">${acumPrest}</td>
+      <td style="padding:10px 12px;text-align:right;font-family:var(--mono);color:var(--accent2)">${fmt(acumCapital)}</td>
+      <td style="padding:10px 12px;text-align:right;font-family:var(--mono)">${fmt(acumDeberia)}</td>
+      <td style="padding:10px 12px;text-align:right;font-family:var(--mono);color:var(--green)">${fmt(acumCobrado)}</td>
+      <td style="padding:10px 12px;text-align:right;font-family:var(--mono);color:var(--green)">${fmt(acumGn)}</td>
+    </tr>`;
+    evoHTML += '</tbody></table>';
+    document.getElementById('bal-evo-body').innerHTML = evoHTML;
+  }
+
+  // CAPITAL EN LA CALLE
+  // Cuánta plata está afuera por cobrar, dividida en: por vencer (ok) vs vencido (riesgo)
+  const cuotasPendientes = DB.cuotas.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'));
+  const totalEnCalle = cuotasPendientes.reduce((a,c) => a + c.saldo, 0);
+  const vencidas = cuotasPendientes.filter(c => { const d = parseFecha(c.vencimiento); return d && d < hoyMidnight; });
+  const porVencer = cuotasPendientes.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= hoyMidnight; });
+  const montoVencido = vencidas.reduce((a,c) => a + c.saldo, 0);
+  const montoPorVencer = porVencer.reduce((a,c) => a + c.saldo, 0);
+  const pctVencido = totalEnCalle > 0 ? (montoVencido / totalEnCalle * 100) : 0;
+
+  document.getElementById('bal-calle-sub').textContent = fmt(totalEnCalle) + ' en total';
+  document.getElementById('bal-calle-body').innerHTML = totalEnCalle === 0
+    ? '<p style="color:var(--green);font-size:13px">No hay capital en la calle</p>'
+    : `<div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
+          <span style="color:var(--muted)">Por vencer (${porVencer.length} cuotas)</span>
+          <span style="font-family:var(--mono);color:var(--green)">${fmt(montoPorVencer)}</span>
+        </div>
+        <div style="height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin-bottom:12px">
+          <div style="height:100%;width:${totalEnCalle>0?((montoPorVencer/totalEnCalle)*100).toFixed(0):0}%;background:var(--green);border-radius:5px;transition:width .4s"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
+          <span style="color:var(--muted)">Vencido sin cobrar (${vencidas.length} cuotas)</span>
+          <span style="font-family:var(--mono);color:var(--red)">${fmt(montoVencido)}</span>
+        </div>
+        <div style="height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin-bottom:12px">
+          <div style="height:100%;width:${pctVencido.toFixed(0)}%;background:var(--red);border-radius:5px;transition:width .4s"></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">
+          ${pctVencido.toFixed(1)}% del capital en calle está vencido · Riesgo ${pctVencido < 15 ? '<span style="color:var(--green)">BAJO</span>' : pctVencido < 35 ? '<span style="color:var(--amber)">MODERADO</span>' : '<span style="color:var(--red)">ALTO</span>'}
+        </div>
+      </div>`;
+}
+
+// ---- RENDIMIENTO ----
+function renderRendimiento(prestPeriodo, pagosPeriodo, capitalTotal, gbTotal, gnTotal, comTotal, hoyMidnight, desde, hoy) {
+  const montoCobrado = pagosPeriodo.reduce((a,p) => a + p.monto, 0);
+  const capitalInvertidoPropio = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero').reduce((a,p) => a + (p.capital || 0), 0);
+
+  // ROI real: ganancia realizada / capital invertido propio
+  // Para los pagos del período, calcular cuánta ganancia neta representan
+  let gananciaRealizada = 0;
+  pagosPeriodo.forEach(pago => {
+    const prest = DB.prestamos.find(p => p.id === pago.prestId);
+    if (prest && prest.total > 0) {
+      gananciaRealizada += pago.monto * (prest.ganNeta / prest.total);
+    }
+  });
+
+  const roiReal = capitalInvertidoPropio > 0 ? (gananciaRealizada / capitalInvertidoPropio * 100) : 0;
+  document.getElementById('rend-roi').textContent = roiReal.toFixed(1) + '%';
+  document.getElementById('rend-roi-meta').textContent = fmt(gananciaRealizada) + ' ganado / ' + fmt(capitalInvertidoPropio) + ' invertido';
+
+  // ROI prometido: ganancia neta prometida / capital invertido propio
+  const roiProm = capitalInvertidoPropio > 0 ? (gnTotal / capitalInvertidoPropio * 100) : 0;
+  document.getElementById('rend-roi-prom').textContent = roiProm.toFixed(1) + '%';
+  document.getElementById('rend-roi-prom-meta').textContent = fmt(gnTotal) + ' si se cobra todo';
+
+  // Tasa de cobro efectivo: de las cuotas que YA VENCIERON en el período, qué % se cobró
+  const prestIdsP = new Set(prestPeriodo.map(p => p.id));
+  const cuotasDelPeriodo = DB.cuotas.filter(c => prestIdsP.has(c.prestId));
+  const cuotasYaVencidas = cuotasDelPeriodo.filter(c => {
+    const d = parseFecha(c.vencimiento);
+    return d && d < hoyMidnight;
+  });
+  const montoDeberiaCobrarse = cuotasYaVencidas.reduce((a,c) => a + c.monto, 0);
+  const montoPagadoDeVencidas = cuotasYaVencidas.reduce((a,c) => a + c.pagado, 0);
+  const tasaCobro = montoDeberiaCobrarse > 0 ? (montoPagadoDeVencidas / montoDeberiaCobrarse * 100) : 0;
+  document.getElementById('rend-cobro').textContent = tasaCobro.toFixed(1) + '%';
+  document.getElementById('rend-cobro').style.color = tasaCobro >= 80 ? 'var(--green)' : tasaCobro >= 50 ? 'var(--amber)' : 'var(--red)';
+  document.getElementById('rend-cobro-meta').textContent = fmt(montoPagadoDeVencidas) + ' de ' + fmt(montoDeberiaCobrarse) + ' vencido';
+
+  // Promedio días atraso
+  const pagosConAtraso = pagosPeriodo.filter(p => p.diasAtraso > 0);
+  const promAtraso = pagosPeriodo.length > 0 ? (pagosPeriodo.reduce((a,p) => a + p.diasAtraso, 0) / pagosPeriodo.length) : 0;
+  document.getElementById('rend-atraso').textContent = promAtraso.toFixed(1) + 'd';
+  document.getElementById('rend-atraso-meta').textContent = pagosConAtraso.length + ' de ' + pagosPeriodo.length + ' pagos con atraso';
+
+  // A tiempo vs con atraso
+  const pagosATiempo = pagosPeriodo.filter(p => p.diasAtraso === 0);
+  const pctATiempo = pagosPeriodo.length > 0 ? (pagosATiempo.length / pagosPeriodo.length * 100) : 0;
+  const pctConAtraso = pagosPeriodo.length > 0 ? (pagosConAtraso.length / pagosPeriodo.length * 100) : 0;
+  document.getElementById('rend-atiempo').textContent = pctATiempo.toFixed(0) + '%';
+  document.getElementById('rend-atiempo-meta').textContent = pagosATiempo.length + ' de ' + pagosPeriodo.length + ' pagos';
+  document.getElementById('rend-conatraso').textContent = pctConAtraso.toFixed(0) + '%';
+  document.getElementById('rend-conatraso-meta').textContent = pagosConAtraso.length + ' pagos tarde';
+
+  // Ticket promedio
+  const ticketProm = prestPeriodo.length > 0 ? capitalTotal / prestPeriodo.length : 0;
+  document.getElementById('rend-ticket').textContent = fmt(ticketProm);
+  document.getElementById('rend-ticket-meta').textContent = prestPeriodo.length + ' préstamos en período';
+
+  // Ganancia por peso invertido
+  const ganXPeso = capitalTotal > 0 ? gnTotal / capitalTotal : 0;
+  document.getElementById('rend-ganxpeso').textContent = '$' + ganXPeso.toFixed(2);
+  document.getElementById('rend-ganxpeso-meta').textContent = 'Por cada $1 prestado, ganás $' + ganXPeso.toFixed(2) + ' neto';
+
+  // Rendimiento propio vs tercero
+  const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
+  const terceros = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero');
+
+  function rendCard(prests, label) {
+    if (prests.length === 0) return '<p style="color:var(--muted);font-size:13px">Sin préstamos ' + label + '</p>';
+    const cap = prests.reduce((a,p) => a + (p.capital || 0), 0);
+    const gn = prests.reduce((a,p) => a + (p.ganNeta || 0), 0);
+    const gb = prests.reduce((a,p) => a + (p.ganBruta || 0), 0);
+    const com = prests.reduce((a,p) => a + (p.comision || 0), 0);
+    const roi = cap > 0 ? (gn / cap * 100).toFixed(1) : 0;
+    const ganXP = cap > 0 ? (gn / cap).toFixed(2) : '0.00';
+    return `<div style="font-size:13px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:var(--muted)">Préstamos</span><span style="font-weight:600">${prests.length}</span></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:var(--muted)">Capital</span><span style="font-family:var(--mono)">${fmt(cap)}</span></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:var(--muted)">Ganancia bruta</span><span style="font-family:var(--mono);color:var(--green)">${fmt(gb)}</span></div>
+      ${com > 0 ? '<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:var(--muted)">Comisiones</span><span style="font-family:var(--mono);color:var(--amber)">' + fmt(com) + '</span></div>' : ''}
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:var(--muted)">Ganancia neta</span><span style="font-family:var(--mono);color:var(--green);font-weight:600">${fmt(gn)}</span></div>
+      <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;display:flex;justify-content:space-between"><span style="color:var(--muted)">ROI</span><span style="font-weight:700;color:var(--green)">${roi}%</span></div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px"><span style="color:var(--muted)">Gan. por $1</span><span style="font-family:var(--mono);color:var(--green)">$${ganXP}</span></div>
+    </div>`;
+  }
+
+  document.getElementById('rend-propio-body').innerHTML = rendCard(propios, 'propios');
+  document.getElementById('rend-tercero-body').innerHTML = rendCard(terceros, 'de tercero');
+}
+
+// ---- SCORE DE CLIENTES ----
+function renderClienteScore(prestPeriodo, pagosPeriodo, hoyMidnight) {
+  // Tomamos TODOS los clientes que tienen préstamos (no filtrados por período para el score)
+  const clienteData = {};
+
+  DB.prestamos.forEach(p => {
+    if (!clienteData[p.clienteId]) clienteData[p.clienteId] = { prestamos: 0, capitalTotal: 0, pagos: [], cuotasTotal: 0, cuotasPagadas: 0, diasAtrasoSum: 0, pagosATiempo: 0, pagosCount: 0 };
+    clienteData[p.clienteId].prestamos++;
+    clienteData[p.clienteId].capitalTotal += p.capital || 0;
+  });
+
+  DB.pagos.forEach(pago => {
+    if (!clienteData[pago.clienteId]) return;
+    clienteData[pago.clienteId].pagosCount++;
+    clienteData[pago.clienteId].diasAtrasoSum += pago.diasAtraso || 0;
+    if (pago.diasAtraso === 0) clienteData[pago.clienteId].pagosATiempo++;
+  });
+
+  // Cobrado por cliente
+  const cobradoPorCliente = {};
+  DB.pagos.forEach(pago => {
+    if (!cobradoPorCliente[pago.clienteId]) cobradoPorCliente[pago.clienteId] = 0;
+    cobradoPorCliente[pago.clienteId] += pago.monto;
+  });
+
+  // Score: 0-100
+  // Factores: % pagos a tiempo (50%), promedio atraso bajo (30%), cantidad préstamos (20%)
+  const scored = Object.entries(clienteData).map(([cliId, d]) => {
+    const cl = DB.clientes.find(x => x.id === cliId) || { apellido: '?', nombre: '' };
+    const pctATiempo = d.pagosCount > 0 ? (d.pagosATiempo / d.pagosCount) : 0;
+    const promAtraso = d.pagosCount > 0 ? (d.diasAtrasoSum / d.pagosCount) : 0;
+
+    // Score components
+    // Puntualidad: 100% a tiempo = 50pts, 0% = 0pts
+    const scorePuntualidad = pctATiempo * 50;
+    // Atraso: 0 días = 30pts, >7 días = 0pts
+    const scoreAtraso = Math.max(0, 30 - (promAtraso / 7 * 30));
+    // Historial: 3+ préstamos = 20pts, 1 = 7pts
+    const scoreHistorial = Math.min(20, d.prestamos * 7);
+
+    let score;
+    if (d.pagosCount === 0) {
+      // Sin pagos registrados: no podemos evaluarlo, score neutral
+      score = -1; // marcamos como sin datos
+    } else {
+      score = Math.round(scorePuntualidad + scoreAtraso + scoreHistorial);
+    }
+
+    return {
+      cliId,
+      nombre: cl.apellido + ', ' + cl.nombre,
+      prestamos: d.prestamos,
+      capitalTotal: d.capitalTotal,
+      cobrado: cobradoPorCliente[cliId] || 0,
+      pctATiempo: d.pagosCount > 0 ? (pctATiempo * 100) : -1,
+      promAtraso: d.pagosCount > 0 ? promAtraso : -1,
+      pagosCount: d.pagosCount,
+      score
+    };
+  }).sort((a, b) => {
+    // Los que tienen score van primero, ordenados de mayor a menor
+    if (a.score === -1 && b.score === -1) return b.capitalTotal - a.capitalTotal;
+    if (a.score === -1) return 1;
+    if (b.score === -1) return -1;
+    return b.score - a.score;
+  });
+
+  document.getElementById('cli-score-count').textContent = scored.length + ' clientes';
+
+  function scoreColor(s) {
+    if (s === -1) return 'var(--muted)';
+    if (s >= 75) return 'var(--green)';
+    if (s >= 50) return 'var(--amber)';
+    return 'var(--red)';
+  }
+  function scoreLabel(s) {
+    if (s === -1) return '<span class="pill pill-gray">Sin datos</span>';
+    if (s >= 75) return '<span class="pill pill-green">' + s + ' · Bueno</span>';
+    if (s >= 50) return '<span class="pill pill-amber">' + s + ' · Regular</span>';
+    return '<span class="pill pill-red">' + s + ' · Riesgoso</span>';
+  }
+
+  document.getElementById('cli-score-tabla').innerHTML = scored.length === 0
+    ? '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Sin clientes</td></tr>'
+    : scored.map(c => `<tr>
+        <td><div class="td-name">${c.nombre}</div></td>
+        <td class="td-mono">${c.prestamos}</td>
+        <td class="td-mono">${fmt(c.capitalTotal)}</td>
+        <td class="td-mono" style="color:var(--green)">${fmt(c.cobrado)}</td>
+        <td style="font-size:12px">${c.pctATiempo === -1 ? '<span style="color:var(--muted)">—</span>' : '<span style="color:' + (c.pctATiempo >= 80 ? 'var(--green)' : c.pctATiempo >= 50 ? 'var(--amber)' : 'var(--red)') + '">' + c.pctATiempo.toFixed(0) + '%</span>'}</td>
+        <td style="font-family:var(--mono);font-size:12px">${c.promAtraso === -1 ? '<span style="color:var(--muted)">—</span>' : c.promAtraso.toFixed(1) + 'd'}</td>
+        <td>${scoreLabel(c.score)}</td>
+      </tr>`).join('');
 }
 
 // ============================================================
