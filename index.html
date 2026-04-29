@@ -1714,6 +1714,23 @@ function rowToPrestamo(r) { return { id:r[0]||'', clienteId:r[1]||'', nombre:r[2
 function rowToCuota(r)    { return { id:r[0]||'', prestId:r[1]||'', clienteId:r[2]||'', nro:parseInt(r[3])||0, vencimiento:r[4]||'', monto:parseFloat(r[5])||0, pagado:parseFloat(r[6])||0, saldo:parseFloat(r[7])||0, estado:r[8]||'Pendiente', eventId:r[9]||'' }; }
 function rowToPago(r)     { return { id:r[0]||'', cuotaId:r[1]||'', prestId:r[2]||'', clienteId:r[3]||'', fecha:r[4]||'', monto:parseFloat(r[5])||0, diasAtraso:parseInt(r[6])||0, notas:r[7]||'' }; }
 
+// Genera el próximo ID disponible buscando el MAX existente + 1.
+// Evita duplicados cuando se borraron items previos (bug de length+1).
+// Uso: nextId('PREST-', DB.prestamos)  ->  'PREST-0040'
+//      nextId('PREST-0033-C', cuotasDelPrestamo, 2)  ->  'PREST-0033-C03'
+function nextId(prefix, collection, padding) {
+  if (padding === undefined) padding = 4;
+  var max = 0;
+  for (var i = 0; i < collection.length; i++) {
+    var raw = (collection[i] && collection[i].id) ? String(collection[i].id) : '';
+    if (raw.indexOf(prefix) !== 0) continue;
+    var tail = raw.substring(prefix.length);
+    var num = parseInt(tail, 10);
+    if (!isNaN(num) && num > max) max = num;
+  }
+  return prefix + String(max + 1).padStart(padding, '0');
+}
+
 // ============================================================
 // NAVIGATION
 // ============================================================
@@ -2336,7 +2353,7 @@ async function crearPrestamo() {
     const tel2 = document.getElementById('nc-tel2').value.trim();
     if (!apellido || !nombre || !dni) { showToast('Completá apellido, nombre y DNI', 'error'); return; }
     const hoy = fmtFechaES(new Date());
-    clienteId = 'CLI-' + String(DB.clientes.length + 1).padStart(4,'0');
+    clienteId = nextId('CLI-', DB.clientes);
     clienteNombre = apellido + ', ' + nombre;
     await sheetsAppend('Clientes!A:L', [[clienteId, apellido, nombre, alias, dni, tel, tel2, '', '', hoy, 'Sí', '']]);
   } else {
@@ -2351,7 +2368,7 @@ async function crearPrestamo() {
   const gn = gb-com;
   const cuotaM = total/cuotas;
   const fechaInicio = new Date(fechaStr+'T12:00:00');
-  const prestId = 'PREST-' + String(DB.prestamos.length + 1).padStart(4,'0');
+  const prestId = nextId('PREST-', DB.prestamos);
   const btn = document.getElementById('btn-crear-prestamo');
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
@@ -2411,7 +2428,7 @@ async function guardarCliente() {
   const notas    = document.getElementById('cli-notas').value.trim();
   if (!apellido || !nombre || !dni) { showToast('Completá apellido, nombre y DNI', 'error'); return; }
   const hoy = fmtFechaES(new Date());
-  const id = 'CLI-' + String(DB.clientes.length + 1).padStart(4,'0');
+  const id = nextId('CLI-', DB.clientes);
   try {
     await sheetsAppend('Clientes!A:L', [[id, apellido, nombre, alias, dni, tel, tel2, email, dir, hoy, 'Sí', notas]]);
     if (doc) await sheetsAppend('Documentos!A:F', [['DOC-'+String(Date.now()), id, 'Documentación', doc, hoy, '']]);
@@ -2470,7 +2487,7 @@ async function confirmarPago() {
   const nuevoMontoPagado = c.pagado + monto;
   const nuevoSaldo = Math.max(0, c.monto - nuevoMontoPagado);
   let nuevoEstado = nuevoSaldo <= 0 ? (diasAtraso > 0 ? 'Pagada con atraso ('+diasAtraso+'d)' : 'Pagada') : 'Pago parcial';
-  const pagoId = 'PAGO-' + String(DB.pagos.length + 1).padStart(4,'0');
+  const pagoId = nextId('PAGO-', DB.pagos);
   try {
     await sheetsAppend('Pagos!A:H', [[pagoId, c.id, c.prestId, c.clienteId, fmtFechaES(fechaPago), monto.toFixed(2), diasAtraso, notas]]);
     const cuotasData = await sheetsGet('Cuotas!A1:J');
@@ -2497,7 +2514,8 @@ function abrirCuotaExtraModal(prestId) {
   cuotaExtraPrestId = prestId;
   const cuotas = DB.cuotas.filter(c => c.prestId === prestId).sort((a,b) => a.nro - b.nro);
   const ultimaCuota = cuotas[cuotas.length - 1];
-  const nuevoNro = cuotas.length + 1;
+  const maxNro = cuotas.reduce(function(m, c) { return c.nro > m ? c.nro : m; }, 0);
+  const nuevoNro = maxNro + 1;
   const montoCuota = ultimaCuota ? ultimaCuota.monto : (p.total / p.cuotas);
 
   document.getElementById('cuota-extra-sub').textContent = prestId + ' · Cuota adicional #' + nuevoNro;
@@ -2534,7 +2552,8 @@ async function confirmarCuotaExtra() {
   if (!p) return;
   const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
   const cuotas = DB.cuotas.filter(c => c.prestId === cuotaExtraPrestId);
-  const nuevoNro = cuotas.length + 1;
+  const maxNro = cuotas.reduce(function(m, c) { return c.nro > m ? c.nro : m; }, 0);
+  const nuevoNro = maxNro + 1;
   const cuotaId = cuotaExtraPrestId + '-C' + String(nuevoNro).padStart(2, '0');
   const fecha = new Date(fechaStr + 'T12:00:00');
   const fechaES = fmtFechaES(fecha);
