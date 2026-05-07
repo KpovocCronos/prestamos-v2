@@ -1555,6 +1555,74 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
   </div>
 </div>
 
+<!-- REFINANCIAR MODAL -->
+<div class="modal-overlay" id="refiModal">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-title">🔄 Refinanciar créditos</div>
+    <div class="modal-sub" id="refi-sub">—</div>
+
+    <div class="form-section-title">Seleccioná los créditos a consolidar</div>
+    <div id="refi-prestamos-list" style="max-height:180px;overflow-y:auto;margin-bottom:16px"></div>
+
+    <div class="calc-box" id="refi-saldo-box" style="margin-bottom:16px">
+      <div class="calc-row"><span class="calc-label">Saldo total a refinanciar</span><span class="calc-val text-amber" id="refi-saldo-total">$0</span></div>
+      <div class="calc-row"><span class="calc-label">Cuotas pendientes absorbidas</span><span class="calc-val" id="refi-cuotas-abs">0</span></div>
+      <div class="calc-row"><span class="calc-label">Eventos Calendar a eliminar</span><span class="calc-val text-red" id="refi-cal-count">0</span></div>
+    </div>
+
+    <div class="form-section-title">Condiciones del nuevo crédito</div>
+    <div class="form-grid">
+      <div class="form-field">
+        <label class="form-label">Interés sobre el saldo (%)</label>
+        <input class="form-input" type="number" id="refi-interes" value="0" min="0" oninput="recalcRefi()">
+        <div class="form-hint">0% = solo consolida deuda, sin interés extra</div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Cantidad de cuotas</label>
+        <input class="form-input" type="number" id="refi-cuotas" value="6" min="1" max="60" oninput="recalcRefi()">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Fecha de inicio</label>
+        <input class="form-input" type="date" id="refi-fecha" oninput="recalcRefi()">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Frecuencia</label>
+        <select class="form-select" id="refi-freq" onchange="recalcRefi()">
+          <option value="7">Semanal</option>
+          <option value="15">Quincenal</option>
+          <option value="30" selected>Mensual</option>
+          <option value="60">Bimestral</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Tipo</label>
+        <select class="form-select" id="refi-tipo" onchange="recalcRefi()">
+          <option value="propio">Propio</option>
+          <option value="tercero">De tercero</option>
+        </select>
+      </div>
+      <div class="form-field" id="refi-tercero-field" style="display:none">
+        <label class="form-label">Nombre del tercero</label>
+        <input class="form-input" id="refi-tercero" placeholder="Nombre del financiador">
+      </div>
+    </div>
+
+    <div class="calc-box mt-12" id="refi-preview-box">
+      <div class="calc-row"><span class="calc-label">Capital (saldo refinanciado)</span><span class="calc-val" id="refi-p-capital">$0</span></div>
+      <div class="calc-row"><span class="calc-label">Total a devolver</span><span class="calc-val" id="refi-p-total">$0</span></div>
+      <div class="calc-row"><span class="calc-label">Ganancia bruta</span><span class="calc-val text-green" id="refi-p-gb">$0</span></div>
+      <div class="calc-row" id="refi-p-com-row" style="display:none"><span class="calc-label">Comisión 20%</span><span class="calc-val text-amber" id="refi-p-com">$0</span></div>
+      <div class="calc-row"><span class="calc-label">Ganancia neta</span><span class="calc-val text-green" id="refi-p-gn">$0</span></div>
+      <div class="calc-row"><span class="calc-label">Valor de cuota</span><span class="calc-val text-accent" id="refi-p-cuota">$0</span></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeRefiModal()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-confirmar-refi" onclick="confirmarRefinanciar()">Refinanciar y crear nuevo crédito →</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -1759,13 +1827,17 @@ async function nav(screen, data) {
 // HELPERS DE ESTADO DINÁMICO
 // ============================================================
 function calcEstadoPrestamo(prestId) {
+  const p = DB.prestamos.find(x => x.id === prestId);
+  if (p && p.estado === 'Refinanciado') return 'Refinanciado';
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const cuotas = DB.cuotas.filter(c => c.prestId === prestId);
   if (!cuotas.length) return 'Activo';
   const saldoTotal = cuotas.reduce((a,c) => a + (parseFloat(c.saldo)||0), 0);
   if (saldoTotal <= 0.01) return 'Finalizado';
-  const hayVencidas = cuotas.some(c => {
-    if (c.estado === 'Pagada' || c.estado.startsWith('Pagada con')) return false;
+  // Check if all remaining cuotas are Refinanciada
+  const pendientes = cuotas.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'));
+  if (pendientes.length > 0 && pendientes.every(c => c.estado === 'Refinanciada')) return 'Refinanciado';
+  const hayVencidas = pendientes.some(c => {
     const d = parseFecha(c.vencimiento);
     return d && d < hoy;
   });
@@ -1778,9 +1850,11 @@ function calcEstadoCliente(clienteId) {
   if (!prestamos.length) return 'Sin préstamos';
   const cuotas = DB.cuotas.filter(c => c.clienteId === clienteId);
   if (!cuotas.length) return 'Sin préstamos';
-  const saldoTotal = cuotas.reduce((a,c) => a + (parseFloat(c.saldo)||0), 0);
+  // Exclude refinanciada cuotas from saldo calc
+  const cuotasActivas = cuotas.filter(c => c.estado !== 'Refinanciada');
+  const saldoTotal = cuotasActivas.reduce((a,c) => a + (parseFloat(c.saldo)||0), 0);
   if (saldoTotal <= 0.01) return 'Crédito finalizado';
-  const hayVencidas = cuotas.some(c => {
+  const hayVencidas = cuotasActivas.some(c => {
     if (c.estado === 'Pagada' || c.estado.startsWith('Pagada con')) return false;
     const d = parseFecha(c.vencimiento);
     return d && d < hoy;
@@ -1793,6 +1867,7 @@ function estadoPill2(estado) {
   if (estado === 'Finalizado' || estado === 'Crédito finalizado') return '<span class="pill pill-green">' + estado + '</span>';
   if (estado === 'En mora') return '<span class="pill pill-red">En mora</span>';
   if (estado === 'Activo') return '<span class="pill pill-purple">Activo</span>';
+  if (estado === 'Refinanciado') return '<span class="pill pill-amber">🔄 Refinanciado</span>';
   if (estado === 'Sin préstamos') return '<span class="pill pill-gray">Sin préstamos</span>';
   return '<span class="pill pill-gray">' + estado + '</span>';
 }
@@ -1808,7 +1883,7 @@ async function renderDashboard() {
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const mesActual = hoy.getMonth();
   const anioActual = hoy.getFullYear();
-  const cuotasPend = DB.cuotas.filter(c => c.saldo > 0 && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'));
+  const cuotasPend = DB.cuotas.filter(c => c.saldo > 0 && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada');
   const prestConSaldo = new Set(cuotasPend.map(c => c.prestId));
   const capitalTotal = DB.prestamos.filter(p => prestConSaldo.has(p.id)).reduce((a,p) => a + p.capital, 0);
   const cantPrestActivos = prestConSaldo.size;
@@ -1835,7 +1910,7 @@ async function renderDashboard() {
   document.getElementById('stat-clientes-meta').textContent = tercerosActivos + ' de tercero activos';
 
   const cuotasConFecha = DB.cuotas
-    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'))
+    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada')
     .map(c => ({...c, _fecha: parseFecha(c.vencimiento)}))
     .filter(c => c._fecha)
     .sort((a,b) => a._fecha - b._fecha);
@@ -2002,6 +2077,7 @@ function renderDetalleCliente(clienteId) {
       </div>
       <div class="flex-row">
         <button class="btn btn-ghost btn-sm" onclick="abrirPlanCuotas('${c.id}')" style="border-color:rgba(124,111,255,.3);color:var(--accent2)">📊 Plan de cuotas</button>
+        <button class="btn btn-amber btn-sm" onclick="abrirRefinanciarModal('${c.id}')" id="btn-refi-${c.id}">🔄 Refinanciar</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirEditClienteModal('${c.id}')">✏ Editar cliente</button>
         <button class="btn btn-danger btn-sm" onclick="pedirEliminarCliente('${c.id}')">🗑 Eliminar cliente</button>
         <button class="btn btn-primary btn-sm" onclick="nav('nuevo-prestamo')">+ Nuevo préstamo</button>
@@ -2098,9 +2174,9 @@ function renderDetallePrestamo(prestId) {
         </div>
       </div>
       <div class="flex-row">
-        <button class="btn btn-amber btn-sm" onclick="abrirCuotaExtraModal('${p.id}')">⊕ Agregar cuota extra</button>
+        ${p.estado !== 'Refinanciado' ? `<button class="btn btn-amber btn-sm" onclick="abrirCuotaExtraModal('${p.id}')">⊕ Agregar cuota extra</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirReprogModal('${p.id}')">📅 Reprogramar fechas</button>
-        <button class="btn btn-ghost btn-sm" onclick="abrirEditPrestModal('${p.id}')">✏ Editar</button>
+        <button class="btn btn-ghost btn-sm" onclick="abrirEditPrestModal('${p.id}')">✏ Editar</button>` : `<span class="pill pill-amber" style="font-size:12px;padding:6px 14px">🔄 Préstamo refinanciado — solo lectura</span>`}
         <button class="btn btn-danger btn-sm" onclick="pedirEliminarPrestamo('${p.id}')">🗑 Eliminar</button>
       </div>
     </div>
@@ -2132,17 +2208,18 @@ function renderDetallePrestamo(prestId) {
         ${cuotas.map(c => {
           const pct = c.monto > 0 ? Math.min(100, (c.pagado/c.monto)*100) : 0;
           const pagada = c.estado.startsWith('Pagada');
-          const vencida = !pagada && parseFecha(c.vencimiento) < new Date();
+          const refi = c.estado === 'Refinanciada';
+          const vencida = !pagada && !refi && parseFecha(c.vencimiento) < new Date();
           const esExtra = c.nro > p.cuotas;
-          return `<div class="cuota-item" onclick="abrirPagoModal('${c.id}')">
-            <div class="cuota-num" style="${vencida?'border-color:rgba(248,113,113,.3);color:var(--red)':pagada?'border-color:rgba(52,211,153,.3);color:var(--green)':esExtra?'border-color:rgba(251,191,36,.3);color:var(--amber)':''}">${String(c.nro).padStart(2,'0')}${esExtra?'<span style="position:absolute;top:-4px;right:-4px;font-size:8px;background:var(--amber);color:#000;border-radius:50%;width:12px;height:12px;display:flex;align-items:center;justify-content:center;font-weight:700">+</span>':''}</div>
+          return `<div class="cuota-item" onclick="abrirPagoModal('${c.id}')" style="${refi?'opacity:0.5;cursor:default':''}">
+            <div class="cuota-num" style="${refi?'border-color:rgba(124,111,255,.3);color:var(--accent)':vencida?'border-color:rgba(248,113,113,.3);color:var(--red)':pagada?'border-color:rgba(52,211,153,.3);color:var(--green)':esExtra?'border-color:rgba(251,191,36,.3);color:var(--amber)':''}">${String(c.nro).padStart(2,'0')}${esExtra?'<span style="position:absolute;top:-4px;right:-4px;font-size:8px;background:var(--amber);color:#000;border-radius:50%;width:12px;height:12px;display:flex;align-items:center;justify-content:center;font-weight:700">+</span>':''}</div>
             <div style="flex:1">
-              <div class="cuota-fecha">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} ${vencida?'<span style="color:var(--red);font-size:11px">● Vencida</span>':''}${esExtra?' <span class="pill pill-amber" style="font-size:9px;padding:1px 6px">Extra</span>':''}</div>
+              <div class="cuota-fecha">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} ${vencida?'<span style="color:var(--red);font-size:11px">● Vencida</span>':''}${refi?' <span style="color:var(--accent);font-size:11px">🔄 Refinanciada</span>':''}${esExtra?' <span class="pill pill-amber" style="font-size:9px;padding:1px 6px">Extra</span>':''}</div>
               <div class="cuota-sub">${c.estado} · Pagado: ${fmt(c.pagado)}</div>
-              <div class="cuota-prog"><div class="cuota-prog-fill" style="width:${pct}%;background:${pagada?'var(--green)':pct>0?'var(--amber)':'var(--border2)'}"></div></div>
+              <div class="cuota-prog"><div class="cuota-prog-fill" style="width:${pct}%;background:${pagada?'var(--green)':refi?'var(--accent)':pct>0?'var(--amber)':'var(--border2)'}"></div></div>
             </div>
             <div>
-              <div class="cuota-monto" style="color:${pagada?'var(--green)':vencida?'var(--red)':'var(--accent2)'}">${fmt(c.saldo)}</div>
+              <div class="cuota-monto" style="color:${pagada?'var(--green)':refi?'var(--muted)':vencida?'var(--red)':'var(--accent2)'}">${refi?'—':fmt(c.saldo)}</div>
               <div class="cuota-saldo">${estadoPill(c.estado)}</div>
             </div>
           </div>`;
@@ -2160,7 +2237,7 @@ async function renderVencimientos() {
   await loadAll();
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const pendientes = DB.cuotas
-    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'))
+    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada')
     .map(c => ({ ...c, _fecha: parseFecha(c.vencimiento) }))
     .sort((a,b) => (a._fecha || 0) - (b._fecha || 0));
   const tbody = document.getElementById('venc-table');
@@ -2446,6 +2523,7 @@ async function guardarCliente() {
 function abrirPagoModal(cuotaId) {
   const cuota = DB.cuotas.find(c => c.id === cuotaId);
   if (!cuota) return;
+  if (cuota.estado === 'Refinanciada') { showToast('Esta cuota fue refinanciada y ya no se puede pagar', 'error'); return; }
   pagoActual = cuota;
   const hoy = new Date().toISOString().split('T')[0];
   document.getElementById('pago-fecha').value = hoy;
@@ -2663,6 +2741,7 @@ function estadoPill(estado) {
   if (estado === 'Pago parcial') return '<span class="pill pill-amber">Pago parcial</span>';
   if (estado === 'Pendiente') return '<span class="pill pill-gray">Pendiente</span>';
   if (estado === 'Activo') return '<span class="pill pill-green">Activo</span>';
+  if (estado === 'Refinanciada') return '<span class="pill pill-purple">Refinanciada</span>';
   return '<span class="pill pill-gray">' + estado + '</span>';
 }
 
@@ -3416,6 +3495,268 @@ async function guardarEditPrest() {
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 document.getElementById('editPrestModal').addEventListener('click', e => { if (e.target === document.getElementById('editPrestModal')) closeEditPrestModal(); });
+
+// ============================================================
+// REFINANCIAR CRÉDITOS
+// ============================================================
+let refiClienteId = null;
+let refiSeleccionados = new Set();
+
+function abrirRefinanciarModal(clienteId) {
+  const c = DB.clientes.find(x => x.id === clienteId);
+  if (!c) return;
+  refiClienteId = clienteId;
+  refiSeleccionados = new Set();
+
+  // Buscar préstamos con saldo pendiente
+  const prestamos = DB.prestamos.filter(p => p.clienteId === clienteId);
+  const prestConSaldo = prestamos.filter(p => {
+    const cuotas = DB.cuotas.filter(cu => cu.prestId === p.id);
+    const saldo = cuotas.reduce((a, cu) => a + cu.saldo, 0);
+    return saldo > 0.01 && p.estado !== 'Refinanciado';
+  });
+
+  if (prestConSaldo.length < 1) {
+    showToast('Este cliente no tiene créditos con saldo pendiente para refinanciar', 'error');
+    return;
+  }
+
+  document.getElementById('refi-sub').textContent = c.apellido + ', ' + c.nombre + ' · ' + prestConSaldo.length + ' crédito' + (prestConSaldo.length > 1 ? 's' : '') + ' con saldo';
+
+  // Render lista de préstamos con checkboxes
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const container = document.getElementById('refi-prestamos-list');
+  container.innerHTML = prestConSaldo.map(p => {
+    const cuotas = DB.cuotas.filter(cu => cu.prestId === p.id);
+    const saldo = cuotas.reduce((a, cu) => a + cu.saldo, 0);
+    const pendientes = cuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con'));
+    const hayVencidas = pendientes.some(cu => { const d = parseFecha(cu.vencimiento); return d && d < hoy; });
+    return `<label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;transition:all .15s;background:var(--card)" onmouseenter="this.style.background='var(--bg3)'" onmouseleave="this.style.background=refiSeleccionados.has('${p.id}')?'var(--accentbg)':'var(--card)'" id="refi-row-${p.id}">
+      <input type="checkbox" onchange="toggleRefiPrest('${p.id}', this.parentElement)" style="accent-color:var(--accent);width:18px;height:18px;flex-shrink:0">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600">${p.id} ${hayVencidas ? '<span style="color:var(--red);font-size:11px">● En mora</span>' : ''}</div>
+        <div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px">Capital: ${fmt(p.capital)} · Total: ${fmt(p.total)} · ${pendientes.length} cuota${pendientes.length!==1?'s':''} pend.</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--amber)">${fmt(saldo)}</div>
+        <div style="font-size:10px;color:var(--muted)">saldo</div>
+      </div>
+    </label>`;
+  }).join('');
+
+  // Si hay solo 1, preseleccionar (pero el user puede seleccionar de todos modos)
+  // Si hay 2+, no preseleccionar para que elija
+  
+  // Defaults
+  document.getElementById('refi-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('refi-interes').value = '0';
+  document.getElementById('refi-cuotas').value = '6';
+  document.getElementById('refi-freq').value = '30';
+  document.getElementById('refi-tipo').value = 'propio';
+  document.getElementById('refi-tercero-field').style.display = 'none';
+
+  recalcRefi();
+  document.getElementById('refiModal').classList.add('open');
+}
+
+function toggleRefiPrest(prestId, rowEl) {
+  if (refiSeleccionados.has(prestId)) {
+    refiSeleccionados.delete(prestId);
+    if (rowEl) rowEl.style.background = 'var(--card)';
+  } else {
+    refiSeleccionados.add(prestId);
+    if (rowEl) rowEl.style.background = 'var(--accentbg)';
+  }
+  recalcRefi();
+}
+
+function recalcRefi() {
+  const selIds = Array.from(refiSeleccionados);
+  let saldoTotal = 0;
+  let cuotasAbsorbidas = 0;
+  let calEventos = 0;
+
+  selIds.forEach(prestId => {
+    const cuotas = DB.cuotas.filter(cu => cu.prestId === prestId);
+    cuotas.forEach(cu => {
+      if (cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada') {
+        saldoTotal += cu.saldo;
+        cuotasAbsorbidas++;
+        if (cu.eventId) calEventos++;
+      }
+    });
+  });
+
+  document.getElementById('refi-saldo-total').textContent = fmt(saldoTotal);
+  document.getElementById('refi-cuotas-abs').textContent = cuotasAbsorbidas;
+  document.getElementById('refi-cal-count').textContent = calEventos;
+
+  // Preview nuevo crédito
+  const interes = parseFloat(document.getElementById('refi-interes').value) || 0;
+  const cuotas = Math.max(1, parseInt(document.getElementById('refi-cuotas').value) || 1);
+  const tipo = document.getElementById('refi-tipo').value;
+  const total = saldoTotal * (1 + interes / 100);
+  const gb = total - saldoTotal;
+  const com = tipo === 'tercero' ? gb * 0.2 : 0;
+  const gn = gb - com;
+  const cuotaVal = total / cuotas;
+
+  document.getElementById('refi-p-capital').textContent = fmt(saldoTotal);
+  document.getElementById('refi-p-total').textContent = fmt(total);
+  document.getElementById('refi-p-gb').textContent = fmt(gb);
+  document.getElementById('refi-p-com').textContent = fmt(com);
+  document.getElementById('refi-p-gn').textContent = fmt(gn);
+  document.getElementById('refi-p-cuota').textContent = fmt(cuotaVal);
+  document.getElementById('refi-p-com-row').style.display = tipo === 'tercero' ? 'flex' : 'none';
+  document.getElementById('refi-tercero-field').style.display = tipo === 'tercero' ? 'flex' : 'none';
+
+  // Enable/disable confirm button
+  const btn = document.getElementById('btn-confirmar-refi');
+  btn.disabled = selIds.length === 0 || saldoTotal <= 0;
+  btn.style.opacity = btn.disabled ? '0.4' : '1';
+}
+
+function closeRefiModal() {
+  document.getElementById('refiModal').classList.remove('open');
+  refiClienteId = null;
+  refiSeleccionados = new Set();
+}
+
+async function confirmarRefinanciar() {
+  if (!refiClienteId || refiSeleccionados.size === 0) return;
+
+  const selIds = Array.from(refiSeleccionados);
+  const interes = parseFloat(document.getElementById('refi-interes').value) || 0;
+  const cuotasN = Math.max(1, parseInt(document.getElementById('refi-cuotas').value) || 1);
+  const freqDias = parseInt(document.getElementById('refi-freq').value) || 30;
+  const tipo = document.getElementById('refi-tipo').value;
+  const tercero = document.getElementById('refi-tercero')?.value || '';
+  const fechaStr = document.getElementById('refi-fecha').value;
+
+  if (!fechaStr) { showToast('Elegí una fecha de inicio', 'error'); return; }
+
+  const btn = document.getElementById('btn-confirmar-refi');
+  btn.disabled = true;
+  btn.textContent = 'Procesando...';
+
+  try {
+    // 1. Calcular saldo total
+    let saldoTotal = 0;
+    const cuotasPendientesAll = [];
+    selIds.forEach(prestId => {
+      DB.cuotas.filter(cu => cu.prestId === prestId).forEach(cu => {
+        if (cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada') {
+          saldoTotal += cu.saldo;
+          cuotasPendientesAll.push(cu);
+        }
+      });
+    });
+
+    // 2. Eliminar eventos Calendar de cuotas pendientes
+    btn.textContent = 'Eliminando eventos Calendar...';
+    let calBorrados = 0;
+    for (const cu of cuotasPendientesAll) {
+      if (cu.eventId && CFG.calId) {
+        await borrarEventoCalendar(cu.eventId);
+        calBorrados++;
+      }
+    }
+
+    // 3. Marcar cuotas pendientes como "Refinanciada" en Sheets
+    btn.textContent = 'Actualizando cuotas...';
+    const cuotasData = await sheetsGet('Cuotas!A1:J');
+    for (const cu of cuotasPendientesAll) {
+      const rowIdx = cuotasData.findIndex(r => r[0] === cu.id);
+      if (rowIdx >= 0) {
+        const sheetRow = rowIdx + 1;
+        await sheetsUpdate(`Cuotas!I${sheetRow}`, [['Refinanciada']]);
+      }
+    }
+
+    // 4. Marcar préstamos como "Refinanciado" en Sheets y agregar nota
+    btn.textContent = 'Marcando préstamos...';
+    const prestData = await sheetsGet('Préstamos!A1:P');
+    const cl = DB.clientes.find(x => x.id === refiClienteId) || {};
+    const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : refiClienteId;
+
+    // Generate new prest ID before updating old ones (so we can reference it)
+    const nuevoPrestId = nextId('PREST-', DB.prestamos);
+
+    for (const prestId of selIds) {
+      const rowIdx = prestData.findIndex(r => r[0] === prestId);
+      if (rowIdx >= 0) {
+        const sheetRow = rowIdx + 1;
+        const notaExistente = prestData[rowIdx][15] || '';
+        const nuevaNota = (notaExistente ? notaExistente + ' | ' : '') + 'Refinanciado → ' + nuevoPrestId;
+        await sheetsUpdate(`Préstamos!O${sheetRow}:P${sheetRow}`, [['Refinanciado', nuevaNota]]);
+      }
+    }
+
+    // 5. Limpiar Calendario sheet de los préstamos viejos
+    btn.textContent = 'Limpiando Calendario sheet...';
+    for (const prestId of selIds) {
+      try { await eliminarFilasSheets('Calendario!A:F', 1, prestId); } catch(e) { console.warn('Error limpiando Calendario para', prestId, e); }
+    }
+
+    // 6. Crear nuevo préstamo
+    btn.textContent = 'Creando nuevo préstamo...';
+    const fechaInicio = new Date(fechaStr + 'T12:00:00');
+    const total = saldoTotal * (1 + interes / 100);
+    const gb = total - saldoTotal;
+    const com = tipo === 'tercero' ? gb * 0.2 : 0;
+    const gn = gb - com;
+    const cuotaM = total / cuotasN;
+    const notaNuevo = 'Refinanciación de: ' + selIds.join(', ');
+
+    await sheetsAppend('Préstamos!A:P', [[nuevoPrestId, refiClienteId, clienteNombre, fmtFechaES(fechaInicio), saldoTotal, interes+'%', total.toFixed(2), cuotasN, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notaNuevo]]);
+
+    // 7. Crear cuotas + Calendar del nuevo préstamo
+    const cuotasRows = [];
+    const calRows = [];
+    for (let i = 1; i <= cuotasN; i++) {
+      const d = calcularFechaCuota(fechaInicio, i, freqDias);
+      const cuotaId = nuevoPrestId + '-C' + String(i).padStart(2, '0');
+      const fechaVencES = fmtFechaES(d);
+      const fechaISO = d.toISOString().split('T')[0];
+      let eventId = '';
+      try {
+        btn.textContent = 'Creando cuota ' + i + '/' + cuotasN + ' en Calendar...';
+        const eventoBody = {
+          summary: '💰 ' + clienteNombre + ' — Cuota ' + i + '/' + cuotasN + ' | ' + fmt(Math.round(cuotaM)) + ' (' + nuevoPrestId + ' REFI)',
+          description: 'Préstamo: ' + nuevoPrestId + ' (REFINANCIACIÓN)\nCliente: ' + clienteNombre + ' (' + refiClienteId + ')\nMonto cuota: ' + fmt(cuotaM) + '\nConsolida: ' + selIds.join(', ') + '\nTipo: ' + tipo + (tipo === 'tercero' ? ' — Tercero: ' + tercero : ''),
+          start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
+          end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
+          colorId: '3',
+          reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
+        };
+        const calRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId || '') + '/events', { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) });
+        if (calRes.ok) { const calData = await calRes.json(); eventId = calData.id || ''; }
+      } catch(calErr) { console.warn('Calendar error cuota refi ' + i, calErr); }
+      cuotasRows.push([cuotaId, nuevoPrestId, refiClienteId, i, fechaVencES, cuotaM.toFixed(2), 0, cuotaM.toFixed(2), 'Pendiente', eventId]);
+      if (eventId) calRows.push([cuotaId, nuevoPrestId, refiClienteId, eventId, CFG.calId || '', 'Activo']);
+    }
+    await sheetsAppend('Cuotas!A:J', cuotasRows);
+    if (calRows.length) await sheetsAppend('Calendario!A:F', calRows);
+
+    // 8. Limpiar y navegar
+    invalidateCache();
+    closeRefiModal();
+    const calMsg = calRows.length === cuotasN ? ' · Calendar sincronizado ✓' : calRows.length > 0 ? ' · Calendar: ' + calRows.length + '/' + cuotasN : '';
+    showToast('✓ Refinanciación exitosa → ' + nuevoPrestId + ' · ' + selIds.length + ' créditos consolidados' + (calBorrados > 0 ? ' · ' + calBorrados + ' eventos eliminados' : '') + calMsg);
+    await loadAll(true);
+    nav('detalle-prestamo', nuevoPrestId);
+
+  } catch(e) {
+    showToast('Error en refinanciación: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Refinanciar y crear nuevo crédito →';
+  }
+}
+
+document.getElementById('refiModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('refiModal')) closeRefiModal();
+});
 
 // ============================================================
 // EDITAR CLIENTE
