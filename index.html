@@ -3997,9 +3997,9 @@ let _planHtmlCache = '';
 function abrirPlanCuotas(clienteId) {
   const c = DB.clientes.find(x => x.id === clienteId);
   if (!c) return;
-  const prestActivos = DB.prestamos.filter(p => p.clienteId === clienteId && calcEstadoPrestamo(p.id) !== 'Cancelado');
+  const prestActivos = DB.prestamos.filter(p => p.clienteId === clienteId && calcEstadoPrestamo(p.id) !== 'Cancelado' && calcEstadoPrestamo(p.id) !== 'Refinanciado');
   const prestConPendientes = prestActivos.filter(p => {
-    const cuotas = DB.cuotas.filter(cu => cu.prestId === p.id && cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con'));
+    const cuotas = DB.cuotas.filter(cu => cu.prestId === p.id && cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada');
     return cuotas.length > 0;
   });
 
@@ -4018,7 +4018,7 @@ function abrirPlanCuotas(clienteId) {
   prestConPendientes.forEach((p, idx) => {
     const colorIdx = idx % PLAN_COLORS.length;
     const allCuotas = DB.cuotas.filter(cu => cu.prestId === p.id).sort((a,b) => a.nro - b.nro);
-    const pendientes = allCuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con')).sort((a,b) => a.nro - b.nro);
+    const pendientes = allCuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada').sort((a,b) => a.nro - b.nro);
     const totalCuotasReal = allCuotas.length;
     const cuotaMonto = pendientes.length > 0 ? pendientes[0].monto : 0;
 
@@ -4062,9 +4062,9 @@ function abrirPlanCuotas(clienteId) {
   // Build summary cards
   let summaryHtml = '<div class="plan-summary">';
   prestInfo.forEach(pi => {
-    const c = PLAN_COLORS[pi.colorIdx];
+    const col = PLAN_COLORS[pi.colorIdx];
     summaryHtml += `<div class="plan-summary-card">
-      <div class="plan-summary-label" style="color:${c.color}">${pi.label}</div>
+      <div class="plan-summary-label" style="color:${col.color}">${pi.label}</div>
       <div class="plan-summary-value">${fmt(pi.monto)}</div>
       <div class="plan-summary-sub">${pi.restantes} cuota${pi.restantes > 1 ? 's' : ''}</div>
     </div>`;
@@ -4094,8 +4094,8 @@ function abrirPlanCuotas(clienteId) {
         <div class="plan-tags">`;
 
     entry.items.forEach(it => {
-      const c = PLAN_COLORS[it.colorIdx];
-      timelineHtml += `<span class="plan-tag" style="background:${c.bg};color:${c.color};border:1px solid ${c.border}">${fmt(it.monto)}${it.isLast ? '<span class="plan-tag-last">última</span>' : ''}</span>`;
+      const col = PLAN_COLORS[it.colorIdx];
+      timelineHtml += `<span class="plan-tag" style="background:${col.bg};color:${col.color};border:1px solid ${col.border}">${fmt(it.monto)}${it.isLast ? '<span class="plan-tag-last">última</span>' : ''}</span>`;
     });
 
     timelineHtml += `</div></div></div>`;
@@ -4105,8 +4105,8 @@ function abrirPlanCuotas(clienteId) {
   // Legend
   let legendHtml = '<div class="plan-legend">';
   prestInfo.forEach(pi => {
-    const c = PLAN_COLORS[pi.colorIdx];
-    legendHtml += `<div class="plan-legend-item"><div class="plan-legend-dot" style="background:${c.dot}"></div>${pi.label} · ${fmt(pi.monto)} x ${pi.restantes}</div>`;
+    const col = PLAN_COLORS[pi.colorIdx];
+    legendHtml += `<div class="plan-legend-item"><div class="plan-legend-dot" style="background:${col.dot}"></div>${pi.label} · ${fmt(pi.monto)} x ${pi.restantes}</div>`;
   });
   legendHtml += '</div>';
 
@@ -4618,3 +4618,4 @@ init();
 </script>
 </body>
 </html>
+
