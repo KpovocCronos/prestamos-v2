@@ -1690,6 +1690,7 @@ async function sheetsGet(range, retries = 3) {
         `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(range)}`,
         { headers: { Authorization: 'Bearer ' + TOKEN } }
       );
+      if (handleAuthError(r.status)) throw Object.assign(new Error('Sheets GET auth ' + r.status), { _noRetry: true });
       if (r.status === 429 || r.status >= 500) {
         if (attempt < retries) { await sleep(attempt * 1000); continue; }
       }
@@ -1697,13 +1698,25 @@ async function sheetsGet(range, retries = 3) {
       const d = await r.json();
       return d.values || [];
     } catch(e) {
-      if (attempt === retries) throw e;
+      if (e._noRetry || attempt === retries) throw e;
       await sleep(attempt * 800);
     }
   }
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+let _authErrorShown = false;
+function handleAuthError(status) {
+  if (status !== 401 && status !== 403) return false;
+  if (_authErrorShown) return true;
+  _authErrorShown = true;
+  try { sessionStorage.removeItem('gtoken'); } catch(e) {}
+  TOKEN = null;
+  showToast('⚠ Sesión expirada — redirigiendo a Google para volver a iniciar sesión...', 'error');
+  setTimeout(() => { signIn(); }, 1500);
+  return true;
+}
 
 async function sheetsAppend(range, values, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -1716,13 +1729,14 @@ async function sheetsAppend(range, values, retries = 3) {
           body: JSON.stringify({ values })
         }
       );
+      if (handleAuthError(r.status)) throw Object.assign(new Error('Sheets APPEND auth ' + r.status), { _noRetry: true });
       if (r.status === 429 || r.status >= 500) {
         if (attempt < retries) { await sleep(attempt * 1000); continue; }
       }
       if (!r.ok) throw new Error('Sheets APPEND error ' + r.status);
       return r.json();
     } catch(e) {
-      if (attempt === retries) throw e;
+      if (e._noRetry || attempt === retries) throw e;
       await sleep(attempt * 800);
     }
   }
@@ -1737,9 +1751,31 @@ async function sheetsUpdate(range, values) {
       body: JSON.stringify({ values })
     }
   );
+  if (handleAuthError(r.status)) throw Object.assign(new Error('Sheets UPDATE auth ' + r.status), { _noRetry: true });
   if (!r.ok) throw new Error('Sheets UPDATE error ' + r.status);
   return r.json();
 }
+
+// Batch update: agrupa múltiples updates en una sola request al endpoint :batchUpdate.
+// updates = [{ range: 'Hoja!A1:B2', values: [[...]] }, ...]
+// Si updates está vacío, no hace request.
+async function sheetsBatchUpdate(updates) {
+  if (!updates || updates.length === 0) return;
+  const r = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values:batchUpdate`,
+    {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: updates })
+    }
+  );
+  if (handleAuthError(r.status)) throw Object.assign(new Error('Sheets BATCH auth ' + r.status), { _noRetry: true });
+  if (!r.ok) throw new Error('Sheets BATCH error ' + r.status);
+  return r.json();
+}
+
+// Detecta 401/403 en respuestas de Calendar API; usa el mismo handler que Sheets.
+function handleCalendarAuthError(status) { return handleAuthError(status); }
 
 // ============================================================
 // LOAD DATA
@@ -1949,7 +1985,7 @@ async function renderDashboard() {
         <div style="display:flex;align-items:center;gap:12px">
           <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,${todasPagas?'#34d399,#059669':'var(--accent),#a78bfa'});display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0">${(cl.apellido[0]||'?')+(cl.nombre[0]||'?')}</div>
           <div>
-            <div style="font-size:13px;font-weight:600;color:${todasPagas?'var(--green)':'var(--text)'}">${cl.apellido}, ${cl.nombre}</div>
+            <div style="font-size:13px;font-weight:600;color:${todasPagas?'var(--green)':'var(--text)'}">${escapeHtml(cl.apellido)}, ${escapeHtml(cl.nombre)}</div>
             <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${cl.id} · ${cuotasCli.length} cuota${cuotasCli.length!==1?'s':''} pendiente${cuotasCli.length!==1?'s':''}</div>
           </div>
         </div>
@@ -2037,7 +2073,7 @@ function renderTablaClientes(lista) {
     const ps = DB.prestamos.filter(p => p.clienteId === c.id);
     return `<tr class="clickable" onclick="nav('detalle-cliente','${c.id}')">
       <td class="td-mono">${c.id}</td>
-      <td><div class="td-name">${c.apellido}, ${c.nombre}</div><div class="td-sub">@${c.alias}</div></td>
+      <td><div class="td-name">${escapeHtml(c.apellido)}, ${escapeHtml(c.nombre)}</div><div class="td-sub">@${escapeHtml(c.alias)}</div></td>
       <td class="td-mono">****${c.dni}</td>
       <td class="td-mono">${c.tel}</td>
       <td>${ps.length > 0 ? `<span class="pill pill-purple">${ps.length} préstamo${ps.length>1?'s':''}</span>` : '<span class="pill pill-gray">Sin préstamos</span>'}</td>
@@ -2071,8 +2107,8 @@ function renderDetalleCliente(clienteId) {
       <div class="flex-row">
         <button class="btn btn-ghost btn-sm" onclick="nav('clientes')">← Volver</button>
         <div>
-          <div style="font-size:20px;font-weight:700">${c.apellido}, ${c.nombre}</div>
-          <div class="text-muted" style="font-size:12px">${c.id} · @${c.alias} · DNI: ****${c.dni}</div>
+          <div style="font-size:20px;font-weight:700">${escapeHtml(c.apellido)}, ${escapeHtml(c.nombre)}</div>
+          <div class="text-muted" style="font-size:12px">${c.id} · @${escapeHtml(c.alias)} · DNI: ****${c.dni}</div>
         </div>
       </div>
       <div class="flex-row">
@@ -2136,12 +2172,12 @@ function renderTablaPrestamos(lista) {
   const tbody = document.getElementById('prestamos-table');
   tbody.innerHTML = lista.map(p => {
     const cuotasP = DB.cuotas.filter(c => c.prestId === p.id);
-    const pendientes = cuotasP.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con')).length;
+    const pendientes = cuotasP.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada').length;
     return `<tr class="clickable" onclick="nav('detalle-prestamo','${p.id}')">
       <td class="td-mono">${p.id}</td>
       ${(() => {
   const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
-  return `<td><div class="td-name">${cl.id ? `${cl.apellido}, ${cl.nombre}` : p.nombre}</div><div class="td-sub">${p.clienteId}</div></td>`;
+  return `<td><div class="td-name">${cl.id ? `${escapeHtml(cl.apellido)}, ${escapeHtml(cl.nombre)}` : escapeHtml(p.nombre)}</div><div class="td-sub">${p.clienteId}</div></td>`;
 })()}
       <td class="td-mono">${fmt(p.capital)}</td>
       <td class="td-mono">${fmt(p.total)}</td>
@@ -2170,7 +2206,7 @@ function renderDetallePrestamo(prestId) {
         <button class="btn btn-ghost btn-sm" onclick="nav('prestamos')">← Volver</button>
         <div>
           <div style="font-size:20px;font-weight:700">${p.id}</div>
-          <div class="text-muted" style="font-size:12px">${cl.apellido||''}, ${cl.nombre||''} · ${p.clienteId}</div>
+          <div class="text-muted" style="font-size:12px">${escapeHtml(cl.apellido||'')}, ${escapeHtml(cl.nombre||'')} · ${p.clienteId}</div>
         </div>
       </div>
       <div class="flex-row">
@@ -2246,7 +2282,7 @@ async function renderVencimientos() {
     const vencida = c._fecha && c._fecha < hoy;
     const fechaMostrar = c._fecha ? fmtFecha(c._fecha) : c.vencimiento;
     return `<tr class="clickable" onclick="nav('detalle-prestamo','${c.prestId}')">
-      <td><div class="td-name">${cl.id ? `${cl.apellido}, ${cl.nombre}` : c.clienteId}</div></td>
+      <td><div class="td-name">${cl.id ? `${escapeHtml(cl.apellido)}, ${escapeHtml(cl.nombre)}` : c.clienteId}</div></td>
       <td class="td-mono">${c.prestId}</td>
       <td class="td-mono">${c.nro}</td>
       <td>${vencida ? `<span class="text-red">${fechaMostrar}</span>` : fechaMostrar}</td>
@@ -2293,15 +2329,17 @@ function filtrarClientesNP(q) {
 
 function renderDropdownNP(lista) {
   const dd = document.getElementById('np-dropdown');
-  dd.innerHTML = lista.length ? lista.map(c => `
-    <div class="client-option" onclick="seleccionarClienteNP('${c.id}')">
+  dd.innerHTML = lista.length ? lista.map(c => {
+    const nPrest = DB.prestamos.filter(p => p.clienteId === c.id).length;
+    return `<div class="client-option" onclick="seleccionarClienteNP('${c.id}')">
       <div class="client-av">${(c.apellido[0]||'?')+(c.nombre[0]||'?')}</div>
       <div>
-        <div class="client-info-name">${c.apellido}, ${c.nombre}</div>
-        <div class="client-info-meta">${c.id} · ****${c.dni} · @${c.alias}</div>
+        <div class="client-info-name">${escapeHtml(c.apellido)}, ${escapeHtml(c.nombre)}</div>
+        <div class="client-info-meta">${c.id} · ****${c.dni} · @${escapeHtml(c.alias)}</div>
       </div>
-      ${DB.prestamos.filter(p=>p.clienteId===c.id).length > 0 ? `<span class="pill pill-purple" style="margin-left:auto">${DB.prestamos.filter(p=>p.clienteId===c.id).length} prest.</span>` : ''}
-    </div>`).join('') :
+      ${nPrest > 0 ? `<span class="pill pill-purple" style="margin-left:auto">${nPrest} prest.</span>` : ''}
+    </div>`;
+  }).join('') :
     '<div class="client-empty">No se encontró ningún cliente</div>';
   dd.classList.add('open');
 }
@@ -2470,8 +2508,12 @@ async function crearPrestamo() {
           reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
         };
         const calRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId || '') + '/events', { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) });
+        if (handleCalendarAuthError(calRes.status)) throw Object.assign(new Error('Calendar auth ' + calRes.status), { _noRetry: true });
         if (calRes.ok) { const calData = await calRes.json(); eventId = calData.id || ''; }
-      } catch(calErr) { console.warn('Calendar error cuota ' + i, calErr); }
+      } catch(calErr) {
+        if (calErr._noRetry) throw calErr;
+        console.warn('Calendar error cuota ' + i, calErr);
+      }
       cuotasRows.push([cuotaId, prestId, clienteId, i, fechaVencES, cuotaM.toFixed(2), 0, cuotaM.toFixed(2), 'Pendiente', eventId]);
       if (eventId) calRows.push([cuotaId, prestId, clienteId, eventId, CFG.calId || '', 'Activo']);
     }
@@ -2578,7 +2620,6 @@ async function confirmarPago() {
     closePagoModal();
     showToast('✓ Pago registrado' + (diasAtraso > 0 ? ' · ' + diasAtraso + ' días de atraso' : ''));
     await loadAll();
-    await renderDashboard();
     nav(document.querySelector('.nav-item.active')?.dataset?.screen || 'dashboard');
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
@@ -2661,8 +2702,12 @@ async function confirmarCuotaExtra() {
           'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events',
           { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) }
         );
+        if (handleCalendarAuthError(calRes.status)) throw Object.assign(new Error('Calendar auth ' + calRes.status), { _noRetry: true });
         if (calRes.ok) { const calData = await calRes.json(); eventId = calData.id || ''; }
-      } catch(calErr) { console.warn('Calendar error cuota extra', calErr); }
+      } catch(calErr) {
+        if (calErr._noRetry) throw calErr;
+        console.warn('Calendar error cuota extra', calErr);
+      }
     }
 
     // 2. Agregar cuota a Sheets
@@ -2686,8 +2731,10 @@ async function confirmarCuotaExtra() {
       const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
       const nuevaCom = esTercero ? nuevaGB * 0.2 : 0;
       const nuevaGN = nuevaGB - nuevaCom;
-      await sheetsUpdate(`Préstamos!G${sheetRow}:H${sheetRow}`, [[nuevoTotal.toFixed(2), nuevaCantCuotas]]);
-      await sheetsUpdate(`Préstamos!L${sheetRow}:N${sheetRow}`, [[nuevaGB.toFixed(2), nuevaCom.toFixed(2), nuevaGN.toFixed(2)]]);
+      await sheetsBatchUpdate([
+        { range: `Préstamos!G${sheetRow}:H${sheetRow}`, values: [[nuevoTotal.toFixed(2), nuevaCantCuotas]] },
+        { range: `Préstamos!L${sheetRow}:N${sheetRow}`, values: [[nuevaGB.toFixed(2), nuevaCom.toFixed(2), nuevaGN.toFixed(2)]] },
+      ]);
     }
 
     invalidateCache();
@@ -2711,6 +2758,11 @@ document.getElementById('cuotaExtraModal').addEventListener('click', e => {
 // UTILITIES
 // ============================================================
 function fmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
+
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 function parseFecha(str) {
   if (str === null || str === undefined || str === '') return null;
@@ -2877,14 +2929,14 @@ async function renderEstadisticas() {
     const maxCap = topClis[0]?.[1].capital || 1;
     document.getElementById('est-top-body').innerHTML = topClis.length === 0
       ? '<div style="padding:16px;color:var(--muted);font-size:13px">Sin datos</div>'
-      : topClis.map(([cliId, v]) => { const cl = DB.clientes.find(x => x.id === cliId) || {apellido:'?', nombre:''}; const pct = (v.capital / maxCap * 100).toFixed(0); return `<div style="padding:10px 16px;border-bottom:1px solid var(--border)"><div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px"><span style="font-weight:600">${cl.apellido}, ${cl.nombre}</span><span style="font-family:var(--mono)">${fmt(v.capital)}</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>${v.count} préstamo${v.count!==1?'s':''}</span><span style="color:var(--green)">Gan. neta: ${fmt(v.gn)}</span></div></div>`; }).join('');
+      : topClis.map(([cliId, v]) => { const cl = DB.clientes.find(x => x.id === cliId) || {apellido:'?', nombre:''}; const pct = (v.capital / maxCap * 100).toFixed(0); return `<div style="padding:10px 16px;border-bottom:1px solid var(--border)"><div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px"><span style="font-weight:600">${escapeHtml(cl.apellido)}, ${escapeHtml(cl.nombre)}</span><span style="font-family:var(--mono)">${fmt(v.capital)}</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>${v.count} préstamo${v.count!==1?'s':''}</span><span style="color:var(--green)">Gan. neta: ${fmt(v.gn)}</span></div></div>`; }).join('');
 
     // Pagos tabla
     const pagosOrdenados = [...pagosPeriodo].sort((a,b) => { const da = parseFecha(a.fecha), db = parseFecha(b.fecha); return (db || 0) - (da || 0); });
     document.getElementById('est-pagos-count').textContent = pagosOrdenados.length + ' pagos';
     document.getElementById('est-pagos-tabla').innerHTML = pagosOrdenados.length === 0
       ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Sin pagos en este período</td></tr>'
-      : pagosOrdenados.map(p => { const cl = DB.clientes.find(x => x.id === p.clienteId) || {apellido:'?', nombre:''}; return `<tr><td class="td-mono">${p.fecha}</td><td><div class="td-name">${cl.apellido}, ${cl.nombre}</div></td><td class="td-mono">${p.prestId}</td><td class="td-mono">${p.cuotaId}</td><td class="td-mono">${fmt(p.monto)}</td><td>${p.diasAtraso > 0 ? '<span class="pill pill-red">'+p.diasAtraso+'d</span>' : '<span class="pill pill-green">A tiempo</span>'}</td></tr>`; }).join('');
+      : pagosOrdenados.map(p => { const cl = DB.clientes.find(x => x.id === p.clienteId) || {apellido:'?', nombre:''}; return `<tr><td class="td-mono">${p.fecha}</td><td><div class="td-name">${escapeHtml(cl.apellido)}, ${escapeHtml(cl.nombre)}</div></td><td class="td-mono">${p.prestId}</td><td class="td-mono">${p.cuotaId}</td><td class="td-mono">${fmt(p.monto)}</td><td>${p.diasAtraso > 0 ? '<span class="pill pill-red">'+p.diasAtraso+'d</span>' : '<span class="pill pill-green">A tiempo</span>'}</td></tr>`; }).join('');
   }
 
   // ========================= TAB: BALANCE REAL =========================
@@ -3259,7 +3311,7 @@ function renderClienteScore(prestPeriodo, pagosPeriodo, hoyMidnight) {
   document.getElementById('cli-score-tabla').innerHTML = scored.length === 0
     ? '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Sin clientes</td></tr>'
     : scored.map(c => `<tr>
-        <td><div class="td-name">${c.nombre}</div></td>
+        <td><div class="td-name">${escapeHtml(c.nombre)}</div></td>
         <td class="td-mono">${c.prestamos}</td>
         <td class="td-mono">${fmt(c.capitalTotal)}</td>
         <td class="td-mono" style="color:var(--green)">${fmt(c.cobrado)}</td>
@@ -3275,11 +3327,15 @@ function renderClienteScore(prestPeriodo, pagosPeriodo, hoyMidnight) {
 async function borrarEventoCalendar(eventId) {
   if (!eventId || !CFG.calId) return;
   try {
-    await fetch(
+    const r = await fetch(
       'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + eventId,
       { method: 'DELETE', headers: { Authorization: 'Bearer ' + TOKEN } }
     );
-  } catch(e) { console.warn('No se pudo borrar evento Calendar:', eventId, e); }
+    if (handleCalendarAuthError(r.status)) throw Object.assign(new Error('Calendar DELETE auth ' + r.status), { _noRetry: true });
+  } catch(e) {
+    if (e._noRetry) throw e;
+    console.warn('No se pudo borrar evento Calendar:', eventId, e);
+  }
 }
 
 // ============================================================
@@ -3345,12 +3401,14 @@ async function eliminarFilasSheets(range, colIdx, valor) {
   await sheetsClear(hoja + '!A2:Z' + ultimaFila);
   if (nuevas.length > 0) {
     const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(hoja + '!A2')}?valueInputOption=USER_ENTERED`, { method: 'PUT', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: nuevas }) });
+    if (handleAuthError(r.status)) throw new Error('Sheets UPDATE auth ' + r.status);
     if (!r.ok) throw new Error('Sheets UPDATE error ' + r.status);
   }
 }
 
 async function sheetsClear(range) {
   const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(range)}:clear`, { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN } });
+  if (handleAuthError(r.status)) throw new Error('Sheets CLEAR auth ' + r.status);
   if (!r.ok) throw new Error('Sheets CLEAR error ' + r.status);
   return r.json();
 }
@@ -3426,7 +3484,7 @@ async function guardarEditPrest() {
     const tasaReal = _epCapitalOriginal > 0 ? (p.total / _epCapitalOriginal) : 1;
     const nuevoTotal = nuevoCapital * tasaReal;
     const ganBruta = nuevoTotal - nuevoCapital;
-    const comision = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? ganBruta * 0.5 : 0;
+    const comision = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? ganBruta * 0.2 : 0;
     const ganNeta = ganBruta - comision;
 
     // 1. Actualizar Préstamos en Sheets
@@ -3436,10 +3494,12 @@ async function guardarEditPrest() {
     const sheetRow = rowIdx + 1;
     const tipoStr = tipo === 'tercero' ? 'De tercero' : 'propio';
     // Columnas: E=capital, F=interes, G=total, I=tipo, J=terceroId, K=terceroNombre, L=ganBruta, M=comision, N=ganNeta, P=notas
-    await sheetsUpdate(`Préstamos!E${sheetRow}:G${sheetRow}`, [[nuevoCapital, p.interes, nuevoTotal.toFixed(2)]]);
-    await sheetsUpdate(`Préstamos!I${sheetRow}:K${sheetRow}`, [[tipoStr, '', tercero]]);
-    await sheetsUpdate(`Préstamos!L${sheetRow}:N${sheetRow}`, [[ganBruta.toFixed(2), comision.toFixed(2), ganNeta.toFixed(2)]]);
-    await sheetsUpdate(`Préstamos!P${sheetRow}`, [[notas]]);
+    await sheetsBatchUpdate([
+      { range: `Préstamos!E${sheetRow}:G${sheetRow}`, values: [[nuevoCapital, p.interes, nuevoTotal.toFixed(2)]] },
+      { range: `Préstamos!I${sheetRow}:K${sheetRow}`, values: [[tipoStr, '', tercero]] },
+      { range: `Préstamos!L${sheetRow}:N${sheetRow}`, values: [[ganBruta.toFixed(2), comision.toFixed(2), ganNeta.toFixed(2)]] },
+      { range: `Préstamos!P${sheetRow}`, values: [[notas]] },
+    ]);
 
     // 2. Si cambió el capital, actualizar cuotas pendientes
     if (capitalCambio) {
@@ -3452,26 +3512,28 @@ async function guardarEditPrest() {
       // Calcular el nuevo monto fijo por cuota: total / cantidad de cuotas del préstamo
       const nuevoMontoPorCuota = parseFloat((nuevoTotal / totalCuotasN).toFixed(2));
 
+      const cuotaUpdates = [];
       for (const c of cuotasPend) {
         const nuevoMonto  = nuevoMontoPorCuota;
-        const nuevoPagado = c.pagado; // lo pagado no cambia
+        const nuevoPagado = c.pagado;
         const nuevoSaldo  = parseFloat(Math.max(0, nuevoMonto - nuevoPagado).toFixed(2));
-
-        // Actualizar Cuotas en Sheets (cuotasData incluye header en [0], fila real = rowIdx + 1)
         const rowCuota = cuotasData.findIndex(r => r[0] === c.id);
-        console.log(`Cuota ${c.nro} | id=${c.id} | rowCuota=${rowCuota} | sheetRow=${rowCuota + 2} | nuevoMonto=${nuevoMonto}`);
         if (rowCuota >= 0) {
-          const sheetRowC = rowCuota + 2;
-          await sheetsUpdate(`Cuotas!F${sheetRowC}:H${sheetRowC}`, [[nuevoMonto, nuevoPagado, nuevoSaldo]]);
+          cuotaUpdates.push({ range: `Cuotas!F${rowCuota + 1}:H${rowCuota + 1}`, values: [[nuevoMonto, nuevoPagado, nuevoSaldo]] });
         } else {
           console.warn(`⚠ No se encontró cuota ${c.id} en cuotasData`);
         }
+      }
+      if (cuotaUpdates.length) await sheetsBatchUpdate(cuotaUpdates);
 
-        // Actualizar evento Calendar
+      // Actualizar eventos Calendar (uno por uno, pero con detección de 401)
+      for (const c of cuotasPend) {
         if (c.eventId && CFG.calId) {
+          const nuevoMonto = nuevoMontoPorCuota;
+          const nuevoSaldo = parseFloat(Math.max(0, nuevoMonto - c.pagado).toFixed(2));
           try {
             showToast(`Actualizando Calendar cuota ${c.nro}/${totalCuotasN}...`);
-            await fetch(
+            const calRes = await fetch(
               'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId,
               {
                 method: 'PATCH',
@@ -3482,7 +3544,11 @@ async function guardarEditPrest() {
                 })
               }
             );
-          } catch(calErr) { console.warn('Error actualizando Calendar cuota', c.nro, calErr); }
+            if (handleCalendarAuthError(calRes.status)) throw Object.assign(new Error('Calendar auth ' + calRes.status), { _noRetry: true });
+          } catch(calErr) {
+            if (calErr._noRetry) throw calErr;
+            console.warn('Error actualizando Calendar cuota', c.nro, calErr);
+          }
         }
       }
     }
@@ -3662,19 +3728,9 @@ async function confirmarRefinanciar() {
       }
     }
 
-    // 3. Marcar cuotas pendientes como "Refinanciada" en Sheets
-    btn.textContent = 'Actualizando cuotas...';
+    // 3 + 4. Marcar cuotas como "Refinanciada" y préstamos como "Refinanciado" en un solo batch
+    btn.textContent = 'Actualizando cuotas y préstamos...';
     const cuotasData = await sheetsGet('Cuotas!A1:J');
-    for (const cu of cuotasPendientesAll) {
-      const rowIdx = cuotasData.findIndex(r => r[0] === cu.id);
-      if (rowIdx >= 0) {
-        const sheetRow = rowIdx + 1;
-        await sheetsUpdate(`Cuotas!I${sheetRow}`, [['Refinanciada']]);
-      }
-    }
-
-    // 4. Marcar préstamos como "Refinanciado" en Sheets y agregar nota
-    btn.textContent = 'Marcando préstamos...';
     const prestData = await sheetsGet('Préstamos!A1:P');
     const cl = DB.clientes.find(x => x.id === refiClienteId) || {};
     const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : refiClienteId;
@@ -3682,15 +3738,20 @@ async function confirmarRefinanciar() {
     // Generate new prest ID before updating old ones (so we can reference it)
     const nuevoPrestId = nextId('PREST-', DB.prestamos);
 
+    const refiUpdates = [];
+    for (const cu of cuotasPendientesAll) {
+      const rowIdx = cuotasData.findIndex(r => r[0] === cu.id);
+      if (rowIdx >= 0) refiUpdates.push({ range: `Cuotas!I${rowIdx + 1}`, values: [['Refinanciada']] });
+    }
     for (const prestId of selIds) {
       const rowIdx = prestData.findIndex(r => r[0] === prestId);
       if (rowIdx >= 0) {
-        const sheetRow = rowIdx + 1;
         const notaExistente = prestData[rowIdx][15] || '';
         const nuevaNota = (notaExistente ? notaExistente + ' | ' : '') + 'Refinanciado → ' + nuevoPrestId;
-        await sheetsUpdate(`Préstamos!O${sheetRow}:P${sheetRow}`, [['Refinanciado', nuevaNota]]);
+        refiUpdates.push({ range: `Préstamos!O${rowIdx + 1}:P${rowIdx + 1}`, values: [['Refinanciado', nuevaNota]] });
       }
     }
+    await sheetsBatchUpdate(refiUpdates);
 
     // 5. Limpiar Calendario sheet de los préstamos viejos
     btn.textContent = 'Limpiando Calendario sheet...';
@@ -3730,8 +3791,12 @@ async function confirmarRefinanciar() {
           reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
         };
         const calRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId || '') + '/events', { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) });
+        if (handleCalendarAuthError(calRes.status)) throw Object.assign(new Error('Calendar auth ' + calRes.status), { _noRetry: true });
         if (calRes.ok) { const calData = await calRes.json(); eventId = calData.id || ''; }
-      } catch(calErr) { console.warn('Calendar error cuota refi ' + i, calErr); }
+      } catch(calErr) {
+        if (calErr._noRetry) throw calErr;
+        console.warn('Calendar error cuota refi ' + i, calErr);
+      }
       cuotasRows.push([cuotaId, nuevoPrestId, refiClienteId, i, fechaVencES, cuotaM.toFixed(2), 0, cuotaM.toFixed(2), 'Pendiente', eventId]);
       if (eventId) calRows.push([cuotaId, nuevoPrestId, refiClienteId, eventId, CFG.calId || '', 'Activo']);
     }
@@ -3799,16 +3864,25 @@ async function guardarEditCliente() {
     await sheetsUpdate(`Clientes!B${sheetRow}:L${sheetRow}`, [[apellido, nombre, alias, dni, tel, tel2, email, dir, datos[rowIdx][9]||'', datos[rowIdx][10]||'Si', notas]]);
     const nuevoNombre = apellido + ', ' + nombre;
     const prestData = await sheetsGet('Préstamos!A1:P');
+    const updates = [];
     for (let i = 0; i < prestData.length; i++) {
-      if (prestData[i][1] === editClienteId) { await sheetsUpdate(`Préstamos!C${i+1}`, [[nuevoNombre]]); }
+      if (prestData[i][1] === editClienteId) updates.push(sheetsUpdate(`Préstamos!C${i+1}`, [[nuevoNombre]]));
     }
+    if (updates.length) await Promise.all(updates);
     if (CFG.calId) {
-      const cuotasPend = DB.cuotas.filter(c => c.clienteId === editClienteId && !c.estado.startsWith('Pagada') && c.eventId);
+      const cuotasPend = DB.cuotas.filter(c => c.clienteId === editClienteId && !c.estado.startsWith('Pagada') && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.eventId);
+      // Precomputar total de cuotas por préstamo (evita N filters)
+      const totalPorPrest = {};
+      DB.cuotas.forEach(x => { totalPorPrest[x.prestId] = (totalPorPrest[x.prestId] || 0) + 1; });
       for (const c of cuotasPend) {
         try {
-          const totalCuotas = DB.cuotas.filter(x => x.prestId === c.prestId).length;
-          await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: '💰 ' + nuevoNombre + ' — Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(c.saldo) + ' (' + c.prestId + ')' }) });
-        } catch(calErr) { console.warn('Error actualizando Calendar:', c.eventId, calErr); }
+          const totalCuotas = totalPorPrest[c.prestId] || 1;
+          const calRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: '💰 ' + nuevoNombre + ' — Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(c.saldo) + ' (' + c.prestId + ')' }) });
+          if (handleCalendarAuthError(calRes.status)) throw Object.assign(new Error('Calendar auth ' + calRes.status), { _noRetry: true });
+        } catch(calErr) {
+          if (calErr._noRetry) throw calErr;
+          console.warn('Error actualizando Calendar:', c.eventId, calErr);
+        }
       }
     }
     invalidateCache();
@@ -3878,6 +3952,7 @@ async function confirmarReprogramar() {
   showToast('Reprogramando cuotas...');
   try {
     const cuotasData = await sheetsGet('Cuotas!A:J');
+    const updates = [];
     for (let i = 0; i < cuotasPend.length; i++) {
       const c = cuotasPend[i];
       const nuevaFecha = i === 0 ? base : calcularFechaCuota(base, i, freq);
@@ -3903,16 +3978,22 @@ async function confirmarReprogramar() {
             reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
           };
           const calRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events', { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) });
+          if (handleCalendarAuthError(calRes.status)) throw Object.assign(new Error('Calendar auth ' + calRes.status), { _noRetry: true });
           if (calRes.ok) { const calData = await calRes.json(); nuevoEventId = calData.id || ''; }
-        } catch(calErr) { console.warn('Calendar error reprog cuota', c.nro, calErr); }
+        } catch(calErr) {
+          if (calErr._noRetry) throw calErr;
+          console.warn('Calendar error reprog cuota', c.nro, calErr);
+        }
       }
       const rowIdx = cuotasData.findIndex(r => r[0] === c.id);
       if (rowIdx >= 0) {
         const sheetRow = rowIdx + 1;
-        await sheetsUpdate(`Cuotas!E${sheetRow}`, [[nuevaFechaES]]);
-        if (nuevoEventId) await sheetsUpdate(`Cuotas!J${sheetRow}`, [[nuevoEventId]]);
+        updates.push({ range: `Cuotas!E${sheetRow}`, values: [[nuevaFechaES]] });
+        if (nuevoEventId) updates.push({ range: `Cuotas!J${sheetRow}`, values: [[nuevoEventId]] });
       }
     }
+    showToast('Guardando cambios en Sheets...');
+    await sheetsBatchUpdate(updates);
     invalidateCache();
     await loadAll(true);
     showToast('✓ ' + cuotasPend.length + ' cuotas reprogramadas y Calendar actualizado');
@@ -3929,7 +4010,7 @@ function pedirEliminarCliente(clienteId) {
   const c = DB.clientes.find(x => x.id === clienteId);
   if (!c) return;
   const ps = DB.prestamos.filter(p => p.clienteId === clienteId);
-  const cuotasPend = DB.cuotas.filter(cu => cu.clienteId === clienteId && !cu.estado.startsWith('Pagada'));
+  const cuotasPend = DB.cuotas.filter(cu => cu.clienteId === clienteId && !cu.estado.startsWith('Pagada') && cu.estado !== 'Refinanciada');
   if (cuotasPend.length > 0) {
     mostrarConfirm('Eliminar cliente con préstamos activos', c.apellido + ', ' + c.nombre + ' tiene ' + cuotasPend.length + ' cuota/s pendiente/s. Se eliminarán el cliente, todos sus préstamos, cuotas y eventos Calendar pendientes. Esta acción no se puede deshacer.', () => eliminarCliente(clienteId));
   } else if (ps.length > 0) {
@@ -4021,6 +4102,7 @@ function abrirPlanCuotas(clienteId) {
     const pendientes = allCuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada').sort((a,b) => a.nro - b.nro);
     const totalCuotasReal = allCuotas.length;
     const cuotaMonto = pendientes.length > 0 ? pendientes[0].monto : 0;
+    const maxNro = pendientes.length > 0 ? pendientes[pendientes.length - 1].nro : 0;
 
     prestInfo.push({
       id: p.id,
@@ -4041,7 +4123,7 @@ function abrirPlanCuotas(clienteId) {
         monto: cu.monto,
         nro: cu.nro,
         totalCuotas: totalCuotasReal,
-        isLast: cu.nro === Math.max(...pendientes.map(x => x.nro)),
+        isLast: cu.nro === maxNro,
         colorIdx,
         fecha: d
       });
@@ -4172,11 +4254,11 @@ function buildPlanFullHtml(cliente, prestInfo, sortedMonths, monthMap, maxKey) {
     legendItems += `<div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:${c.dot}"></div><span style="font-size:13px;color:#e8e8ed">${pi.label}</span><span style="font-family:monospace;font-size:12px;color:#7874a0;margin-left:auto">$${Math.round(pi.monto).toLocaleString('es-AR')} x ${pi.restantes}</span></div>`;
   });
 
-  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Plan de Cuotas — ${cliente.apellido}, ${cliente.nombre}</title>
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Plan de Cuotas — ${escapeHtml(cliente.apellido)}, ${escapeHtml(cliente.nombre)}</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;background:#0f1117;color:#e8e8ed;min-height:100vh;padding:24px 16px;display:flex;justify-content:center;align-items:flex-start}</style></head>
 <body><div style="max-width:520px;width:100%">
-<div style="text-align:center;margin-bottom:32px"><h1 style="font-size:20px;font-weight:700;color:#fff;margin-bottom:6px">Plan de Cuotas</h1><p style="font-size:13px;color:#7874a0">${cliente.apellido}, ${cliente.nombre} · ${new Date().toLocaleDateString('es-AR',{month:'long',year:'numeric'})}</p></div>
+<div style="text-align:center;margin-bottom:32px"><h1 style="font-size:20px;font-weight:700;color:#fff;margin-bottom:6px">Plan de Cuotas</h1><p style="font-size:13px;color:#7874a0">${escapeHtml(cliente.apellido)}, ${escapeHtml(cliente.nombre)} · ${new Date().toLocaleDateString('es-AR',{month:'long',year:'numeric'})}</p></div>
 <div style="display:flex;gap:10px;margin-bottom:28px;flex-wrap:wrap">${summaryCards}</div>
 ${rows}
 <div style="margin-top:28px;padding:16px;background:#181a23;border:1px solid rgba(255,255,255,.07);border-radius:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7874a0;margin-bottom:12px">Referencias</div><div style="display:flex;flex-direction:column;gap:8px">${legendItems}</div></div>
@@ -4229,7 +4311,7 @@ async function escanearCalendar() {
       html += `<tr>
         <td style="text-align:center"><input type="checkbox" checked class="repair-check" data-idx="${idx}"></td>
         <td class="td-mono">${c.id}</td>
-        <td><div class="td-name">${nombre}</div></td>
+        <td><div class="td-name">${escapeHtml(nombre)}</div></td>
         <td class="td-mono">${c.prestId}</td>
         <td${vencida ? ' class="text-red"' : ''}>${fechaStr}</td>
         <td class="td-mono">${fmt(c.monto)}</td>
@@ -4290,6 +4372,7 @@ async function ejecutarReparacion() {
           body: JSON.stringify(eventoBody)
         });
 
+        if (handleCalendarAuthError(calRes.status)) throw Object.assign(new Error('Calendar auth ' + calRes.status), { _noRetry: true });
         if (calRes.ok) {
           const calData = await calRes.json();
           const nuevoEventId = calData.id || '';
@@ -4306,6 +4389,7 @@ async function ejecutarReparacion() {
           console.warn('Calendar API error para', c.id, calRes.status);
         }
       } catch(calErr) {
+        if (calErr._noRetry) throw calErr;
         console.warn('Error creando evento para', c.id, calErr);
       }
     }
