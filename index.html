@@ -1567,7 +1567,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     <div class="calc-box" id="refi-saldo-box" style="margin-bottom:16px">
       <div class="calc-row"><span class="calc-label">Saldo total a refinanciar</span><span class="calc-val text-amber" id="refi-saldo-total">$0</span></div>
       <div class="calc-row"><span class="calc-label">Cuotas pendientes absorbidas</span><span class="calc-val" id="refi-cuotas-abs">0</span></div>
-      <div class="calc-row"><span class="calc-label">Eventos Calendar a eliminar</span><span class="calc-val text-red" id="refi-cal-count">0</span></div>
+      <div class="calc-row"><span class="calc-label">Eventos Calendar a actualizar</span><span class="calc-val" id="refi-cal-count">0</span></div>
     </div>
 
     <div class="form-section-title">Condiciones del nuevo crédito</div>
@@ -1576,6 +1576,11 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <label class="form-label">Interés sobre el saldo (%)</label>
         <input class="form-input" type="number" id="refi-interes" value="0" min="0" oninput="recalcRefi()">
         <div class="form-hint">0% = solo consolida deuda, sin interés extra</div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Monto extra a sumar ($)</label>
+        <input class="form-input" type="number" id="refi-extra" value="0" min="0" oninput="recalcRefi()">
+        <div class="form-hint">Plata adicional que le das al cliente sobre la deuda</div>
       </div>
       <div class="form-field">
         <label class="form-label">Cantidad de cuotas</label>
@@ -1608,7 +1613,9 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     </div>
 
     <div class="calc-box mt-12" id="refi-preview-box">
-      <div class="calc-row"><span class="calc-label">Capital (saldo refinanciado)</span><span class="calc-val" id="refi-p-capital">$0</span></div>
+      <div class="calc-row"><span class="calc-label">Capital del nuevo crédito</span><span class="calc-val" id="refi-p-capital">$0</span></div>
+      <div class="calc-row" id="refi-p-extra-row" style="display:none"><span class="calc-label" style="padding-left:12px;font-size:0.82em;opacity:0.7">· Saldo refinanciado</span><span class="calc-val text-amber" id="refi-p-saldo-ref" style="font-size:0.85em">$0</span></div>
+      <div class="calc-row" id="refi-p-extra-row2" style="display:none"><span class="calc-label" style="padding-left:12px;font-size:0.82em;opacity:0.7">· Monto extra</span><span class="calc-val text-accent" id="refi-p-extra-val" style="font-size:0.85em">$0</span></div>
       <div class="calc-row"><span class="calc-label">Total a devolver</span><span class="calc-val" id="refi-p-total">$0</span></div>
       <div class="calc-row"><span class="calc-label">Ganancia bruta</span><span class="calc-val text-green" id="refi-p-gb">$0</span></div>
       <div class="calc-row" id="refi-p-com-row" style="display:none"><span class="calc-label">Comisión 20%</span><span class="calc-val text-amber" id="refi-p-com">$0</span></div>
@@ -3338,6 +3345,21 @@ async function borrarEventoCalendar(eventId) {
   }
 }
 
+async function actualizarEventoCalendar(eventId, patch) {
+  if (!eventId || !CFG.calId) return;
+  try {
+    const r = await fetch(
+      'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + encodeURIComponent(eventId),
+      { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }
+    );
+    if (handleCalendarAuthError(r.status)) throw Object.assign(new Error('Calendar PATCH auth ' + r.status), { _noRetry: true });
+    if (!r.ok) console.warn('Calendar PATCH error', r.status);
+  } catch(e) {
+    if (e._noRetry) throw e;
+    console.warn('No se pudo actualizar evento Calendar:', eventId, e);
+  }
+}
+
 // ============================================================
 // CONFIRM MODAL GENÉRICO
 // ============================================================
@@ -3661,13 +3683,20 @@ function recalcRefi() {
   const interes = parseFloat(document.getElementById('refi-interes').value) || 0;
   const cuotas = Math.max(1, parseInt(document.getElementById('refi-cuotas').value) || 1);
   const tipo = document.getElementById('refi-tipo').value;
-  const total = saldoTotal * (1 + interes / 100);
-  const gb = total - saldoTotal;
+  const montoExtra = parseFloat(document.getElementById('refi-extra').value) || 0;
+  const capital = saldoTotal + montoExtra;
+  const total = capital * (1 + interes / 100);
+  const gb = total - capital;
   const com = tipo === 'tercero' ? gb * 0.2 : 0;
   const gn = gb - com;
   const cuotaVal = total / cuotas;
 
-  document.getElementById('refi-p-capital').textContent = fmt(saldoTotal);
+  const hayExtra = montoExtra > 0;
+  document.getElementById('refi-p-capital').textContent = fmt(capital);
+  document.getElementById('refi-p-extra-row').style.display = hayExtra ? 'flex' : 'none';
+  document.getElementById('refi-p-extra-row2').style.display = hayExtra ? 'flex' : 'none';
+  document.getElementById('refi-p-saldo-ref').textContent = fmt(saldoTotal);
+  document.getElementById('refi-p-extra-val').textContent = fmt(montoExtra);
   document.getElementById('refi-p-total').textContent = fmt(total);
   document.getElementById('refi-p-gb').textContent = fmt(gb);
   document.getElementById('refi-p-com').textContent = fmt(com);
@@ -3701,12 +3730,14 @@ async function confirmarRefinanciar() {
 
   if (!fechaStr) { showToast('Elegí una fecha de inicio', 'error'); return; }
 
+  const montoExtra = parseFloat(document.getElementById('refi-extra').value) || 0;
+
   const btn = document.getElementById('btn-confirmar-refi');
   btn.disabled = true;
   btn.textContent = 'Procesando...';
 
   try {
-    // 1. Calcular saldo total
+    // 1. Calcular saldo total y preparar datos del nuevo crédito
     let saldoTotal = 0;
     const cuotasPendientesAll = [];
     selIds.forEach(prestId => {
@@ -3718,13 +3749,31 @@ async function confirmarRefinanciar() {
       });
     });
 
-    // 2. Eliminar eventos Calendar de cuotas pendientes
-    btn.textContent = 'Eliminando eventos Calendar...';
-    let calBorrados = 0;
+    const capital = saldoTotal + montoExtra;
+    const total = capital * (1 + interes / 100);
+    const gb = total - capital;
+    const com = tipo === 'tercero' ? gb * 0.2 : 0;
+    const gn = gb - com;
+    const cuotaM = total / cuotasN;
+    const fechaInicio = new Date(fechaStr + 'T12:00:00');
+    const nuevoPrestId = nextId('PREST-', DB.prestamos);
+    const primerVenc = calcularFechaCuota(fechaInicio, 1, freqDias);
+    const primerVencStr = fmtFechaES(primerVenc);
+
+    const cl = DB.clientes.find(x => x.id === refiClienteId) || {};
+    const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : refiClienteId;
+
+    // 2. Actualizar eventos Calendar de cuotas pendientes con texto de refinanciación
+    btn.textContent = 'Actualizando eventos Calendar...';
+    let calActualizados = 0;
     for (const cu of cuotasPendientesAll) {
       if (cu.eventId && CFG.calId) {
-        await borrarEventoCalendar(cu.eventId);
-        calBorrados++;
+        await actualizarEventoCalendar(cu.eventId, {
+          summary: '🔄 Refinanciada → ' + nuevoPrestId + ' | ' + fmt(Math.round(cuotaM)) + '/cuota | vto. ' + primerVencStr,
+          description: 'Esta cuota fue refinanciada.\nNuevo crédito: ' + nuevoPrestId + '\nCuota: ' + fmt(cuotaM) + '\nPrimer vencimiento: ' + primerVencStr + '\nTotal del crédito: ' + fmt(total),
+          colorId: '8'
+        });
+        calActualizados++;
       }
     }
 
@@ -3732,11 +3781,6 @@ async function confirmarRefinanciar() {
     btn.textContent = 'Actualizando cuotas y préstamos...';
     const cuotasData = await sheetsGet('Cuotas!A1:J');
     const prestData = await sheetsGet('Préstamos!A1:P');
-    const cl = DB.clientes.find(x => x.id === refiClienteId) || {};
-    const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : refiClienteId;
-
-    // Generate new prest ID before updating old ones (so we can reference it)
-    const nuevoPrestId = nextId('PREST-', DB.prestamos);
 
     const refiUpdates = [];
     for (const cu of cuotasPendientesAll) {
@@ -3761,15 +3805,9 @@ async function confirmarRefinanciar() {
 
     // 6. Crear nuevo préstamo
     btn.textContent = 'Creando nuevo préstamo...';
-    const fechaInicio = new Date(fechaStr + 'T12:00:00');
-    const total = saldoTotal * (1 + interes / 100);
-    const gb = total - saldoTotal;
-    const com = tipo === 'tercero' ? gb * 0.2 : 0;
-    const gn = gb - com;
-    const cuotaM = total / cuotasN;
-    const notaNuevo = 'Refinanciación de: ' + selIds.join(', ');
+    const notaNuevo = 'Refinanciación de: ' + selIds.join(', ') + (montoExtra > 0 ? ' + extra ' + fmt(montoExtra) : '');
 
-    await sheetsAppend('Préstamos!A:P', [[nuevoPrestId, refiClienteId, clienteNombre, fmtFechaES(fechaInicio), saldoTotal, interes+'%', total.toFixed(2), cuotasN, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notaNuevo]]);
+    await sheetsAppend('Préstamos!A:P', [[nuevoPrestId, refiClienteId, clienteNombre, fmtFechaES(fechaInicio), capital, interes+'%', total.toFixed(2), cuotasN, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notaNuevo]]);
 
     // 7. Crear cuotas + Calendar del nuevo préstamo
     const cuotasRows = [];
@@ -3807,7 +3845,7 @@ async function confirmarRefinanciar() {
     invalidateCache();
     closeRefiModal();
     const calMsg = calRows.length === cuotasN ? ' · Calendar sincronizado ✓' : calRows.length > 0 ? ' · Calendar: ' + calRows.length + '/' + cuotasN : '';
-    showToast('✓ Refinanciación exitosa → ' + nuevoPrestId + ' · ' + selIds.length + ' créditos consolidados' + (calBorrados > 0 ? ' · ' + calBorrados + ' eventos eliminados' : '') + calMsg);
+    showToast('✓ Refinanciación exitosa → ' + nuevoPrestId + ' · ' + selIds.length + ' créditos consolidados' + (calActualizados > 0 ? ' · ' + calActualizados + ' eventos actualizados en Calendar' : '') + calMsg);
     await loadAll(true);
     nav('detalle-prestamo', nuevoPrestId);
 
