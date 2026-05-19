@@ -1094,16 +1094,27 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <div id="est-loading" class="loading"><div class="spinner"></div> Calculando...</div>
         <div id="est-content" style="display:none">
           <!-- Period selector + Sub-tabs -->
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-            <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Período:</span>
-            <div class="mode-toggle" style="margin-bottom:0">
-              <button class="mode-btn active" id="est-btn-7"   onclick="setEstPeriodo(7,this)">7 días</button>
-              <button class="mode-btn"        id="est-btn-30"  onclick="setEstPeriodo(30,this)">Mes</button>
-              <button class="mode-btn"        id="est-btn-90"  onclick="setEstPeriodo(90,this)">Trimestre</button>
-              <button class="mode-btn"        id="est-btn-365" onclick="setEstPeriodo(365,this)">Año</button>
-              <button class="mode-btn"        id="est-btn-0"   onclick="setEstPeriodo(0,this)">Todo</button>
+          <div style="margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Período:</span>
+              <div class="mode-toggle" style="margin-bottom:0">
+                <button class="mode-btn"        id="est-btn-hoy"        onclick="setEstPeriodo('hoy',this)">Hoy</button>
+                <button class="mode-btn active" id="est-btn-7d"         onclick="setEstPeriodo('7d',this)">7 días</button>
+                <button class="mode-btn"        id="est-btn-mes-actual" onclick="setEstPeriodo('mes-actual',this)">Este mes</button>
+                <button class="mode-btn"        id="est-btn-mes"        onclick="toggleEstMesPicker(event)">Mes ▾</button>
+                <button class="mode-btn"        id="est-btn-rango"      onclick="toggleEstRangoPicker(event)">Rango ▾</button>
+                <button class="mode-btn"        id="est-btn-todo"       onclick="setEstPeriodo('todo',this)">Todo</button>
+              </div>
+              <span id="est-rango-label" style="font-size:12px;color:var(--muted);margin-left:8px;font-family:var(--mono)"></span>
             </div>
-            <span id="est-rango-label" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
+            <div id="est-mes-picker" style="display:none;margin-top:8px;flex-wrap:wrap;gap:4px"></div>
+            <div id="est-rango-picker" style="display:none;margin-top:8px;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-size:12px;color:var(--muted)">Desde</span>
+              <input type="date" id="est-rango-desde" style="padding:6px 8px;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:13px">
+              <span style="font-size:12px;color:var(--muted)">Hasta</span>
+              <input type="date" id="est-rango-hasta" style="padding:6px 8px;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:13px">
+              <button class="btn btn-accent btn-sm" onclick="aplicarEstRango()">Aplicar</button>
+            </div>
           </div>
           <div style="display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap">
             <button class="mode-btn active" id="est-tab-resumen" onclick="setEstTab('resumen')" style="padding:7px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s;border:none;background:var(--card);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.4)">Resumen</button>
@@ -1207,24 +1218,24 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
           <div id="est-panel-rendimiento" style="display:none">
             <div class="stats-grid" style="margin-bottom:20px">
               <div class="stat-card">
-                <div class="stat-label">ROI real</div>
+                <div class="stat-label">Ganancia ya cobrada</div>
                 <div class="stat-value text-green" id="rend-roi">0%</div>
-                <div class="stat-meta" id="rend-roi-meta">cobrado vs invertido</div>
+                <div class="stat-meta" id="rend-roi-meta">$0 cobrados / $0 invertidos</div>
               </div>
               <div class="stat-card">
-                <div class="stat-label">ROI prometido</div>
+                <div class="stat-label">Si cobrás todo</div>
                 <div class="stat-value text-accent" id="rend-roi-prom">0%</div>
-                <div class="stat-meta" id="rend-roi-prom-meta">si se cobra todo</div>
+                <div class="stat-meta" id="rend-roi-prom-meta">$0 de ganancia total</div>
               </div>
               <div class="stat-card">
-                <div class="stat-label">Tasa cobro efectivo</div>
+                <div class="stat-label">Cobranza</div>
                 <div class="stat-value" id="rend-cobro">0%</div>
-                <div class="stat-meta" id="rend-cobro-meta">de lo que venció, cuánto se cobró</div>
+                <div class="stat-meta" id="rend-cobro-meta">0 de 0 cuotas vencidas cobradas</div>
               </div>
               <div class="stat-card">
-                <div class="stat-label">Prom. días atraso</div>
+                <div class="stat-label">Atraso promedio</div>
                 <div class="stat-value" id="rend-atraso">0</div>
-                <div class="stat-meta" id="rend-atraso-meta">en pagos del período</div>
+                <div class="stat-meta" id="rend-atraso-meta">días que tardan en pagar</div>
               </div>
             </div>
             <div class="stats-grid" style="margin-bottom:20px">
@@ -1239,14 +1250,14 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
                 <div class="stat-meta" id="rend-conatraso-meta">0 pagos tarde</div>
               </div>
               <div class="stat-card">
-                <div class="stat-label">Ticket promedio</div>
+                <div class="stat-label">Préstamo promedio</div>
                 <div class="stat-value text-accent" id="rend-ticket">$0</div>
-                <div class="stat-meta" id="rend-ticket-meta">capital por préstamo</div>
+                <div class="stat-meta" id="rend-ticket-meta">capital prestado por operación</div>
               </div>
               <div class="stat-card">
-                <div class="stat-label">Ganancia por peso</div>
+                <div class="stat-label">Rinde</div>
                 <div class="stat-value text-green" id="rend-ganxpeso">$0</div>
-                <div class="stat-meta" id="rend-ganxpeso-meta">ganancia neta / capital</div>
+                <div class="stat-meta" id="rend-ganxpeso-meta">de ganancia por cada $100 prestados</div>
               </div>
             </div>
             <!-- Rendimiento propio vs tercero -->
@@ -1567,7 +1578,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     <div class="calc-box" id="refi-saldo-box" style="margin-bottom:16px">
       <div class="calc-row"><span class="calc-label">Saldo total a refinanciar</span><span class="calc-val text-amber" id="refi-saldo-total">$0</span></div>
       <div class="calc-row"><span class="calc-label">Cuotas pendientes absorbidas</span><span class="calc-val" id="refi-cuotas-abs">0</span></div>
-      <div class="calc-row"><span class="calc-label">Eventos Calendar a actualizar</span><span class="calc-val" id="refi-cal-count">0</span></div>
+      <div class="calc-row"><span class="calc-label">Eventos Calendar a eliminar</span><span class="calc-val text-red" id="refi-cal-count">0</span></div>
     </div>
 
     <div class="form-section-title">Condiciones del nuevo crédito</div>
@@ -1576,11 +1587,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <label class="form-label">Interés sobre el saldo (%)</label>
         <input class="form-input" type="number" id="refi-interes" value="0" min="0" oninput="recalcRefi()">
         <div class="form-hint">0% = solo consolida deuda, sin interés extra</div>
-      </div>
-      <div class="form-field">
-        <label class="form-label">Monto extra a sumar ($)</label>
-        <input class="form-input" type="number" id="refi-extra" value="0" min="0" oninput="recalcRefi()">
-        <div class="form-hint">Plata adicional que le das al cliente sobre la deuda</div>
       </div>
       <div class="form-field">
         <label class="form-label">Cantidad de cuotas</label>
@@ -1613,9 +1619,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     </div>
 
     <div class="calc-box mt-12" id="refi-preview-box">
-      <div class="calc-row"><span class="calc-label">Capital del nuevo crédito</span><span class="calc-val" id="refi-p-capital">$0</span></div>
-      <div class="calc-row" id="refi-p-extra-row" style="display:none"><span class="calc-label" style="padding-left:12px;font-size:0.82em;opacity:0.7">· Saldo refinanciado</span><span class="calc-val text-amber" id="refi-p-saldo-ref" style="font-size:0.85em">$0</span></div>
-      <div class="calc-row" id="refi-p-extra-row2" style="display:none"><span class="calc-label" style="padding-left:12px;font-size:0.82em;opacity:0.7">· Monto extra</span><span class="calc-val text-accent" id="refi-p-extra-val" style="font-size:0.85em">$0</span></div>
+      <div class="calc-row"><span class="calc-label">Capital (saldo refinanciado)</span><span class="calc-val" id="refi-p-capital">$0</span></div>
       <div class="calc-row"><span class="calc-label">Total a devolver</span><span class="calc-val" id="refi-p-total">$0</span></div>
       <div class="calc-row"><span class="calc-label">Ganancia bruta</span><span class="calc-val text-green" id="refi-p-gb">$0</span></div>
       <div class="calc-row" id="refi-p-com-row" style="display:none"><span class="calc-label">Comisión 20%</span><span class="calc-val text-amber" id="refi-p-com">$0</span></div>
@@ -1847,7 +1851,16 @@ function nextId(prefix, collection, padding) {
 // ============================================================
 const TITLES = { dashboard:'Dashboard', estadisticas:'Estadísticas', clientes:'Clientes', 'detalle-cliente':'Detalle cliente', prestamos:'Préstamos', 'detalle-prestamo':'Detalle préstamo', vencimientos:'Vencimientos', 'nuevo-prestamo':'Nuevo préstamo', 'nuevo-cliente':'Nuevo cliente', calculadora:'Calculadora de préstamos' };
 
-async function nav(screen, data) {
+let navStack = [];
+let _navCurrentData = null;
+async function nav(screen, data, opts) {
+  const isBack = opts && opts.back;
+  const currentScreen = document.querySelector('.screen.active')?.id?.replace('screen-','');
+  if (!isBack && currentScreen && currentScreen !== screen) {
+    navStack.push({ screen: currentScreen, data: _navCurrentData });
+    if (navStack.length > 20) navStack.shift();
+  }
+  _navCurrentData = data;
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector(`.nav-item[data-screen="${screen}"]`)?.classList.add('active');
@@ -1864,6 +1877,12 @@ async function nav(screen, data) {
   if (screen === 'detalle-prestamo') renderDetallePrestamo(data);
   if (screen === 'nuevo-prestamo')   initNuevoPrestamo();
   if (screen === 'calculadora')      calcRenderOpciones();
+}
+
+function navBack(fallback) {
+  const prev = navStack.pop();
+  if (prev) nav(prev.screen, prev.data, { back: true });
+  else nav(fallback || 'dashboard', null, { back: true });
 }
 
 // ============================================================
@@ -2112,7 +2131,7 @@ function renderDetalleCliente(clienteId) {
   document.getElementById('dc-content').innerHTML = `
     <div class="flex-between" style="margin-bottom:20px">
       <div class="flex-row">
-        <button class="btn btn-ghost btn-sm" onclick="nav('clientes')">← Volver</button>
+        <button class="btn btn-ghost btn-sm" onclick="navBack('clientes')">← Volver</button>
         <div>
           <div style="font-size:20px;font-weight:700">${escapeHtml(c.apellido)}, ${escapeHtml(c.nombre)}</div>
           <div class="text-muted" style="font-size:12px">${c.id} · @${escapeHtml(c.alias)} · DNI: ****${c.dni}</div>
@@ -2210,7 +2229,7 @@ function renderDetallePrestamo(prestId) {
   document.getElementById('dp-content').innerHTML = `
     <div class="flex-between" style="margin-bottom:20px">
       <div class="flex-row">
-        <button class="btn btn-ghost btn-sm" onclick="nav('prestamos')">← Volver</button>
+        <button class="btn btn-ghost btn-sm" onclick="navBack('prestamos')">← Volver</button>
         <div>
           <div style="font-size:20px;font-weight:700">${p.id}</div>
           <div class="text-muted" style="font-size:12px">${escapeHtml(cl.apellido||'')}, ${escapeHtml(cl.nombre||'')} · ${p.clienteId}</div>
@@ -2827,7 +2846,9 @@ document.getElementById('setupModal').addEventListener('click', e => {
 // ============================================================
 // ESTADISTICAS
 // ============================================================
-let estPeriodoDias = 7;
+let estPeriodoTipo = '7d';
+let estPeriodoMes = null;     // {año, mes} cuando tipo === 'mes'
+let estPeriodoRango = null;   // {desde, hasta} en YYYY-MM-DD cuando tipo === 'rango'
 let estTabActivo = 'resumen';
 
 function setEstTab(tab) {
@@ -2844,10 +2865,120 @@ function setEstTab(tab) {
   renderEstadisticas();
 }
 
-function setEstPeriodo(dias, btn) {
-  estPeriodoDias = dias;
-  document.querySelectorAll('#est-btn-7,#est-btn-30,#est-btn-90,#est-btn-365,#est-btn-0').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+const _EST_BTN_IDS = ['est-btn-hoy','est-btn-7d','est-btn-mes-actual','est-btn-mes','est-btn-rango','est-btn-todo'];
+
+function getEstRango() {
+  const hoy = new Date(); hoy.setHours(23,59,59,999);
+  let desde = new Date(2000, 0, 1), hasta = new Date(hoy);
+  switch(estPeriodoTipo) {
+    case 'hoy':
+      desde = new Date(); desde.setHours(0,0,0,0);
+      break;
+    case '7d':
+      desde = new Date(hoy.getTime() - 6 * 86400000); desde.setHours(0,0,0,0);
+      break;
+    case 'mes-actual':
+      desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1, 0, 0, 0);
+      break;
+    case 'mes':
+      if (estPeriodoMes) {
+        desde = new Date(estPeriodoMes.año, estPeriodoMes.mes, 1, 0, 0, 0);
+        hasta = new Date(estPeriodoMes.año, estPeriodoMes.mes + 1, 0, 23, 59, 59, 999);
+      }
+      break;
+    case 'rango':
+      if (estPeriodoRango && estPeriodoRango.desde && estPeriodoRango.hasta) {
+        const [y1,m1,d1] = estPeriodoRango.desde.split('-').map(Number);
+        const [y2,m2,d2] = estPeriodoRango.hasta.split('-').map(Number);
+        desde = new Date(y1, m1-1, d1, 0, 0, 0);
+        hasta = new Date(y2, m2-1, d2, 23, 59, 59, 999);
+      }
+      break;
+  }
+  return { desde, hasta, esTodo: estPeriodoTipo === 'todo' };
+}
+
+function getEstRangoLabel() {
+  if (estPeriodoTipo === 'todo') return 'Desde siempre';
+  const { desde, hasta } = getEstRango();
+  if (estPeriodoTipo === 'hoy') return 'Hoy · ' + fmtFecha(hasta);
+  const dias = Math.round((hasta.getTime() - desde.getTime()) / 86400000) + 1;
+  return 'Del ' + fmtFecha(desde) + ' al ' + fmtFecha(hasta) + ' · ' + dias + ' día' + (dias!==1?'s':'');
+}
+
+function setEstPeriodo(tipo, btn) {
+  estPeriodoTipo = tipo;
+  document.getElementById('est-mes-picker').style.display = 'none';
+  document.getElementById('est-rango-picker').style.display = 'none';
+  document.getElementById('est-btn-mes').textContent = 'Mes ▾';
+  document.getElementById('est-btn-rango').textContent = 'Rango ▾';
+  _EST_BTN_IDS.forEach(id => document.getElementById(id)?.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderEstadisticas();
+}
+
+function toggleEstMesPicker(e) {
+  if (e) e.stopPropagation();
+  const picker = document.getElementById('est-mes-picker');
+  document.getElementById('est-rango-picker').style.display = 'none';
+  if (picker.style.display !== 'none') { picker.style.display = 'none'; return; }
+  const hoy = new Date();
+  let html = '';
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    const lbl = d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+    const lblCap = lbl.charAt(0).toUpperCase() + lbl.slice(1);
+    html += `<button class="mode-btn" onclick="setEstPeriodoMes(${d.getFullYear()},${d.getMonth()})" style="font-size:12px">${lblCap}</button>`;
+  }
+  picker.innerHTML = html;
+  picker.style.display = 'flex';
+}
+
+function setEstPeriodoMes(año, mes) {
+  estPeriodoTipo = 'mes';
+  estPeriodoMes = { año, mes };
+  document.getElementById('est-mes-picker').style.display = 'none';
+  document.getElementById('est-rango-picker').style.display = 'none';
+  document.getElementById('est-btn-rango').textContent = 'Rango ▾';
+  const lbl = new Date(año, mes, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  const btnMes = document.getElementById('est-btn-mes');
+  btnMes.textContent = lbl.charAt(0).toUpperCase() + lbl.slice(1) + ' ▾';
+  _EST_BTN_IDS.forEach(id => document.getElementById(id)?.classList.remove('active'));
+  btnMes.classList.add('active');
+  renderEstadisticas();
+}
+
+function toggleEstRangoPicker(e) {
+  if (e) e.stopPropagation();
+  const picker = document.getElementById('est-rango-picker');
+  document.getElementById('est-mes-picker').style.display = 'none';
+  if (picker.style.display !== 'none') { picker.style.display = 'none'; return; }
+  const desdeEl = document.getElementById('est-rango-desde');
+  const hastaEl = document.getElementById('est-rango-hasta');
+  if (!desdeEl.value || !hastaEl.value) {
+    const hoy = new Date();
+    const hace30 = new Date(hoy.getTime() - 30*86400000);
+    const toIso = d => [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
+    desdeEl.value = toIso(hace30);
+    hastaEl.value = toIso(hoy);
+  }
+  picker.style.display = 'flex';
+}
+
+function aplicarEstRango() {
+  const desde = document.getElementById('est-rango-desde').value;
+  const hasta = document.getElementById('est-rango-hasta').value;
+  if (!desde || !hasta) { showToast('Elegí ambas fechas', 'error'); return; }
+  if (desde > hasta) { showToast('La fecha "desde" debe ser anterior a "hasta"', 'error'); return; }
+  estPeriodoTipo = 'rango';
+  estPeriodoRango = { desde, hasta };
+  document.getElementById('est-rango-picker').style.display = 'none';
+  document.getElementById('est-btn-mes').textContent = 'Mes ▾';
+  const fmtIso = iso => { const [y,m,d] = iso.split('-'); return `${d}/${m}/${y.slice(2)}`; };
+  const btnRango = document.getElementById('est-btn-rango');
+  btnRango.textContent = `${fmtIso(desde)} → ${fmtIso(hasta)} ▾`;
+  _EST_BTN_IDS.forEach(id => document.getElementById(id)?.classList.remove('active'));
+  btnRango.classList.add('active');
   renderEstadisticas();
 }
 
@@ -2855,22 +2986,20 @@ async function renderEstadisticas() {
   document.getElementById('est-loading').style.display = 'flex';
   document.getElementById('est-content').style.display = 'none';
   await loadAll();
-  const hoy = new Date(); hoy.setHours(23,59,59,999);
-  const desde = estPeriodoDias === 0 ? new Date('2000-01-01') : new Date(hoy.getTime() - estPeriodoDias * 86400000);
-  desde.setHours(0,0,0,0);
-  const labels = {7:'Últimos 7 días', 30:'Último mes', 90:'Último trimestre', 365:'Último año', 0:'Desde siempre'};
-  document.getElementById('est-rango-label').textContent = '(' + labels[estPeriodoDias] + ')';
+  const { desde, hasta, esTodo } = getEstRango();
+  const hoy = hasta; // alias para mantener legibilidad en el resto del código
+  document.getElementById('est-rango-label').textContent = getEstRangoLabel();
 
   // ---- Datos base filtrados por período ----
   // Préstamos del período: los que INICIARON en el período
-  const prestPeriodo = estPeriodoDias === 0
+  const prestPeriodo = esTodo
     ? DB.prestamos
-    : DB.prestamos.filter(p => { const d = parseFecha(p.fechaInicio); return d && d >= desde && d <= hoy; });
+    : DB.prestamos.filter(p => { const d = parseFecha(p.fechaInicio); return d && d >= desde && d <= hasta; });
 
   // Pagos del período: los que se COBRARON en el período
-  const pagosPeriodo = estPeriodoDias === 0
+  const pagosPeriodo = esTodo
     ? DB.pagos
-    : DB.pagos.filter(p => { const d = parseFecha(p.fecha); return d && d >= desde && d <= hoy; });
+    : DB.pagos.filter(p => { const d = parseFecha(p.fecha); return d && d >= desde && d <= hasta; });
 
   const montoCobrado = pagosPeriodo.reduce((a,p) => a + p.monto, 0);
   const capitalTotal = prestPeriodo.reduce((a,p) => a + (p.capital || 0), 0);
@@ -2887,18 +3016,18 @@ async function renderEstadisticas() {
     const d = parseFecha(c.vencimiento);
     if (!d) return false;
     if (d > hoyMidnight) return false; // no venció aún
-    if (estPeriodoDias === 0) return true;
-    return d >= desde;
+    if (esTodo) return true;
+    return d >= desde && d <= hasta;
   });
   const montoMora = cuotasVencPeriodo.reduce((a,c) => a + c.saldo, 0);
-  const totalCuotasPeriodo = estPeriodoDias === 0
+  const totalCuotasPeriodo = esTodo
     ? DB.cuotas.length
-    : DB.cuotas.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hoy; }).length;
+    : DB.cuotas.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hasta; }).length;
   const tasaMora = totalCuotasPeriodo > 0 ? (cuotasVencPeriodo.length / totalCuotasPeriodo * 100).toFixed(1) : 0;
 
-  const clientesNuevos = estPeriodoDias === 0
+  const clientesNuevos = esTodo
     ? DB.clientes
-    : DB.clientes.filter(c => { const d = parseFecha(c.alta); return d && d >= desde && d <= hoy; });
+    : DB.clientes.filter(c => { const d = parseFecha(c.alta); return d && d >= desde && d <= hasta; });
 
   // ========================= TAB: RESUMEN =========================
   if (estTabActivo === 'resumen') {
@@ -3160,32 +3289,31 @@ function renderRendimiento(prestPeriodo, pagosPeriodo, capitalTotal, gbTotal, gn
 
   const roiReal = capitalInvertidoPropio > 0 ? (gananciaRealizada / capitalInvertidoPropio * 100) : 0;
   document.getElementById('rend-roi').textContent = roiReal.toFixed(1) + '%';
-  document.getElementById('rend-roi-meta').textContent = fmt(gananciaRealizada) + ' ganado / ' + fmt(capitalInvertidoPropio) + ' invertido';
+  document.getElementById('rend-roi-meta').textContent = fmt(gananciaRealizada) + ' cobrados / ' + fmt(capitalInvertidoPropio) + ' invertidos';
 
-  // ROI prometido: ganancia neta prometida / capital invertido propio
+  // Si cobrás todo: ganancia neta prometida / capital invertido propio
   const roiProm = capitalInvertidoPropio > 0 ? (gnTotal / capitalInvertidoPropio * 100) : 0;
   document.getElementById('rend-roi-prom').textContent = roiProm.toFixed(1) + '%';
-  document.getElementById('rend-roi-prom-meta').textContent = fmt(gnTotal) + ' si se cobra todo';
+  document.getElementById('rend-roi-prom-meta').textContent = fmt(gnTotal) + ' de ganancia total';
 
-  // Tasa de cobro efectivo: de las cuotas que YA VENCIERON en el período, qué % se cobró
+  // Cobranza: de las cuotas que YA VENCIERON, cuántas se cobraron (contando cuotas, no pesos)
   const prestIdsP = new Set(prestPeriodo.map(p => p.id));
   const cuotasDelPeriodo = DB.cuotas.filter(c => prestIdsP.has(c.prestId));
   const cuotasYaVencidas = cuotasDelPeriodo.filter(c => {
     const d = parseFecha(c.vencimiento);
     return d && d < hoyMidnight;
   });
-  const montoDeberiaCobrarse = cuotasYaVencidas.reduce((a,c) => a + c.monto, 0);
-  const montoPagadoDeVencidas = cuotasYaVencidas.reduce((a,c) => a + c.pagado, 0);
-  const tasaCobro = montoDeberiaCobrarse > 0 ? (montoPagadoDeVencidas / montoDeberiaCobrarse * 100) : 0;
-  document.getElementById('rend-cobro').textContent = tasaCobro.toFixed(1) + '%';
+  const cuotasCobradas = cuotasYaVencidas.filter(c => c.estado === 'Pagada' || (c.estado && c.estado.startsWith('Pagada con')));
+  const tasaCobro = cuotasYaVencidas.length > 0 ? (cuotasCobradas.length / cuotasYaVencidas.length * 100) : 0;
+  document.getElementById('rend-cobro').textContent = tasaCobro.toFixed(0) + '%';
   document.getElementById('rend-cobro').style.color = tasaCobro >= 80 ? 'var(--green)' : tasaCobro >= 50 ? 'var(--amber)' : 'var(--red)';
-  document.getElementById('rend-cobro-meta').textContent = fmt(montoPagadoDeVencidas) + ' de ' + fmt(montoDeberiaCobrarse) + ' vencido';
+  document.getElementById('rend-cobro-meta').textContent = cuotasCobradas.length + ' de ' + cuotasYaVencidas.length + ' cuotas vencidas cobradas';
 
-  // Promedio días atraso
+  // Atraso promedio
   const pagosConAtraso = pagosPeriodo.filter(p => p.diasAtraso > 0);
   const promAtraso = pagosPeriodo.length > 0 ? (pagosPeriodo.reduce((a,p) => a + p.diasAtraso, 0) / pagosPeriodo.length) : 0;
   document.getElementById('rend-atraso').textContent = promAtraso.toFixed(1) + 'd';
-  document.getElementById('rend-atraso-meta').textContent = pagosConAtraso.length + ' de ' + pagosPeriodo.length + ' pagos con atraso';
+  document.getElementById('rend-atraso-meta').textContent = pagosConAtraso.length + ' de ' + pagosPeriodo.length + ' pagos llegaron tarde';
 
   // A tiempo vs con atraso
   const pagosATiempo = pagosPeriodo.filter(p => p.diasAtraso === 0);
@@ -3196,15 +3324,16 @@ function renderRendimiento(prestPeriodo, pagosPeriodo, capitalTotal, gbTotal, gn
   document.getElementById('rend-conatraso').textContent = pctConAtraso.toFixed(0) + '%';
   document.getElementById('rend-conatraso-meta').textContent = pagosConAtraso.length + ' pagos tarde';
 
-  // Ticket promedio
+  // Préstamo promedio
   const ticketProm = prestPeriodo.length > 0 ? capitalTotal / prestPeriodo.length : 0;
   document.getElementById('rend-ticket').textContent = fmt(ticketProm);
-  document.getElementById('rend-ticket-meta').textContent = prestPeriodo.length + ' préstamos en período';
+  document.getElementById('rend-ticket-meta').textContent = prestPeriodo.length + ' préstamo' + (prestPeriodo.length!==1?'s':'') + ' en el período';
 
-  // Ganancia por peso invertido
+  // Rinde: por cada $100 prestados, cuántos ganás de neto
   const ganXPeso = capitalTotal > 0 ? gnTotal / capitalTotal : 0;
-  document.getElementById('rend-ganxpeso').textContent = '$' + ganXPeso.toFixed(2);
-  document.getElementById('rend-ganxpeso-meta').textContent = 'Por cada $1 prestado, ganás $' + ganXPeso.toFixed(2) + ' neto';
+  const gan100 = ganXPeso * 100;
+  document.getElementById('rend-ganxpeso').textContent = '$' + gan100.toFixed(0);
+  document.getElementById('rend-ganxpeso-meta').textContent = 'de ganancia por cada $100 prestados';
 
   // Rendimiento propio vs tercero
   const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
@@ -3342,21 +3471,6 @@ async function borrarEventoCalendar(eventId) {
   } catch(e) {
     if (e._noRetry) throw e;
     console.warn('No se pudo borrar evento Calendar:', eventId, e);
-  }
-}
-
-async function actualizarEventoCalendar(eventId, patch) {
-  if (!eventId || !CFG.calId) return;
-  try {
-    const r = await fetch(
-      'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + encodeURIComponent(eventId),
-      { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }
-    );
-    if (handleCalendarAuthError(r.status)) throw Object.assign(new Error('Calendar PATCH auth ' + r.status), { _noRetry: true });
-    if (!r.ok) console.warn('Calendar PATCH error', r.status);
-  } catch(e) {
-    if (e._noRetry) throw e;
-    console.warn('No se pudo actualizar evento Calendar:', eventId, e);
   }
 }
 
@@ -3683,20 +3797,13 @@ function recalcRefi() {
   const interes = parseFloat(document.getElementById('refi-interes').value) || 0;
   const cuotas = Math.max(1, parseInt(document.getElementById('refi-cuotas').value) || 1);
   const tipo = document.getElementById('refi-tipo').value;
-  const montoExtra = parseFloat(document.getElementById('refi-extra').value) || 0;
-  const capital = saldoTotal + montoExtra;
-  const total = capital * (1 + interes / 100);
-  const gb = total - capital;
+  const total = saldoTotal * (1 + interes / 100);
+  const gb = total - saldoTotal;
   const com = tipo === 'tercero' ? gb * 0.2 : 0;
   const gn = gb - com;
   const cuotaVal = total / cuotas;
 
-  const hayExtra = montoExtra > 0;
-  document.getElementById('refi-p-capital').textContent = fmt(capital);
-  document.getElementById('refi-p-extra-row').style.display = hayExtra ? 'flex' : 'none';
-  document.getElementById('refi-p-extra-row2').style.display = hayExtra ? 'flex' : 'none';
-  document.getElementById('refi-p-saldo-ref').textContent = fmt(saldoTotal);
-  document.getElementById('refi-p-extra-val').textContent = fmt(montoExtra);
+  document.getElementById('refi-p-capital').textContent = fmt(saldoTotal);
   document.getElementById('refi-p-total').textContent = fmt(total);
   document.getElementById('refi-p-gb').textContent = fmt(gb);
   document.getElementById('refi-p-com').textContent = fmt(com);
@@ -3730,14 +3837,12 @@ async function confirmarRefinanciar() {
 
   if (!fechaStr) { showToast('Elegí una fecha de inicio', 'error'); return; }
 
-  const montoExtra = parseFloat(document.getElementById('refi-extra').value) || 0;
-
   const btn = document.getElementById('btn-confirmar-refi');
   btn.disabled = true;
   btn.textContent = 'Procesando...';
 
   try {
-    // 1. Calcular saldo total y preparar datos del nuevo crédito
+    // 1. Calcular saldo total
     let saldoTotal = 0;
     const cuotasPendientesAll = [];
     selIds.forEach(prestId => {
@@ -3749,31 +3854,13 @@ async function confirmarRefinanciar() {
       });
     });
 
-    const capital = saldoTotal + montoExtra;
-    const total = capital * (1 + interes / 100);
-    const gb = total - capital;
-    const com = tipo === 'tercero' ? gb * 0.2 : 0;
-    const gn = gb - com;
-    const cuotaM = total / cuotasN;
-    const fechaInicio = new Date(fechaStr + 'T12:00:00');
-    const nuevoPrestId = nextId('PREST-', DB.prestamos);
-    const primerVenc = calcularFechaCuota(fechaInicio, 1, freqDias);
-    const primerVencStr = fmtFechaES(primerVenc);
-
-    const cl = DB.clientes.find(x => x.id === refiClienteId) || {};
-    const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : refiClienteId;
-
-    // 2. Actualizar eventos Calendar de cuotas pendientes con texto de refinanciación
-    btn.textContent = 'Actualizando eventos Calendar...';
-    let calActualizados = 0;
+    // 2. Eliminar eventos Calendar de cuotas pendientes
+    btn.textContent = 'Eliminando eventos Calendar...';
+    let calBorrados = 0;
     for (const cu of cuotasPendientesAll) {
       if (cu.eventId && CFG.calId) {
-        await actualizarEventoCalendar(cu.eventId, {
-          summary: '🔄 Refinanciada → ' + nuevoPrestId + ' | ' + fmt(Math.round(cuotaM)) + '/cuota | vto. ' + primerVencStr,
-          description: 'Esta cuota fue refinanciada.\nNuevo crédito: ' + nuevoPrestId + '\nCuota: ' + fmt(cuotaM) + '\nPrimer vencimiento: ' + primerVencStr + '\nTotal del crédito: ' + fmt(total),
-          colorId: '8'
-        });
-        calActualizados++;
+        await borrarEventoCalendar(cu.eventId);
+        calBorrados++;
       }
     }
 
@@ -3781,6 +3868,11 @@ async function confirmarRefinanciar() {
     btn.textContent = 'Actualizando cuotas y préstamos...';
     const cuotasData = await sheetsGet('Cuotas!A1:J');
     const prestData = await sheetsGet('Préstamos!A1:P');
+    const cl = DB.clientes.find(x => x.id === refiClienteId) || {};
+    const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : refiClienteId;
+
+    // Generate new prest ID before updating old ones (so we can reference it)
+    const nuevoPrestId = nextId('PREST-', DB.prestamos);
 
     const refiUpdates = [];
     for (const cu of cuotasPendientesAll) {
@@ -3805,9 +3897,15 @@ async function confirmarRefinanciar() {
 
     // 6. Crear nuevo préstamo
     btn.textContent = 'Creando nuevo préstamo...';
-    const notaNuevo = 'Refinanciación de: ' + selIds.join(', ') + (montoExtra > 0 ? ' + extra ' + fmt(montoExtra) : '');
+    const fechaInicio = new Date(fechaStr + 'T12:00:00');
+    const total = saldoTotal * (1 + interes / 100);
+    const gb = total - saldoTotal;
+    const com = tipo === 'tercero' ? gb * 0.2 : 0;
+    const gn = gb - com;
+    const cuotaM = total / cuotasN;
+    const notaNuevo = 'Refinanciación de: ' + selIds.join(', ');
 
-    await sheetsAppend('Préstamos!A:P', [[nuevoPrestId, refiClienteId, clienteNombre, fmtFechaES(fechaInicio), capital, interes+'%', total.toFixed(2), cuotasN, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notaNuevo]]);
+    await sheetsAppend('Préstamos!A:P', [[nuevoPrestId, refiClienteId, clienteNombre, fmtFechaES(fechaInicio), saldoTotal, interes+'%', total.toFixed(2), cuotasN, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notaNuevo]]);
 
     // 7. Crear cuotas + Calendar del nuevo préstamo
     const cuotasRows = [];
@@ -3845,7 +3943,7 @@ async function confirmarRefinanciar() {
     invalidateCache();
     closeRefiModal();
     const calMsg = calRows.length === cuotasN ? ' · Calendar sincronizado ✓' : calRows.length > 0 ? ' · Calendar: ' + calRows.length + '/' + cuotasN : '';
-    showToast('✓ Refinanciación exitosa → ' + nuevoPrestId + ' · ' + selIds.length + ' créditos consolidados' + (calActualizados > 0 ? ' · ' + calActualizados + ' eventos actualizados en Calendar' : '') + calMsg);
+    showToast('✓ Refinanciación exitosa → ' + nuevoPrestId + ' · ' + selIds.length + ' créditos consolidados' + (calBorrados > 0 ? ' · ' + calBorrados + ' eventos eliminados' : '') + calMsg);
     await loadAll(true);
     nav('detalle-prestamo', nuevoPrestId);
 
@@ -4740,4 +4838,3 @@ init();
 </script>
 </body>
 </html>
-
