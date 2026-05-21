@@ -332,7 +332,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
 .calc-val { font-family: var(--mono); font-size: 13px; }
 
 /* Freq selector */
-.freq-group { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
+.freq-group { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; }
 .freq-btn {
   padding: 10px 6px;
   border-radius: 8px;
@@ -997,8 +997,13 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
                   <input class="form-input" type="number" id="np-interes" value="40" oninput="recalcNP()">
                 </div>
                 <div class="form-field">
-                  <label class="form-label">Fecha de inicio</label>
+                  <label class="form-label">Fecha de creación del préstamo</label>
                   <input class="form-input" type="date" id="np-fecha" oninput="recalcNP()">
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Fecha de primera cuota (opcional)</label>
+                  <input class="form-input" type="date" id="np-fecha-primera" oninput="recalcNP()">
+                  <div class="form-hint">Si la dejás vacía, se calcula con la frecuencia</div>
                 </div>
                 <div class="form-field">
                   <label class="form-label">Cantidad de cuotas</label>
@@ -1011,6 +1016,11 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
                     <button class="freq-btn" onclick="setFreqNP(15,this)">Quincenal<div class="freq-sub">cada 15 días</div></button>
                     <button class="freq-btn active" onclick="setFreqNP(30,this)">Mensual<div class="freq-sub">cada 30 días</div></button>
                     <button class="freq-btn" onclick="setFreqNP(60,this)">Bimestral<div class="freq-sub">cada 60 días</div></button>
+                    <button class="freq-btn" onclick="setFreqNPCustom(this)">Personalizada<div class="freq-sub" id="np-freq-custom-sub">cada N días</div></button>
+                  </div>
+                  <div class="form-field" id="np-freq-custom-field" style="display:none;margin-top:10px;max-width:200px">
+                    <label class="form-label">Días entre cuotas</label>
+                    <input class="form-input" type="number" id="np-freq-custom" min="1" max="365" value="8" oninput="onFreqCustomInput()">
                   </div>
                 </div>
                 <div class="form-field">
@@ -2331,6 +2341,8 @@ async function renderVencimientos() {
 function initNuevoPrestamo() {
   const hoy = new Date().toISOString().split('T')[0];
   document.getElementById('np-fecha').value = hoy;
+  document.getElementById('np-fecha-primera').value = '';
+  document.getElementById('np-freq-custom-field').style.display = 'none';
   npClienteSeleccionado = null;
   limpiarClienteNP();
   setModoCliente('existente');
@@ -2413,6 +2425,22 @@ function setFreqNP(dias, btn) {
   npFreqLabel = labels[dias];
   document.querySelectorAll('.freq-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  document.getElementById('np-freq-custom-field').style.display = 'none';
+  recalcNP();
+}
+
+function setFreqNPCustom(btn) {
+  document.querySelectorAll('.freq-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('np-freq-custom-field').style.display = 'flex';
+  onFreqCustomInput();
+}
+
+function onFreqCustomInput() {
+  const n = Math.max(1, parseInt(document.getElementById('np-freq-custom').value) || 1);
+  npFreqDias = n;
+  npFreqLabel = 'cada ' + n + ' días';
+  document.getElementById('np-freq-custom-sub').textContent = 'cada ' + n + ' días';
   recalcNP();
 }
 
@@ -2444,12 +2472,18 @@ function calcularFechaCuota(base, numeroCuota, freqDias) {
   return d;
 }
 
+function fechaCuotaIndex(fechaCreacion, fechaPrimera, i, freqDias) {
+  if (fechaPrimera) return calcularFechaCuota(fechaPrimera, i - 1, freqDias);
+  return calcularFechaCuota(fechaCreacion, i, freqDias);
+}
+
 function recalcNP() {
   const cap = parseFloat(document.getElementById('np-capital')?.value) || 0;
   const int = parseFloat(document.getElementById('np-interes')?.value) || 0;
   const cuotas = Math.max(1, parseInt(document.getElementById('np-cuotas')?.value) || 1);
   const tipo = document.getElementById('np-tipo')?.value || 'propio';
   const fechaStr = document.getElementById('np-fecha')?.value;
+  const fechaPrimStr = document.getElementById('np-fecha-primera')?.value;
   const total = cap * (1 + int / 100);
   const gb = total - cap;
   const com = tipo === 'tercero' ? gb * 0.2 : 0;
@@ -2462,15 +2496,17 @@ function recalcNP() {
   document.getElementById('np-r-cuota').textContent = fmt(cuotaM);
   document.getElementById('np-r-freq').textContent = npFreqLabel;
   document.getElementById('np-r-com-row').style.display = tipo === 'tercero' ? 'flex' : 'none';
-  const labelPlural = npFreqLabel === 'mensual' ? 'mensuales' : npFreqLabel === 'bimestral' ? 'bimestrales' : npFreqLabel === 'quincenal' ? 'quincenales' : 'semanales';
+  const pluralMap = { 'mensual':'mensuales', 'bimestral':'bimestrales', 'quincenal':'quincenales', 'semanal':'semanales' };
+  const labelPlural = pluralMap[npFreqLabel] || npFreqLabel;
   document.getElementById('np-preview-badge').textContent = cuotas + ' cuotas · ' + labelPlural;
   const list = document.getElementById('np-preview-list');
   list.innerHTML = '';
   if (!fechaStr) return;
   const base = new Date(fechaStr + 'T12:00:00');
+  const primera = fechaPrimStr ? new Date(fechaPrimStr + 'T12:00:00') : null;
   const ds = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   for (let i = 1; i <= cuotas; i++) {
-    const d = calcularFechaCuota(base, i, npFreqDias);
+    const d = fechaCuotaIndex(base, primera, i, npFreqDias);
     const item = document.createElement('div');
     item.className = 'preview-item';
     item.innerHTML = `<span class="preview-num">${String(i).padStart(2,'0')}</span><span class="preview-fecha">${ds[d.getDay()]} ${fmtFecha(d)}</span><span class="preview-dias">${npFreqLabel}</span><span class="preview-monto">${fmt(cuotaM)}</span>`;
@@ -2484,6 +2520,7 @@ async function crearPrestamo() {
   const cuotas = Math.max(1, parseInt(document.getElementById('np-cuotas').value)||1);
   const tipo = document.getElementById('np-tipo').value;
   const fechaStr = document.getElementById('np-fecha').value;
+  const fechaPrimStr = document.getElementById('np-fecha-primera')?.value || '';
   const tercero = document.getElementById('np-tercero')?.value||'';
   const notas = document.getElementById('np-notas')?.value||'';
   let clienteId, clienteNombre;
@@ -2504,13 +2541,15 @@ async function crearPrestamo() {
     clienteId = npClienteSeleccionado.id;
     clienteNombre = npClienteSeleccionado.apellido + ', ' + npClienteSeleccionado.nombre;
   }
-  if (!fechaStr) { showToast('Elegí una fecha de inicio', 'error'); return; }
+  if (!fechaStr) { showToast('Elegí la fecha de creación del préstamo', 'error'); return; }
   const total = cap*(1+int/100);
   const gb = total-cap;
   const com = tipo==='tercero' ? gb*0.2 : 0;
   const gn = gb-com;
   const cuotaM = total/cuotas;
   const fechaInicio = new Date(fechaStr+'T12:00:00');
+  const fechaPrimera = fechaPrimStr ? new Date(fechaPrimStr+'T12:00:00') : null;
+  if (fechaPrimera && fechaPrimera < fechaInicio) { showToast('La primera cuota no puede ser anterior a la fecha de creación', 'error'); return; }
   const prestId = nextId('PREST-', DB.prestamos);
   const btn = document.getElementById('btn-crear-prestamo');
   btn.disabled = true; btn.textContent = 'Guardando...';
@@ -2520,7 +2559,7 @@ async function crearPrestamo() {
     const calRows = [];
     btn.textContent = 'Creando cuotas...';
     for (let i=1;i<=cuotas;i++) {
-      const d = calcularFechaCuota(fechaInicio, i, npFreqDias);
+      const d = fechaCuotaIndex(fechaInicio, fechaPrimera, i, npFreqDias);
       const cuotaId = prestId + '-C' + String(i).padStart(2,'0');
       const fechaVencES = fmtFechaES(d);
       const fechaISO = d.toISOString().split('T')[0];
