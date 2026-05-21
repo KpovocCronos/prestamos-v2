@@ -1184,7 +1184,8 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
             <div class="stats-grid" style="margin-bottom:20px;grid-template-columns:1fr 1fr">
               <div class="stat-card">
                 <div class="stat-label">Cobro completo (si todo sale bien)</div>
-                <div class="stat-value text-accent" id="est-cobro-fin">—</div>
+                <div class="stat-value text-green" id="est-cobro-monto">—</div>
+                <div style="font-family:var(--mono);font-size:15px;color:var(--accent2);margin-top:-2px;margin-bottom:6px" id="est-cobro-fin">—</div>
                 <div class="stat-meta" id="est-cobro-fin-meta">fecha del último vencimiento</div>
               </div>
               <div class="stat-card">
@@ -3159,23 +3160,32 @@ async function renderEstadisticas() {
         sumaPesos += peso;
       }
     }
+    const cobroMontoEl = document.getElementById('est-cobro-monto');
     const cobroEl = document.getElementById('est-cobro-fin');
     const cobroMetaEl = document.getElementById('est-cobro-fin-meta');
+    const totalARecuperar = prestPeriodo.reduce((a,p) => a + (p.total || 0), 0);
+    // Si tiene préstamos del período: cuánto ya está cobrado vs cuánto falta
+    const prestIdsPeriodo = new Set(prestPeriodo.map(p => p.id));
+    const cobradoDelPeriodo = DB.pagos.filter(pg => prestIdsPeriodo.has(pg.prestId)).reduce((a,pg) => a + pg.monto, 0);
+    const faltaCobrar = Math.max(0, totalARecuperar - cobradoDelPeriodo);
     if (!fechaCierreMax) {
+      cobroMontoEl.textContent = '—';
       cobroEl.textContent = '—';
       cobroMetaEl.textContent = 'sin préstamos en el período';
     } else {
-      cobroEl.textContent = fmtFecha(fechaCierreMax);
+      cobroMontoEl.textContent = fmt(totalARecuperar);
+      cobroEl.textContent = '📅 ' + fmtFecha(fechaCierreMax);
       const diffDias = Math.round((fechaCierreMax - hoyMidnight) / 86400000);
+      const restoStr = faltaCobrar > 0 ? ` · falta cobrar ${fmt(faltaCobrar)}` : ' · ✓ todo cobrado';
       if (prestamosCompletos === prestPeriodo.length) {
         cobroMetaEl.textContent = '✓ Ya está todo cobrado';
       } else if (diffDias > 0) {
         const meses = (diffDias / 30).toFixed(1);
-        cobroMetaEl.textContent = `Faltan ${diffDias} días (~${meses} meses) — ${prestamosCompletos}/${prestPeriodo.length} préstamos ya cobrados`;
+        cobroMetaEl.textContent = `Faltan ${diffDias} días (~${meses} meses)${restoStr}`;
       } else if (diffDias === 0) {
-        cobroMetaEl.textContent = 'Hoy vence la última cuota';
+        cobroMetaEl.textContent = `Hoy vence la última cuota${restoStr}`;
       } else {
-        cobroMetaEl.textContent = `Vencido hace ${Math.abs(diffDias)} días — ${prestamosCompletos}/${prestPeriodo.length} préstamos cobrados`;
+        cobroMetaEl.textContent = `Vencido hace ${Math.abs(diffDias)} días${restoStr}`;
       }
     }
     const plazoEl = document.getElementById('est-plazo-prom');
