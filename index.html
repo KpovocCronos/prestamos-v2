@@ -1181,6 +1181,18 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
                 <div class="stat-meta">cuotas vencidas / total</div>
               </div>
             </div>
+            <div class="stats-grid" style="margin-bottom:20px;grid-template-columns:1fr 1fr">
+              <div class="stat-card">
+                <div class="stat-label">Cobro completo (si todo sale bien)</div>
+                <div class="stat-value text-accent" id="est-cobro-fin">—</div>
+                <div class="stat-meta" id="est-cobro-fin-meta">fecha del último vencimiento</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Plazo promedio</div>
+                <div class="stat-value" id="est-plazo-prom">—</div>
+                <div class="stat-meta" id="est-plazo-prom-meta">desde la creación hasta la última cuota</div>
+              </div>
+            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
               <div class="card">
                 <div class="card-header"><span class="card-title">Propio vs Tercero</span></div>
@@ -3120,6 +3132,63 @@ async function renderEstadisticas() {
     document.getElementById('est-tasa-mora').textContent = tasaMora + '%';
     document.getElementById('est-cli-nuevos').textContent = clientesNuevos.length;
     document.getElementById('est-cli-nuevos-meta').textContent = clientesNuevos.length ? clientesNuevos.map(c => c.apellido).join(', ') : 'en el período';
+
+    // Cobro completo + plazo promedio (sobre los préstamos del período)
+    let fechaCierreMax = null;
+    let sumaPlazoPond = 0;
+    let sumaPesos = 0;
+    let prestamosCompletos = 0;
+    for (const p of prestPeriodo) {
+      const cuotasP = DB.cuotas.filter(c => c.prestId === p.id);
+      if (!cuotasP.length) continue;
+      let ultimaFecha = null;
+      let todasPagas = true;
+      for (const c of cuotasP) {
+        const d = parseFecha(c.vencimiento);
+        if (d && (!ultimaFecha || d > ultimaFecha)) ultimaFecha = d;
+        if (c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con')) todasPagas = false;
+      }
+      if (!ultimaFecha) continue;
+      if (todasPagas) prestamosCompletos++;
+      if (!fechaCierreMax || ultimaFecha > fechaCierreMax) fechaCierreMax = ultimaFecha;
+      const fInicio = parseFecha(p.fechaInicio);
+      if (fInicio) {
+        const dias = Math.max(0, Math.round((ultimaFecha - fInicio) / 86400000));
+        const peso = p.total || p.capital || 1;
+        sumaPlazoPond += dias * peso;
+        sumaPesos += peso;
+      }
+    }
+    const cobroEl = document.getElementById('est-cobro-fin');
+    const cobroMetaEl = document.getElementById('est-cobro-fin-meta');
+    if (!fechaCierreMax) {
+      cobroEl.textContent = '—';
+      cobroMetaEl.textContent = 'sin préstamos en el período';
+    } else {
+      cobroEl.textContent = fmtFecha(fechaCierreMax);
+      const diffDias = Math.round((fechaCierreMax - hoyMidnight) / 86400000);
+      if (prestamosCompletos === prestPeriodo.length) {
+        cobroMetaEl.textContent = '✓ Ya está todo cobrado';
+      } else if (diffDias > 0) {
+        const meses = (diffDias / 30).toFixed(1);
+        cobroMetaEl.textContent = `Faltan ${diffDias} días (~${meses} meses) — ${prestamosCompletos}/${prestPeriodo.length} préstamos ya cobrados`;
+      } else if (diffDias === 0) {
+        cobroMetaEl.textContent = 'Hoy vence la última cuota';
+      } else {
+        cobroMetaEl.textContent = `Vencido hace ${Math.abs(diffDias)} días — ${prestamosCompletos}/${prestPeriodo.length} préstamos cobrados`;
+      }
+    }
+    const plazoEl = document.getElementById('est-plazo-prom');
+    const plazoMetaEl = document.getElementById('est-plazo-prom-meta');
+    if (sumaPesos === 0) {
+      plazoEl.textContent = '—';
+      plazoMetaEl.textContent = 'sin datos';
+    } else {
+      const plazoDias = Math.round(sumaPlazoPond / sumaPesos);
+      const plazoMeses = (plazoDias / 30).toFixed(1);
+      plazoEl.textContent = plazoDias + ' días';
+      plazoMetaEl.textContent = `~${plazoMeses} meses · ponderado por monto del préstamo`;
+    }
 
     // Propio vs Tercero
     const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
