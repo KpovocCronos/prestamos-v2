@@ -884,10 +884,11 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
       <div class="screen" id="screen-clientes">
         <div id="clientes-loading" class="loading"><div class="spinner"></div> Cargando clientes...</div>
         <div id="clientes-content" style="display:none">
+          <div id="clientes-warning" style="display:none;background:var(--amberbg);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:var(--amber);line-height:1.5"></div>
           <div class="table-wrap">
             <div class="card-header">
               <span class="card-title">Todos los clientes</span>
-              <input class="form-input" style="width:200px;padding:6px 12px;font-size:12px" placeholder="🔍 Buscar..." oninput="filtrarTablaClientes(this.value)">
+              <input class="form-input" id="clientes-search" style="width:200px;padding:6px 12px;font-size:12px" placeholder="🔍 Buscar..." oninput="filtrarTablaClientes(this.value)">
             </div>
             <table>
               <thead><tr>
@@ -1094,7 +1095,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
               <input class="form-input" id="cli-notas" placeholder="Opcional...">
             </div>
           </div>
-          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:13px" onclick="guardarCliente()">
+          <button class="btn btn-primary" id="btn-guardar-cliente" style="width:100%;justify-content:center;padding:13px" onclick="guardarCliente()">
             Guardar cliente →
           </button>
         </div>
@@ -1479,7 +1480,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeEditPrestModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarEditPrest()">Guardar cambios</button>
+      <button class="btn btn-primary" id="btn-guardar-edit-prest" onclick="guardarEditPrest()">Guardar cambios</button>
     </div>
   </div>
 </div>
@@ -1502,7 +1503,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeEditClienteModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarEditCliente()">Guardar cambios</button>
+      <button class="btn btn-primary" id="btn-guardar-edit-cliente" onclick="guardarEditCliente()">Guardar cambios</button>
     </div>
   </div>
 </div>
@@ -2095,13 +2096,35 @@ async function renderDashboard() {
 // ============================================================
 // CLIENTES
 // ============================================================
+let _clientesSearchQuery = '';
+
 async function renderClientes() {
   document.getElementById('clientes-loading').style.display = 'flex';
   document.getElementById('clientes-content').style.display = 'none';
   await loadAll();
-  renderTablaClientes(DB.clientes);
+  renderWarningClientes();
+  const input = document.getElementById('clientes-search');
+  if (input) input.value = _clientesSearchQuery;
+  if (_clientesSearchQuery) filtrarTablaClientes(_clientesSearchQuery);
+  else renderTablaClientes(DB.clientes);
   document.getElementById('clientes-loading').style.display = 'none';
   document.getElementById('clientes-content').style.display = 'block';
+}
+
+function renderWarningClientes() {
+  const el = document.getElementById('clientes-warning');
+  if (!el) return;
+  const counts = {};
+  for (const c of DB.clientes) counts[c.id] = (counts[c.id] || 0) + 1;
+  const dupes = Object.entries(counts).filter(([,n]) => n > 1);
+  if (!dupes.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const items = dupes.map(([id,n]) => {
+    const c = DB.clientes.find(x => x.id === id);
+    const nombre = c ? `${c.apellido}, ${c.nombre}` : '?';
+    return `<b>${id}</b> — ${escapeHtml(nombre)} (×${n})`;
+  }).join(' · ');
+  el.style.display = 'block';
+  el.innerHTML = `⚠ <b>IDs de cliente duplicados detectados.</b> Hay filas con el mismo ID en la hoja <i>Clientes</i> del spreadsheet — abrila y eliminá la fila repetida. Mientras tanto, las búsquedas y listados van a mostrar al cliente dos veces.<br><span style="opacity:.85">${items}</span>`;
 }
 
 function renderTablaClientes(lista) {
@@ -2122,6 +2145,7 @@ function renderTablaClientes(lista) {
 }
 
 function filtrarTablaClientes(q) {
+  _clientesSearchQuery = q;
   const ql = q.toLowerCase();
   renderTablaClientes(DB.clientes.filter(c =>
     (c.apellido+c.nombre+c.alias+c.dni).toLowerCase().includes(ql)
@@ -2523,7 +2547,7 @@ async function crearPrestamo() {
   const fechaPrimStr = document.getElementById('np-fecha-primera')?.value || '';
   const tercero = document.getElementById('np-tercero')?.value||'';
   const notas = document.getElementById('np-notas')?.value||'';
-  let clienteId, clienteNombre;
+  let clienteId, clienteNombre, nuevoClienteRow = null;
   if (npModoCliente === 'nuevo') {
     const apellido = document.getElementById('nc-apellido').value.trim();
     const nombre = document.getElementById('nc-nombre').value.trim();
@@ -2535,7 +2559,7 @@ async function crearPrestamo() {
     const hoy = fmtFechaES(new Date());
     clienteId = nextId('CLI-', DB.clientes);
     clienteNombre = apellido + ', ' + nombre;
-    await sheetsAppend('Clientes!A:L', [[clienteId, apellido, nombre, alias, dni, tel, tel2, '', '', hoy, 'Sí', '']]);
+    nuevoClienteRow = [clienteId, apellido, nombre, alias, dni, tel, tel2, '', '', hoy, 'Sí', ''];
   } else {
     if (!npClienteSeleccionado) { showToast('Seleccioná un cliente', 'error'); return; }
     clienteId = npClienteSeleccionado.id;
@@ -2552,8 +2576,10 @@ async function crearPrestamo() {
   if (fechaPrimera && fechaPrimera < fechaInicio) { showToast('La primera cuota no puede ser anterior a la fecha de creación', 'error'); return; }
   const prestId = nextId('PREST-', DB.prestamos);
   const btn = document.getElementById('btn-crear-prestamo');
+  if (btn.disabled) return;
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
+    if (nuevoClienteRow) await sheetsAppend('Clientes!A:L', [nuevoClienteRow]);
     await sheetsAppend('Préstamos!A:P', [[prestId, clienteId, clienteNombre, fmtFechaES(fechaInicio), cap, int+'%', total.toFixed(2), cuotas, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notas]]);
     const cuotasRows = [];
     const calRows = [];
@@ -2615,6 +2641,9 @@ async function guardarCliente() {
   if (!apellido || !nombre || !dni) { showToast('Completá apellido, nombre y DNI', 'error'); return; }
   const hoy = fmtFechaES(new Date());
   const id = nextId('CLI-', DB.clientes);
+  const btn = document.getElementById('btn-guardar-cliente');
+  if (btn.disabled) return;
+  btn.disabled = true; const btnLabel = btn.textContent; btn.textContent = 'Guardando...';
   try {
     await sheetsAppend('Clientes!A:L', [[id, apellido, nombre, alias, dni, tel, tel2, email, dir, hoy, 'Sí', notas]]);
     if (doc) await sheetsAppend('Documentos!A:F', [['DOC-'+String(Date.now()), id, 'Documentación', doc, hoy, '']]);
@@ -2623,7 +2652,11 @@ async function guardarCliente() {
     ['cli-apellido','cli-nombre','cli-alias','cli-dni','cli-tel','cli-tel2','cli-email','cli-dir','cli-doc','cli-notas'].forEach(f => { const el=document.getElementById(f); if(el) el.value=''; });
     await loadAll();
     nav('clientes');
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = btnLabel;
+  }
 }
 
 // ============================================================
@@ -3673,6 +3706,9 @@ async function guardarEditPrest() {
   if (!nuevoCapital || nuevoCapital <= 0) { showToast('El capital debe ser mayor a 0', 'error'); return; }
   if (nuevoInteres < 0) { showToast('El interés no puede ser negativo', 'error'); return; }
 
+  const btn = document.getElementById('btn-guardar-edit-prest');
+  if (btn.disabled) return;
+  btn.disabled = true; const btnLabel = btn.textContent; btn.textContent = 'Guardando...';
   try {
     const p = DB.prestamos.find(x => x.id === editPrestId);
     if (!p) throw new Error('Préstamo no encontrado en memoria');
@@ -3754,7 +3790,11 @@ async function guardarEditPrest() {
     showToast((capitalCambio || interesCambio) ? '✓ Préstamo actualizado y Calendar sincronizado' : '✓ Préstamo actualizado');
     await loadAll(true);
     renderDetallePrestamo(editPrestId);
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = btnLabel;
+  }
 }
 document.getElementById('editPrestModal').addEventListener('click', e => { if (e.target === document.getElementById('editPrestModal')) closeEditPrestModal(); });
 
@@ -4052,6 +4092,9 @@ async function guardarEditCliente() {
   const dir      = document.getElementById('ec-dir').value.trim();
   const notas    = document.getElementById('ec-notas').value.trim();
   if (!apellido || !nombre || !dni) { showToast('Apellido, nombre y DNI son obligatorios', 'error'); return; }
+  const btn = document.getElementById('btn-guardar-edit-cliente');
+  if (btn.disabled) return;
+  btn.disabled = true; const btnLabel = btn.textContent; btn.textContent = 'Guardando...';
   try {
     const datos = await sheetsGet('Clientes!A1:L');
     const rowIdx = datos.findIndex(r => r[0] === editClienteId);
@@ -4086,7 +4129,11 @@ async function guardarEditCliente() {
     showToast('Cliente actualizado');
     await loadAll(true);
     renderDetalleCliente(editClienteId);
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = btnLabel;
+  }
 }
 document.getElementById('editClienteModal').addEventListener('click', e => { if (e.target === document.getElementById('editClienteModal')) closeEditClienteModal(); });
 
