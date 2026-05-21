@@ -1439,8 +1439,9 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <div class="form-hint" id="ep-capital-hint" style="color:var(--amber)"></div>
       </div>
       <div class="form-field">
-        <label class="form-label">Interés actual</label>
-        <input class="form-input" id="ep-interes-display" disabled style="opacity:.5">
+        <label class="form-label">Interés (%)</label>
+        <input class="form-input" id="ep-interes" type="number" min="0" step="1" placeholder="0" oninput="actualizarPreviewCapital()">
+        <div class="form-hint" id="ep-interes-hint" style="color:var(--amber)"></div>
       </div>
       <div class="form-field">
         <label class="form-label">Tipo de crédito</label>
@@ -3555,16 +3556,19 @@ async function sheetsClear(range) {
 // ============================================================
 let editPrestId = null;
 let _epCapitalOriginal = 0;
+let _epInteresOriginal = 0;
 
 function abrirEditPrestModal(prestId) {
   const p = DB.prestamos.find(x => x.id === prestId);
   if (!p) return;
   editPrestId = prestId;
   _epCapitalOriginal = p.capital || 0;
+  _epInteresOriginal = parseFloat(String(p.interes).replace('%','').trim()) || 0;
   document.getElementById('edit-prest-sub').textContent = prestId + ' · ' + p.nombre;
   document.getElementById('ep-capital').value = p.capital || '';
-  document.getElementById('ep-interes-display').value = (p.interes || '') + (String(p.interes).includes('%') ? '' : '%');
+  document.getElementById('ep-interes').value = _epInteresOriginal;
   document.getElementById('ep-capital-hint').textContent = '';
+  document.getElementById('ep-interes-hint').textContent = '';
   document.getElementById('ep-capital-preview').style.display = 'none';
   document.getElementById('ep-tipo').value = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? 'tercero' : 'propio';
   document.getElementById('ep-tercero').value = p.terceroNombre || '';
@@ -3578,20 +3582,34 @@ function actualizarPreviewCapital() {
   const p = DB.prestamos.find(x => x.id === editPrestId);
   if (!p) return;
   const nuevoCapital = parseFloat(document.getElementById('ep-capital').value) || 0;
+  const nuevoInteres = parseFloat(document.getElementById('ep-interes').value) || 0;
   const preview = document.getElementById('ep-capital-preview');
-  const hint = document.getElementById('ep-capital-hint');
-  if (!nuevoCapital || nuevoCapital === _epCapitalOriginal) {
+  const hintCap = document.getElementById('ep-capital-hint');
+  const hintInt = document.getElementById('ep-interes-hint');
+  const capitalCambio = nuevoCapital && nuevoCapital !== _epCapitalOriginal;
+  const interesCambio = nuevoInteres !== _epInteresOriginal;
+  if (!nuevoCapital || (!capitalCambio && !interesCambio)) {
     preview.style.display = 'none';
-    hint.textContent = '';
+    hintCap.textContent = '';
+    hintInt.textContent = '';
     return;
   }
-  const diff = nuevoCapital - _epCapitalOriginal;
-  hint.textContent = (diff > 0 ? '▲ +' : '▼ ') + fmt(diff) + ' respecto al original';
-  hint.style.color = diff > 0 ? 'var(--amber)' : 'var(--red)';
-  // Calcular nuevo total
-  // Calcular tasa real desde los valores originales del préstamo (evita problemas de formato string)
-  const tasaReal = _epCapitalOriginal > 0 ? (p.total / _epCapitalOriginal) : 1;
-  const nuevoTotal = nuevoCapital * tasaReal;
+  if (capitalCambio) {
+    const diff = nuevoCapital - _epCapitalOriginal;
+    hintCap.textContent = (diff > 0 ? '▲ +' : '▼ ') + fmt(diff) + ' respecto al original';
+    hintCap.style.color = diff > 0 ? 'var(--amber)' : 'var(--red)';
+  } else {
+    hintCap.textContent = '';
+  }
+  if (interesCambio) {
+    const diffI = nuevoInteres - _epInteresOriginal;
+    hintInt.textContent = (diffI > 0 ? '▲ +' : '▼ ') + diffI.toFixed(2) + '% respecto al original (' + _epInteresOriginal + '%)';
+    hintInt.style.color = diffI > 0 ? 'var(--amber)' : 'var(--red)';
+  } else {
+    hintInt.textContent = '';
+  }
+  // Nuevo total = capital * (1 + interes/100)
+  const nuevoTotal = nuevoCapital * (1 + nuevoInteres / 100);
   // Calcular cuotas pendientes y nuevo saldo por cuota
   const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada'));
   const totalCuotas = DB.cuotas.filter(c => c.prestId === editPrestId).length;
@@ -3609,17 +3627,19 @@ function closeEditPrestModal() { document.getElementById('editPrestModal').class
 async function guardarEditPrest() {
   if (!editPrestId) return;
   const nuevoCapital = parseFloat(document.getElementById('ep-capital').value) || 0;
+  const nuevoInteres = parseFloat(document.getElementById('ep-interes').value) || 0;
   const tipo = document.getElementById('ep-tipo').value;
   const tercero = document.getElementById('ep-tercero').value.trim();
   const notas = document.getElementById('ep-notas').value.trim();
   if (!nuevoCapital || nuevoCapital <= 0) { showToast('El capital debe ser mayor a 0', 'error'); return; }
+  if (nuevoInteres < 0) { showToast('El interés no puede ser negativo', 'error'); return; }
 
   try {
     const p = DB.prestamos.find(x => x.id === editPrestId);
     if (!p) throw new Error('Préstamo no encontrado en memoria');
     const capitalCambio = nuevoCapital !== _epCapitalOriginal;
-    const tasaReal = _epCapitalOriginal > 0 ? (p.total / _epCapitalOriginal) : 1;
-    const nuevoTotal = nuevoCapital * tasaReal;
+    const interesCambio = nuevoInteres !== _epInteresOriginal;
+    const nuevoTotal = nuevoCapital * (1 + nuevoInteres / 100);
     const ganBruta = nuevoTotal - nuevoCapital;
     const comision = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? ganBruta * 0.2 : 0;
     const ganNeta = ganBruta - comision;
@@ -3632,14 +3652,14 @@ async function guardarEditPrest() {
     const tipoStr = tipo === 'tercero' ? 'De tercero' : 'propio';
     // Columnas: E=capital, F=interes, G=total, I=tipo, J=terceroId, K=terceroNombre, L=ganBruta, M=comision, N=ganNeta, P=notas
     await sheetsBatchUpdate([
-      { range: `Préstamos!E${sheetRow}:G${sheetRow}`, values: [[nuevoCapital, p.interes, nuevoTotal.toFixed(2)]] },
+      { range: `Préstamos!E${sheetRow}:G${sheetRow}`, values: [[nuevoCapital, nuevoInteres + '%', nuevoTotal.toFixed(2)]] },
       { range: `Préstamos!I${sheetRow}:K${sheetRow}`, values: [[tipoStr, '', tercero]] },
       { range: `Préstamos!L${sheetRow}:N${sheetRow}`, values: [[ganBruta.toFixed(2), comision.toFixed(2), ganNeta.toFixed(2)]] },
       { range: `Préstamos!P${sheetRow}`, values: [[notas]] },
     ]);
 
-    // 2. Si cambió el capital, actualizar cuotas pendientes
-    if (capitalCambio) {
+    // 2. Si cambió el capital o el interés, actualizar cuotas pendientes
+    if (capitalCambio || interesCambio) {
       const cuotasData = await sheetsGet('Cuotas!A:J');
       const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada')).sort((a,b) => a.nro - b.nro);
       const totalCuotasN = DB.cuotas.filter(c => c.prestId === editPrestId).length;
@@ -3677,7 +3697,7 @@ async function guardarEditPrest() {
                 headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   summary: '💰 ' + nombreCliente + ' — Cuota ' + c.nro + '/' + totalCuotasN + ' | ' + fmt(nuevoSaldo) + ' (' + editPrestId + ')',
-                  description: 'Préstamo: ' + editPrestId + '\nCliente: ' + nombreCliente + '\nMonto cuota: ' + fmt(nuevoMonto) + '\n⚠ Capital modificado: ' + fmt(_epCapitalOriginal) + ' → ' + fmt(nuevoCapital)
+                  description: 'Préstamo: ' + editPrestId + '\nCliente: ' + nombreCliente + '\nMonto cuota: ' + fmt(nuevoMonto) + (capitalCambio ? '\n⚠ Capital modificado: ' + fmt(_epCapitalOriginal) + ' → ' + fmt(nuevoCapital) : '') + (interesCambio ? '\n⚠ Interés modificado: ' + _epInteresOriginal + '% → ' + nuevoInteres + '%' : '')
                 })
               }
             );
@@ -3692,7 +3712,7 @@ async function guardarEditPrest() {
 
     invalidateCache();
     closeEditPrestModal();
-    showToast(capitalCambio ? '✓ Préstamo actualizado y Calendar sincronizado' : '✓ Préstamo actualizado');
+    showToast((capitalCambio || interesCambio) ? '✓ Préstamo actualizado y Calendar sincronizado' : '✓ Préstamo actualizado');
     await loadAll(true);
     renderDetallePrestamo(editPrestId);
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
