@@ -1183,7 +1183,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
             </div>
             <div class="stats-grid" style="margin-bottom:20px;grid-template-columns:1fr 1fr">
               <div class="stat-card">
-                <div class="stat-label">Cobro completo (si todo sale bien)</div>
+                <div class="stat-label" id="est-cobro-label">Cuándo recuperás lo prestado</div>
                 <div class="stat-value text-green" id="est-cobro-monto">—</div>
                 <div style="font-family:var(--mono);font-size:15px;color:var(--accent2);margin-top:-2px;margin-bottom:6px" id="est-cobro-fin">—</div>
                 <div class="stat-meta" id="est-cobro-fin-meta">fecha del último vencimiento</div>
@@ -3163,6 +3163,10 @@ async function renderEstadisticas() {
     const cobroMontoEl = document.getElementById('est-cobro-monto');
     const cobroEl = document.getElementById('est-cobro-fin');
     const cobroMetaEl = document.getElementById('est-cobro-fin-meta');
+    const cobroLabelEl = document.getElementById('est-cobro-label');
+    cobroLabelEl.textContent = esTodo
+      ? 'Cuándo recuperás todo lo prestado'
+      : 'Cuándo recuperás lo prestado en este período';
     const totalARecuperar = prestPeriodo.reduce((a,p) => a + (p.total || 0), 0);
     // Si tiene préstamos del período: cuánto ya está cobrado vs cuánto falta
     const prestIdsPeriodo = new Set(prestPeriodo.map(p => p.id));
