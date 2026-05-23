@@ -743,6 +743,38 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
   </div>
 </div>
 
+<!-- MODAL SALTEAR CUOTA -->
+<div class="modal-overlay" id="salteoModal">
+  <div class="modal">
+    <div class="modal-title">Saltear cuota</div>
+    <div class="modal-sub" id="salteo-sub">—</div>
+    <div style="background:var(--amberbg);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--amber);font-weight:600;margin-bottom:4px">🚫 Saltear esta cuota</div>
+      <div style="font-size:12px;color:var(--muted)">La cuota actual queda registrada como salteada (no se cobra) y se genera una nueva cuota al final del plan. Podés editar monto y fecha.</div>
+    </div>
+    <div class="calc-box" style="margin-bottom:16px">
+      <div class="calc-row"><span class="calc-label">Cuota a saltear</span><span class="calc-val" id="salteo-cuota-info">—</span></div>
+      <div class="calc-row"><span class="calc-label">Vencimiento original</span><span class="calc-val" id="salteo-venc-orig">—</span></div>
+      <div class="calc-row"><span class="calc-label">Monto original</span><span class="calc-val" id="salteo-monto-orig">—</span></div>
+      <div class="calc-row"><span class="calc-label">Nueva cuota será</span><span class="calc-val text-amber" id="salteo-nueva-nro">—</span></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-field">
+        <label class="form-label">Fecha de la nueva cuota</label>
+        <input class="form-input" type="date" id="salteo-fecha">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Monto de la nueva cuota ($)</label>
+        <input class="form-input" type="number" id="salteo-monto">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeSalteoModal()">Cancelar</button>
+      <button class="btn btn-amber" id="btn-salteo" onclick="confirmarSalteo()">Saltear cuota →</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CUOTA EXTRA -->
 <div class="modal-overlay" id="cuotaExtraModal">
   <div class="modal">
@@ -1674,6 +1706,7 @@ let DB = { clientes: [], prestamos: [], cuotas: [], pagos: [], documentos: [], c
 let npFreqDias = 30, npFreqLabel = 'mensual', npClienteSeleccionado = null, npModoCliente = 'existente';
 let pagoActual = null;
 let cuotaExtraPrestId = null;
+let salteoCuotaId = null;
 
 // ============================================================
 // AUTH
@@ -1923,7 +1956,7 @@ function calcEstadoPrestamo(prestId) {
   const saldoTotal = cuotas.reduce((a,c) => a + (parseFloat(c.saldo)||0), 0);
   if (saldoTotal <= 0.01) return 'Finalizado';
   // Check if all remaining cuotas are Refinanciada
-  const pendientes = cuotas.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'));
+  const pendientes = cuotas.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Salteada');
   if (pendientes.length > 0 && pendientes.every(c => c.estado === 'Refinanciada')) return 'Refinanciado';
   const hayVencidas = pendientes.some(c => {
     const d = parseFecha(c.vencimiento);
@@ -1939,7 +1972,7 @@ function calcEstadoCliente(clienteId) {
   const cuotas = DB.cuotas.filter(c => c.clienteId === clienteId);
   if (!cuotas.length) return 'Sin préstamos';
   // Exclude refinanciada cuotas from saldo calc
-  const cuotasActivas = cuotas.filter(c => c.estado !== 'Refinanciada');
+  const cuotasActivas = cuotas.filter(c => c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
   const saldoTotal = cuotasActivas.reduce((a,c) => a + (parseFloat(c.saldo)||0), 0);
   if (saldoTotal <= 0.01) return 'Crédito finalizado';
   const hayVencidas = cuotasActivas.some(c => {
@@ -1971,7 +2004,7 @@ async function renderDashboard() {
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const mesActual = hoy.getMonth();
   const anioActual = hoy.getFullYear();
-  const cuotasPend = DB.cuotas.filter(c => c.saldo > 0 && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada');
+  const cuotasPend = DB.cuotas.filter(c => c.saldo > 0 && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
   const prestConSaldo = new Set(cuotasPend.map(c => c.prestId));
   const capitalTotal = DB.prestamos.filter(p => prestConSaldo.has(p.id)).reduce((a,p) => a + p.capital, 0);
   const cantPrestActivos = prestConSaldo.size;
@@ -1998,7 +2031,7 @@ async function renderDashboard() {
   document.getElementById('stat-clientes-meta').textContent = tercerosActivos + ' de tercero activos';
 
   const cuotasConFecha = DB.cuotas
-    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada')
+    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada')
     .map(c => ({...c, _fecha: parseFecha(c.vencimiento)}))
     .filter(c => c._fecha)
     .sort((a,b) => a._fecha - b._fecha);
@@ -2247,7 +2280,7 @@ function renderTablaPrestamos(lista) {
   const tbody = document.getElementById('prestamos-table');
   tbody.innerHTML = lista.map(p => {
     const cuotasP = DB.cuotas.filter(c => c.prestId === p.id);
-    const pendientes = cuotasP.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada').length;
+    const pendientes = cuotasP.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').length;
     return `<tr class="clickable" onclick="nav('detalle-prestamo','${p.id}')">
       <td class="td-mono">${p.id}</td>
       ${(() => {
@@ -2272,8 +2305,15 @@ function renderDetallePrestamo(prestId) {
   const p = DB.prestamos.find(x => x.id === prestId);
   if (!p) return;
   const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
-  const cuotas = DB.cuotas.filter(c => c.prestId === prestId).sort((a,b) => a.nro - b.nro);
-  const totalCuotasReal = cuotas.length;
+  const cuotasAll = DB.cuotas.filter(c => c.prestId === prestId).sort((a,b) => a.nro - b.nro);
+  const salteadas = cuotasAll.filter(c => c.estado === 'Salteada');
+  const activas = cuotasAll.filter(c => c.estado !== 'Salteada' && c.estado !== 'Refinanciada');
+  const refinanciadas = cuotasAll.filter(c => c.estado === 'Refinanciada');
+  const totalActivas = activas.length;
+  const salteos = parseSalteos(p.notas);
+  const salteoByOrig = {}, salteoByNuevo = {};
+  salteos.forEach(s => { salteoByOrig[s.cuotaOriginal] = s; salteoByNuevo[s.cuotaNueva] = s; });
+  const fmtSalteoFecha = iso => { const d = new Date(iso + 'T12:00:00'); return isNaN(d) ? iso : fmtFecha(d); };
 
   document.getElementById('dp-content').innerHTML = `
     <div class="flex-between" style="margin-bottom:20px">
@@ -2305,36 +2345,67 @@ function renderDetallePrestamo(prestId) {
       </div>
       <div class="detail-card">
         <div class="detail-card-label">Estado de cuotas</div>
-        <div class="detail-row"><span class="detail-key">Total cuotas</span><span class="detail-val">${totalCuotasReal}${totalCuotasReal > p.cuotas ? ' <span class="pill pill-amber" style="font-size:10px">+' + (totalCuotasReal - p.cuotas) + ' extra</span>' : ''}</span></div>
-        <div class="detail-row"><span class="detail-key">Pagadas</span><span class="detail-val text-green">${cuotas.filter(c=>c.estado.startsWith('Pagada')).length}</span></div>
-        <div class="detail-row"><span class="detail-key">Pago parcial</span><span class="detail-val text-amber">${cuotas.filter(c=>c.estado==='Pago parcial').length}</span></div>
-        <div class="detail-row"><span class="detail-key">Pendientes</span><span class="detail-val">${cuotas.filter(c=>c.estado==='Pendiente').length}</span></div>
-        <div class="detail-row"><span class="detail-key">Cobrado</span><span class="detail-val mono text-green">${fmt(cuotas.reduce((a,c)=>a+c.pagado,0))}</span></div>
-        <div class="detail-row"><span class="detail-key">Saldo total</span><span class="detail-val mono text-amber">${fmt(cuotas.reduce((a,c)=>a+c.saldo,0))}</span></div>
+        <div class="detail-row"><span class="detail-key">Total cuotas activas</span><span class="detail-val">${totalActivas}${totalActivas > p.cuotas ? ' <span class="pill pill-amber" style="font-size:10px">+' + (totalActivas - p.cuotas) + ' extra</span>' : ''}</span></div>
+        <div class="detail-row"><span class="detail-key">Pagadas</span><span class="detail-val text-green">${activas.filter(c=>c.estado.startsWith('Pagada')).length}</span></div>
+        <div class="detail-row"><span class="detail-key">Pago parcial</span><span class="detail-val text-amber">${activas.filter(c=>c.estado==='Pago parcial').length}</span></div>
+        <div class="detail-row"><span class="detail-key">Pendientes</span><span class="detail-val">${activas.filter(c=>c.estado==='Pendiente').length}</span></div>
+        ${salteadas.length ? `<div class="detail-row"><span class="detail-key">Salteadas</span><span class="detail-val" style="opacity:.75">${salteadas.length}</span></div>` : ''}
+        <div class="detail-row"><span class="detail-key">Cobrado</span><span class="detail-val mono text-green">${fmt(activas.reduce((a,c)=>a+c.pagado,0))}</span></div>
+        <div class="detail-row"><span class="detail-key">Saldo total</span><span class="detail-val mono text-amber">${fmt(activas.reduce((a,c)=>a+c.saldo,0))}</span></div>
       </div>
     </div>
     <div class="table-wrap">
       <div class="card-header"><span class="card-title">Cuotas</span></div>
       <div id="cuotas-list-dp">
-        ${cuotas.map(c => {
-          const pct = c.monto > 0 ? Math.min(100, (c.pagado/c.monto)*100) : 0;
-          const pagada = c.estado.startsWith('Pagada');
-          const refi = c.estado === 'Refinanciada';
-          const vencida = !pagada && !refi && parseFecha(c.vencimiento) < new Date();
-          const esExtra = c.nro > p.cuotas;
-          return `<div class="cuota-item" onclick="abrirPagoModal('${c.id}')" style="${refi?'opacity:0.5;cursor:default':''}">
-            <div class="cuota-num" style="${refi?'border-color:rgba(124,111,255,.3);color:var(--accent)':vencida?'border-color:rgba(248,113,113,.3);color:var(--red)':pagada?'border-color:rgba(52,211,153,.3);color:var(--green)':esExtra?'border-color:rgba(251,191,36,.3);color:var(--amber)':''}">${String(c.nro).padStart(2,'0')}${esExtra?'<span style="position:absolute;top:-4px;right:-4px;font-size:8px;background:var(--amber);color:#000;border-radius:50%;width:12px;height:12px;display:flex;align-items:center;justify-content:center;font-weight:700">+</span>':''}</div>
+        ${salteadas.map(c => {
+          const s = salteoByOrig[c.nro];
+          const fechaSalteoTxt = s ? fmtSalteoFecha(s.fecha) : '—';
+          const cuotaNuevaTxt = s ? ('cuota ' + s.cuotaNueva) : 'una cuota nueva al final';
+          return `<div class="cuota-item" style="opacity:.6;cursor:default;background:rgba(255,255,255,0.02)">
+            <div class="cuota-num" style="border-color:rgba(160,160,160,.25);color:var(--muted);text-decoration:line-through">${String(c.nro).padStart(2,'0')}</div>
             <div style="flex:1">
-              <div class="cuota-fecha">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} ${vencida?'<span style="color:var(--red);font-size:11px">● Vencida</span>':''}${refi?' <span style="color:var(--accent);font-size:11px">🔄 Refinanciada</span>':''}${esExtra?' <span class="pill pill-amber" style="font-size:9px;padding:1px 6px">Extra</span>':''}</div>
-              <div class="cuota-sub">${c.estado} · Pagado: ${fmt(c.pagado)}</div>
-              <div class="cuota-prog"><div class="cuota-prog-fill" style="width:${pct}%;background:${pagada?'var(--green)':refi?'var(--accent)':pct>0?'var(--amber)':'var(--border2)'}"></div></div>
+              <div class="cuota-fecha" style="text-decoration:line-through;color:var(--muted)">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} <span style="color:var(--amber);font-size:11px;text-decoration:none;display:inline-block;margin-left:6px">🚫 SALTEADA el ${fechaSalteoTxt}</span></div>
+              <div class="cuota-sub" style="color:var(--muted)">Original: ${fmt(c.monto)} con vto ${c.vencimiento} → reemplazada por ${cuotaNuevaTxt}</div>
             </div>
             <div>
-              <div class="cuota-monto" style="color:${pagada?'var(--green)':refi?'var(--muted)':vencida?'var(--red)':'var(--accent2)'}">${refi?'—':fmt(c.saldo)}</div>
+              <div class="cuota-monto" style="color:var(--muted);text-decoration:line-through">${fmt(c.monto)}</div>
               <div class="cuota-saldo">${estadoPill(c.estado)}</div>
             </div>
           </div>`;
         }).join('')}
+        ${activas.map((c, idx) => {
+          const pct = c.monto > 0 ? Math.min(100, (c.pagado/c.monto)*100) : 0;
+          const pagada = c.estado.startsWith('Pagada');
+          const vencida = !pagada && parseFecha(c.vencimiento) < new Date();
+          const esExtra = c.nro > p.cuotas;
+          const sOrigen = salteoByNuevo[c.nro];
+          const posDisplay = idx + 1;
+          const sePuedeSaltear = !pagada;
+          return `<div class="cuota-item" onclick="abrirPagoModal('${c.id}')">
+            <div class="cuota-num" style="${vencida?'border-color:rgba(248,113,113,.3);color:var(--red)':pagada?'border-color:rgba(52,211,153,.3);color:var(--green)':esExtra?'border-color:rgba(251,191,36,.3);color:var(--amber)':''}">${String(posDisplay).padStart(2,'0')}${esExtra?'<span style="position:absolute;top:-4px;right:-4px;font-size:8px;background:var(--amber);color:#000;border-radius:50%;width:12px;height:12px;display:flex;align-items:center;justify-content:center;font-weight:700">+</span>':''}</div>
+            <div style="flex:1">
+              <div class="cuota-fecha">Cuota ${posDisplay} de ${totalActivas} · ${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} ${vencida?'<span style="color:var(--red);font-size:11px">● Vencida</span>':''}${esExtra?' <span class="pill pill-amber" style="font-size:9px;padding:1px 6px">Extra</span>':''}</div>
+              <div class="cuota-sub">${c.estado} · Pagado: ${fmt(c.pagado)}${sOrigen?' <span style="color:var(--amber);font-size:11px;margin-left:6px">↩ generada por salteo de cuota ' + sOrigen.cuotaOriginal + ' (' + fmtSalteoFecha(sOrigen.fecha) + ')</span>':''}</div>
+              <div class="cuota-prog"><div class="cuota-prog-fill" style="width:${pct}%;background:${pagada?'var(--green)':pct>0?'var(--amber)':'var(--border2)'}"></div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+              <div class="cuota-monto" style="color:${pagada?'var(--green)':vencida?'var(--red)':'var(--accent2)'}">${fmt(c.saldo)}</div>
+              <div class="cuota-saldo">${estadoPill(c.estado)}</div>
+              ${sePuedeSaltear ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px;margin-top:2px" onclick="event.stopPropagation();abrirSalteoModal('${c.id}')" title="Saltear esta cuota">🚫 Saltear</button>` : ''}
+            </div>
+          </div>`;
+        }).join('')}
+        ${refinanciadas.map(c => `<div class="cuota-item" style="opacity:0.5;cursor:default">
+          <div class="cuota-num" style="border-color:rgba(124,111,255,.3);color:var(--accent)">${String(c.nro).padStart(2,'0')}</div>
+          <div style="flex:1">
+            <div class="cuota-fecha">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} <span style="color:var(--accent);font-size:11px">🔄 Refinanciada</span></div>
+            <div class="cuota-sub">${c.estado} · Pagado: ${fmt(c.pagado)}</div>
+          </div>
+          <div>
+            <div class="cuota-monto" style="color:var(--muted)">—</div>
+            <div class="cuota-saldo">${estadoPill(c.estado)}</div>
+          </div>
+        </div>`).join('')}
       </div>
     </div>`;
 }
@@ -2348,7 +2419,7 @@ async function renderVencimientos() {
   await loadAll();
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const pendientes = DB.cuotas
-    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada')
+    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada')
     .map(c => ({ ...c, _fecha: parseFecha(c.vencimiento) }))
     .sort((a,b) => (a._fecha || 0) - (b._fecha || 0));
   const tbody = document.getElementById('venc-table');
@@ -2365,7 +2436,7 @@ async function renderVencimientos() {
       <td class="td-mono text-green">${fmt(c.pagado)}</td>
       <td class="td-mono text-amber">${fmt(c.saldo)}</td>
       <td>${estadoPill(c.estado)}</td>
-      <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal('${c.id}')">Pagar</button></td>
+      <td style="white-space:nowrap"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal('${c.id}')">Pagar</button> <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="event.stopPropagation();abrirSalteoModal('${c.id}')" title="Saltear esta cuota">🚫</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">No hay cuotas pendientes 🎉</td></tr>';
   document.getElementById('venc-loading').style.display = 'none';
@@ -2679,6 +2750,7 @@ function abrirPagoModal(cuotaId) {
   const cuota = DB.cuotas.find(c => c.id === cuotaId);
   if (!cuota) return;
   if (cuota.estado === 'Refinanciada') { showToast('Esta cuota fue refinanciada y ya no se puede pagar', 'error'); return; }
+  if (cuota.estado === 'Salteada') { showToast('Esta cuota fue salteada y ya no se puede pagar', 'error'); return; }
   pagoActual = cuota;
   const hoy = new Date().toISOString().split('T')[0];
   document.getElementById('pago-fecha').value = hoy;
@@ -2868,6 +2940,180 @@ document.getElementById('cuotaExtraModal').addEventListener('click', e => {
 });
 
 // ============================================================
+// SALTEAR CUOTA
+// ============================================================
+function parseSalteos(notasStr) {
+  if (!notasStr) return [];
+  const salteos = [];
+  const re = /Salteo:(\d{4}-\d{2}-\d{2}):(\d+)->(\d+)/g;
+  let m;
+  while ((m = re.exec(notasStr)) !== null) {
+    salteos.push({ fecha: m[1], cuotaOriginal: parseInt(m[2]), cuotaNueva: parseInt(m[3]) });
+  }
+  return salteos;
+}
+
+function appendSalteoNotas(notasStr, salteo) {
+  const entry = 'Salteo:' + salteo.fecha + ':' + salteo.cuotaOriginal + '->' + salteo.cuotaNueva;
+  if (!notasStr) return entry;
+  return notasStr + ' | ' + entry;
+}
+
+function abrirSalteoModal(cuotaId) {
+  const cuota = DB.cuotas.find(c => c.id === cuotaId);
+  if (!cuota) return;
+  if (cuota.estado.startsWith('Pagada') || cuota.estado === 'Refinanciada' || cuota.estado === 'Salteada') {
+    showToast('Esta cuota no se puede saltear (' + cuota.estado + ')', 'error');
+    return;
+  }
+  if (cuota.pagado > 0) {
+    showToast('Esta cuota tiene un pago parcial (' + fmt(cuota.pagado) + '). Ajustá el pago antes de saltear.', 'error');
+    return;
+  }
+  const p = DB.prestamos.find(x => x.id === cuota.prestId);
+  if (!p) return;
+  salteoCuotaId = cuotaId;
+  const cuotasPrest = DB.cuotas.filter(c => c.prestId === cuota.prestId).sort((a,b) => a.nro - b.nro);
+  const ultimaCuota = cuotasPrest[cuotasPrest.length - 1];
+  const maxNro = cuotasPrest.reduce((m, c) => c.nro > m ? c.nro : m, 0);
+  const nuevoNro = maxNro + 1;
+
+  document.getElementById('salteo-sub').textContent = cuota.prestId + ' · Cuota ' + cuota.nro;
+  document.getElementById('salteo-cuota-info').textContent = '#' + cuota.nro;
+  document.getElementById('salteo-venc-orig').textContent = cuota.vencimiento;
+  document.getElementById('salteo-monto-orig').textContent = fmt(cuota.monto);
+  document.getElementById('salteo-nueva-nro').textContent = '#' + nuevoNro;
+
+  // Fecha default: 30 días después de la última cuota
+  const ultimaFecha = ultimaCuota ? parseFecha(ultimaCuota.vencimiento) : new Date();
+  const fechaDefault = new Date(ultimaFecha);
+  fechaDefault.setDate(fechaDefault.getDate() + 30);
+  document.getElementById('salteo-fecha').value = fechaDefault.toISOString().split('T')[0];
+  document.getElementById('salteo-monto').value = Math.round(cuota.monto);
+
+  document.getElementById('salteoModal').classList.add('open');
+}
+
+function closeSalteoModal() {
+  document.getElementById('salteoModal').classList.remove('open');
+  salteoCuotaId = null;
+}
+
+async function confirmarSalteo() {
+  if (!salteoCuotaId) return;
+  const fechaStr = document.getElementById('salteo-fecha').value;
+  const monto = parseFloat(document.getElementById('salteo-monto').value) || 0;
+
+  if (!fechaStr) { showToast('Elegí una fecha de vencimiento', 'error'); return; }
+  if (monto <= 0) { showToast('El monto debe ser mayor a 0', 'error'); return; }
+
+  const cuota = DB.cuotas.find(c => c.id === salteoCuotaId);
+  if (!cuota) return;
+  const p = DB.prestamos.find(x => x.id === cuota.prestId);
+  if (!p) return;
+  const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
+  const cuotasPrest = DB.cuotas.filter(c => c.prestId === cuota.prestId);
+  const maxNro = cuotasPrest.reduce((m, c) => c.nro > m ? c.nro : m, 0);
+  const nuevoNro = maxNro + 1;
+  const nuevoCuotaId = cuota.prestId + '-C' + String(nuevoNro).padStart(2, '0');
+  const fecha = new Date(fechaStr + 'T12:00:00');
+  const fechaES = fmtFechaES(fecha);
+  const fechaISO = fecha.toISOString().split('T')[0];
+  const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.nombre;
+  const hoy = new Date();
+  const hoyISO = hoy.toISOString().split('T')[0];
+
+  const btn = document.getElementById('btn-salteo');
+  btn.disabled = true;
+  btn.textContent = 'Salteando...';
+
+  try {
+    // 1. Borrar evento Calendar de la cuota salteada
+    if (cuota.eventId && CFG.calId) {
+      btn.textContent = 'Borrando evento Calendar...';
+      try { await borrarEventoCalendar(cuota.eventId); } catch(e) { console.warn('Calendar delete error', e); }
+    }
+
+    // 2. Crear evento Calendar para la nueva cuota
+    let eventId = '';
+    if (CFG.calId) {
+      try {
+        btn.textContent = 'Creando evento Calendar...';
+        const eventoBody = {
+          summary: '💰 ' + clienteNombre + ' — Cuota ' + nuevoNro + ' (reemplaza salteada ' + cuota.nro + ') | ' + fmt(monto) + ' (' + cuota.prestId + ')',
+          description: 'Préstamo: ' + cuota.prestId + '\nCliente: ' + clienteNombre + '\nMonto cuota: ' + fmt(monto) + '\n🚫 Esta cuota fue generada por SALTEO de cuota ' + cuota.nro + ' (vto original ' + cuota.vencimiento + ', monto ' + fmt(cuota.monto) + ')',
+          start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
+          end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
+          colorId: '6',
+          reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
+        };
+        const calRes = await fetch(
+          'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events',
+          { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) }
+        );
+        if (handleCalendarAuthError(calRes.status)) throw Object.assign(new Error('Calendar auth ' + calRes.status), { _noRetry: true });
+        if (calRes.ok) { const calData = await calRes.json(); eventId = calData.id || ''; }
+      } catch(calErr) {
+        if (calErr._noRetry) throw calErr;
+        console.warn('Calendar error salteo nueva', calErr);
+      }
+    }
+
+    // 3. Update cuota salteada en Sheets: estado='Salteada', saldo=0, eventId=''
+    btn.textContent = 'Actualizando cuota salteada...';
+    const cuotasData = await sheetsGet('Cuotas!A1:J');
+    const rowIdxSalteada = cuotasData.findIndex(r => r[0] === cuota.id);
+    const updates = [];
+    if (rowIdxSalteada >= 0) {
+      const sheetRow = rowIdxSalteada + 1;
+      updates.push({ range: `Cuotas!H${sheetRow}:J${sheetRow}`, values: [['0', 'Salteada', '']] });
+    }
+
+    // 4. Update notas del préstamo con el log de salteo
+    const prestData = await sheetsGet('Préstamos!A1:P');
+    const rowIdxPrest = prestData.findIndex(r => r[0] === cuota.prestId);
+    if (rowIdxPrest >= 0) {
+      const sheetRow = rowIdxPrest + 1;
+      const notasActuales = prestData[rowIdxPrest][15] || '';
+      const nuevasNotas = appendSalteoNotas(notasActuales, { fecha: hoyISO, cuotaOriginal: cuota.nro, cuotaNueva: nuevoNro });
+      const nuevoTotal = p.total + monto;
+      const nuevaCantCuotas = nuevoNro;
+      const nuevaGB = nuevoTotal - p.capital;
+      const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
+      const nuevaCom = esTercero ? nuevaGB * 0.2 : 0;
+      const nuevaGN = nuevaGB - nuevaCom;
+      updates.push({ range: `Préstamos!G${sheetRow}:H${sheetRow}`, values: [[nuevoTotal.toFixed(2), nuevaCantCuotas]] });
+      updates.push({ range: `Préstamos!L${sheetRow}:P${sheetRow}`, values: [[nuevaGB.toFixed(2), nuevaCom.toFixed(2), nuevaGN.toFixed(2), p.estado || 'Activo', nuevasNotas]] });
+    }
+    await sheetsBatchUpdate(updates);
+
+    // 5. Append nueva cuota
+    btn.textContent = 'Creando cuota nueva...';
+    await sheetsAppend('Cuotas!A:J', [[nuevoCuotaId, cuota.prestId, p.clienteId, nuevoNro, fechaES, monto.toFixed(2), 0, monto.toFixed(2), 'Pendiente', eventId]]);
+
+    // 6. Append Calendario sheet
+    if (eventId) {
+      await sheetsAppend('Calendario!A:F', [[nuevoCuotaId, cuota.prestId, p.clienteId, eventId, CFG.calId || '', 'Activo']]);
+    }
+
+    invalidateCache();
+    closeSalteoModal();
+    showToast('✓ Cuota ' + cuota.nro + ' salteada · Nueva cuota ' + nuevoNro + ' al ' + fechaES);
+    await loadAll(true);
+    renderDetallePrestamo(cuota.prestId);
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Saltear cuota →';
+  }
+}
+
+document.getElementById('salteoModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('salteoModal')) closeSalteoModal();
+});
+
+// ============================================================
 // UTILITIES
 // ============================================================
 function fmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
@@ -2907,6 +3153,7 @@ function estadoPill(estado) {
   if (estado === 'Pendiente') return '<span class="pill pill-gray">Pendiente</span>';
   if (estado === 'Activo') return '<span class="pill pill-green">Activo</span>';
   if (estado === 'Refinanciada') return '<span class="pill pill-purple">Refinanciada</span>';
+  if (estado === 'Salteada') return '<span class="pill pill-gray" style="opacity:.75;text-decoration:line-through">Salteada</span>';
   return '<span class="pill pill-gray">' + estado + '</span>';
 }
 
@@ -3147,7 +3394,7 @@ async function renderEstadisticas() {
       for (const c of cuotasP) {
         const d = parseFecha(c.vencimiento);
         if (d && (!ultimaFecha || d > ultimaFecha)) ultimaFecha = d;
-        if (c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con')) todasPagas = false;
+        if (c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada') todasPagas = false;
       }
       if (!ultimaFecha) continue;
       if (todasPagas) prestamosCompletos++;
@@ -3272,7 +3519,7 @@ function renderBalanceReal(prestPeriodo, pagosPeriodo, desde, hoy, hoyMidnight) 
   // Pendiente de cobro: cuotas pendientes de préstamos del período
   const prestIdsP = new Set(prestPeriodo.map(p => p.id));
   const cuotasDePeriodo = DB.cuotas.filter(c => prestIdsP.has(c.prestId));
-  const pendienteCobro = cuotasDePeriodo.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con')).reduce((a,c) => a + c.saldo, 0);
+  const pendienteCobro = cuotasDePeriodo.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').reduce((a,c) => a + c.saldo, 0);
 
   // Ganancia neta prometida
   const gnPrometida = prestPeriodo.reduce((a,p) => a + (p.ganNeta || 0), 0);
@@ -3397,7 +3644,7 @@ function renderBalanceReal(prestPeriodo, pagosPeriodo, desde, hoy, hoyMidnight) 
 
   // CAPITAL EN LA CALLE
   // Cuánta plata está afuera por cobrar, dividida en: por vencer (ok) vs vencido (riesgo)
-  const cuotasPendientes = DB.cuotas.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'));
+  const cuotasPendientes = DB.cuotas.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
   const totalEnCalle = cuotasPendientes.reduce((a,c) => a + c.saldo, 0);
   const vencidas = cuotasPendientes.filter(c => { const d = parseFecha(c.vencimiento); return d && d < hoyMidnight; });
   const porVencer = cuotasPendientes.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= hoyMidnight; });
@@ -3653,7 +3900,7 @@ function pedirEliminarPrestamo(prestId) {
   const p = DB.prestamos.find(x => x.id === prestId);
   if (!p) return;
   const cuotas = DB.cuotas.filter(c => c.prestId === prestId);
-  const todasPagas = cuotas.every(c => c.estado.startsWith('Pagada'));
+  const todasPagas = cuotas.every(c => c.estado.startsWith('Pagada') || c.estado === 'Refinanciada' || c.estado === 'Salteada');
   const msg = todasPagas
     ? `El préstamo ${prestId} está completamente pago. Se eliminará de Sheets pero los eventos del Calendar se conservarán como historial.`
     : `El préstamo ${prestId} tiene cuotas pendientes. Se eliminará de Sheets Y se borrarán los eventos pendientes del Calendar. Esta acción no se puede deshacer.`;
@@ -3665,9 +3912,9 @@ async function eliminarPrestamo(prestId) {
   try {
     const cuotasRaw = await sheetsGet('Cuotas!A:J');
     const cuotasPrest = cuotasRaw.filter(r => r[1] === prestId).map(rowToCuota);
-    const todasPagas = cuotasPrest.length > 0 && cuotasPrest.every(c => c.estado.startsWith('Pagada'));
+    const todasPagas = cuotasPrest.length > 0 && cuotasPrest.every(c => c.estado.startsWith('Pagada') || c.estado === 'Refinanciada' || c.estado === 'Salteada');
     if (!todasPagas && CFG.calId) {
-      const pendientes = cuotasPrest.filter(c => !c.estado.startsWith('Pagada') && c.eventId);
+      const pendientes = cuotasPrest.filter(c => !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada' && c.eventId);
       for (const c of pendientes) { await borrarEventoCalendar(c.eventId); }
     }
     await eliminarFilasSheets('Cuotas!A:J', 1, prestId);
@@ -3766,7 +4013,7 @@ function actualizarPreviewCapital() {
   // Nuevo total = capital * (1 + interes/100)
   const nuevoTotal = nuevoCapital * (1 + nuevoInteres / 100);
   // Calcular cuotas pendientes y nuevo saldo por cuota
-  const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada'));
+  const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
   const totalCuotas = DB.cuotas.filter(c => c.prestId === editPrestId).length;
   const nuevaCuotaMonto = totalCuotas > 0 ? nuevoTotal / totalCuotas : 0;
   document.getElementById('ep-prev-capital').textContent = fmt(nuevoCapital);
@@ -3819,7 +4066,7 @@ async function guardarEditPrest() {
     // 2. Si cambió el capital o el interés, actualizar cuotas pendientes
     if (capitalCambio || interesCambio) {
       const cuotasData = await sheetsGet('Cuotas!A:J');
-      const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada')).sort((a,b) => a.nro - b.nro);
+      const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').sort((a,b) => a.nro - b.nro);
       const totalCuotasN = DB.cuotas.filter(c => c.prestId === editPrestId).length;
       const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
       const nombreCliente = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.clienteId;
@@ -3914,7 +4161,7 @@ function abrirRefinanciarModal(clienteId) {
   container.innerHTML = prestConSaldo.map(p => {
     const cuotas = DB.cuotas.filter(cu => cu.prestId === p.id);
     const saldo = cuotas.reduce((a, cu) => a + cu.saldo, 0);
-    const pendientes = cuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con'));
+    const pendientes = cuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada');
     const hayVencidas = pendientes.some(cu => { const d = parseFecha(cu.vencimiento); return d && d < hoy; });
     return `<label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;transition:all .15s;background:var(--card)" onmouseenter="this.style.background='var(--bg3)'" onmouseleave="this.style.background=refiSeleccionados.has('${p.id}')?'var(--accentbg)':'var(--card)'" id="refi-row-${p.id}">
       <input type="checkbox" onchange="toggleRefiPrest('${p.id}', this.parentElement)" style="accent-color:var(--accent);width:18px;height:18px;flex-shrink:0">
@@ -3964,7 +4211,7 @@ function recalcRefi() {
   selIds.forEach(prestId => {
     const cuotas = DB.cuotas.filter(cu => cu.prestId === prestId);
     cuotas.forEach(cu => {
-      if (cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada') {
+      if (cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada') {
         saldoTotal += cu.saldo;
         cuotasAbsorbidas++;
         if (cu.eventId) calEventos++;
@@ -4030,7 +4277,7 @@ async function confirmarRefinanciar() {
     const cuotasPendientesAll = [];
     selIds.forEach(prestId => {
       DB.cuotas.filter(cu => cu.prestId === prestId).forEach(cu => {
-        if (cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada') {
+        if (cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada') {
           saldoTotal += cu.saldo;
           cuotasPendientesAll.push(cu);
         }
@@ -4192,7 +4439,7 @@ async function guardarEditCliente() {
     }
     if (updates.length) await Promise.all(updates);
     if (CFG.calId) {
-      const cuotasPend = DB.cuotas.filter(c => c.clienteId === editClienteId && !c.estado.startsWith('Pagada') && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.eventId);
+      const cuotasPend = DB.cuotas.filter(c => c.clienteId === editClienteId && !c.estado.startsWith('Pagada') && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada' && c.eventId);
       // Precomputar total de cuotas por préstamo (evita N filters)
       const totalPorPrest = {};
       DB.cuotas.forEach(x => { totalPorPrest[x.prestId] = (totalPorPrest[x.prestId] || 0) + 1; });
@@ -4229,7 +4476,7 @@ function abrirReprogModal(prestId) {
   const p = DB.prestamos.find(x => x.id === prestId);
   if (!p) return;
   const cuotas = DB.cuotas.filter(c => c.prestId === prestId).sort((a,b) => a.nro - b.nro);
-  const pendientes = cuotas.filter(c => !c.estado.startsWith('Pagada'));
+  const pendientes = cuotas.filter(c => !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
   const pagadas = cuotas.filter(c => c.estado.startsWith('Pagada'));
   if (pendientes.length === 0) { showToast('Este préstamo no tiene cuotas pendientes para reprogramar', 'error'); return; }
   reprogPrestId = prestId;
@@ -4254,7 +4501,7 @@ function actualizarPreviewReprog() {
   // type="date" devuelve yyyy-mm-dd
   const base = new Date(fechaStr + 'T12:00:00');
   if (isNaN(base)) return;
-  const cuotas = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada')).sort((a,b) => a.nro - b.nro);
+  const cuotas = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').sort((a,b) => a.nro - b.nro);
   const ds = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const preview = document.getElementById('reprog-preview');
   preview.innerHTML = cuotas.map((c, i) => {
@@ -4272,7 +4519,7 @@ async function confirmarReprogramar() {
   if (!fechaStr) { showToast('Elegí una fecha', 'error'); return; }
   const base = new Date(fechaStr + 'T12:00:00');
   if (isNaN(base)) { showToast('Fecha inválida', 'error'); return; }
-  const cuotasPend = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada')).sort((a,b) => a.nro - b.nro);
+  const cuotasPend = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').sort((a,b) => a.nro - b.nro);
   if (cuotasPend.length === 0) { showToast('No hay cuotas pendientes', 'error'); return; }
   closeReprogModal();
   showToast('Reprogramando cuotas...');
@@ -4336,7 +4583,7 @@ function pedirEliminarCliente(clienteId) {
   const c = DB.clientes.find(x => x.id === clienteId);
   if (!c) return;
   const ps = DB.prestamos.filter(p => p.clienteId === clienteId);
-  const cuotasPend = DB.cuotas.filter(cu => cu.clienteId === clienteId && !cu.estado.startsWith('Pagada') && cu.estado !== 'Refinanciada');
+  const cuotasPend = DB.cuotas.filter(cu => cu.clienteId === clienteId && !cu.estado.startsWith('Pagada') && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada');
   if (cuotasPend.length > 0) {
     mostrarConfirm('Eliminar cliente con préstamos activos', c.apellido + ', ' + c.nombre + ' tiene ' + cuotasPend.length + ' cuota/s pendiente/s. Se eliminarán el cliente, todos sus préstamos, cuotas y eventos Calendar pendientes. Esta acción no se puede deshacer.', () => eliminarCliente(clienteId));
   } else if (ps.length > 0) {
@@ -4351,7 +4598,7 @@ async function eliminarCliente(clienteId) {
   try {
     if (CFG.calId) {
       const cuotasRaw = await sheetsGet('Cuotas!A:J');
-      const cuotasPend = cuotasRaw.filter(r => r[2] === clienteId && r[8] && !r[8].startsWith('Pagada') && r[9]).map(rowToCuota);
+      const cuotasPend = cuotasRaw.filter(r => r[2] === clienteId && r[8] && !r[8].startsWith('Pagada') && r[8] !== 'Refinanciada' && r[8] !== 'Salteada' && r[9]).map(rowToCuota);
       for (const c of cuotasPend) { await borrarEventoCalendar(c.eventId); }
     }
     await eliminarFilasSheets('Cuotas!A:J', 2, clienteId);
@@ -4406,7 +4653,7 @@ function abrirPlanCuotas(clienteId) {
   if (!c) return;
   const prestActivos = DB.prestamos.filter(p => p.clienteId === clienteId && calcEstadoPrestamo(p.id) !== 'Cancelado' && calcEstadoPrestamo(p.id) !== 'Refinanciado');
   const prestConPendientes = prestActivos.filter(p => {
-    const cuotas = DB.cuotas.filter(cu => cu.prestId === p.id && cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada');
+    const cuotas = DB.cuotas.filter(cu => cu.prestId === p.id && cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada');
     return cuotas.length > 0;
   });
 
@@ -4425,7 +4672,7 @@ function abrirPlanCuotas(clienteId) {
   prestConPendientes.forEach((p, idx) => {
     const colorIdx = idx % PLAN_COLORS.length;
     const allCuotas = DB.cuotas.filter(cu => cu.prestId === p.id).sort((a,b) => a.nro - b.nro);
-    const pendientes = allCuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada').sort((a,b) => a.nro - b.nro);
+    const pendientes = allCuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada').sort((a,b) => a.nro - b.nro);
     const totalCuotasReal = allCuotas.length;
     const cuotaMonto = pendientes.length > 0 ? pendientes[0].monto : 0;
     const maxNro = pendientes.length > 0 ? pendientes[pendientes.length - 1].nro : 0;
@@ -4613,7 +4860,7 @@ async function escanearCalendar() {
     await loadAll(true);
     const sinEvento = DB.cuotas.filter(c =>
       (!c.eventId || c.eventId.trim() === '') &&
-      c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con')
+      c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada'
     );
 
     if (sinEvento.length === 0) {
