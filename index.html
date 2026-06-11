@@ -1646,7 +1646,12 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     <div class="form-section-title">Condiciones del nuevo crédito</div>
     <div class="form-grid">
       <div class="form-field">
-        <label class="form-label">Interés sobre el saldo (%)</label>
+        <label class="form-label">💵 Dinero extra entregado ($)</label>
+        <input class="form-input" type="number" id="refi-extra" value="0" min="0" oninput="recalcRefi()">
+        <div class="form-hint">Efectivo adicional para el cliente; se suma al capital del nuevo crédito</div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Interés sobre el capital (%)</label>
         <input class="form-input" type="number" id="refi-interes" value="0" min="0" oninput="recalcRefi()">
         <div class="form-hint">0% = solo consolida deuda, sin interés extra</div>
       </div>
@@ -1681,7 +1686,8 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     </div>
 
     <div class="calc-box mt-12" id="refi-preview-box">
-      <div class="calc-row"><span class="calc-label">Capital (saldo refinanciado)</span><span class="calc-val" id="refi-p-capital">$0</span></div>
+      <div class="calc-row"><span class="calc-label">Capital del nuevo crédito</span><span class="calc-val" id="refi-p-capital">$0</span></div>
+      <div class="calc-row" id="refi-p-desglose-row" style="display:none"><span class="calc-label">↳ Saldo refinanciado + dinero extra</span><span class="calc-val" id="refi-p-desglose">—</span></div>
       <div class="calc-row"><span class="calc-label">Total a devolver</span><span class="calc-val" id="refi-p-total">$0</span></div>
       <div class="calc-row"><span class="calc-label">Ganancia bruta</span><span class="calc-val text-green" id="refi-p-gb">$0</span></div>
       <div class="calc-row" id="refi-p-com-row" style="display:none"><span class="calc-label">Comisión 20%</span><span class="calc-val text-amber" id="refi-p-com">$0</span></div>
@@ -4253,6 +4259,7 @@ function abrirRefinanciarModal(clienteId) {
   
   // Defaults
   document.getElementById('refi-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('refi-extra').value = '0';
   document.getElementById('refi-interes').value = '0';
   document.getElementById('refi-cuotas').value = '6';
   document.getElementById('refi-freq').value = '30';
@@ -4295,17 +4302,22 @@ function recalcRefi() {
   document.getElementById('refi-cuotas-abs').textContent = cuotasAbsorbidas;
   document.getElementById('refi-cal-count').textContent = calEventos;
 
-  // Preview nuevo crédito
+  // Preview nuevo crédito: capital = saldo refinanciado + dinero extra entregado
   const interes = parseFloat(document.getElementById('refi-interes').value) || 0;
   const cuotas = Math.max(1, parseInt(document.getElementById('refi-cuotas').value) || 1);
   const tipo = document.getElementById('refi-tipo').value;
-  const total = saldoTotal * (1 + interes / 100);
-  const gb = total - saldoTotal;
+  const extra = Math.max(0, parseFloat(document.getElementById('refi-extra').value) || 0);
+  const capital = saldoTotal + extra;
+  const total = capital * (1 + interes / 100);
+  const gb = total - capital;
   const com = tipo === 'tercero' ? gb * 0.2 : 0;
   const gn = gb - com;
   const cuotaVal = total / cuotas;
 
-  document.getElementById('refi-p-capital').textContent = fmt(saldoTotal);
+  document.getElementById('refi-p-capital').textContent = fmt(capital);
+  const desgloseRow = document.getElementById('refi-p-desglose-row');
+  desgloseRow.style.display = extra > 0 ? 'flex' : 'none';
+  document.getElementById('refi-p-desglose').textContent = fmt(saldoTotal) + ' + ' + fmt(extra);
   document.getElementById('refi-p-total').textContent = fmt(total);
   document.getElementById('refi-p-gb').textContent = fmt(gb);
   document.getElementById('refi-p-com').textContent = fmt(com);
@@ -4330,6 +4342,7 @@ async function confirmarRefinanciar() {
   if (!refiClienteId || refiSeleccionados.size === 0) return;
 
   const selIds = Array.from(refiSeleccionados);
+  const extra = Math.max(0, parseFloat(document.getElementById('refi-extra').value) || 0);
   const interes = parseFloat(document.getElementById('refi-interes').value) || 0;
   const cuotasN = Math.max(1, parseInt(document.getElementById('refi-cuotas').value) || 1);
   const freqDias = parseInt(document.getElementById('refi-freq').value) || 30;
@@ -4397,17 +4410,18 @@ async function confirmarRefinanciar() {
       try { await eliminarFilasSheets('Calendario!A:F', 1, prestId); } catch(e) { console.warn('Error limpiando Calendario para', prestId, e); }
     }
 
-    // 6. Crear nuevo préstamo
+    // 6. Crear nuevo préstamo (capital = saldo refinanciado + dinero extra entregado)
     btn.textContent = 'Creando nuevo préstamo...';
     const fechaInicio = new Date(fechaStr + 'T12:00:00');
-    const total = saldoTotal * (1 + interes / 100);
-    const gb = total - saldoTotal;
+    const capital = saldoTotal + extra;
+    const total = capital * (1 + interes / 100);
+    const gb = total - capital;
     const com = tipo === 'tercero' ? gb * 0.2 : 0;
     const gn = gb - com;
     const cuotaM = total / cuotasN;
-    const notaNuevo = 'Refinanciación de: ' + selIds.join(', ');
+    const notaNuevo = 'Refinanciación de: ' + selIds.join(', ') + (extra > 0 ? ' + ' + fmt(extra) + ' extra entregado en efectivo' : '');
 
-    await sheetsAppend('Préstamos!A:P', [[nuevoPrestId, refiClienteId, clienteNombre, fmtFechaES(fechaInicio), saldoTotal, interes+'%', total.toFixed(2), cuotasN, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notaNuevo]]);
+    await sheetsAppend('Préstamos!A:P', [[nuevoPrestId, refiClienteId, clienteNombre, fmtFechaES(fechaInicio), capital, interes+'%', total.toFixed(2), cuotasN, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notaNuevo]]);
 
     // 7. Crear cuotas + Calendar del nuevo préstamo
     const cuotasRows = [];
@@ -4422,7 +4436,7 @@ async function confirmarRefinanciar() {
         btn.textContent = 'Creando cuota ' + i + '/' + cuotasN + ' en Calendar...';
         const eventoBody = {
           summary: '💰 ' + clienteNombre + ' — Cuota ' + i + '/' + cuotasN + ' | ' + fmt(Math.round(cuotaM)) + ' (' + nuevoPrestId + ' REFI)',
-          description: 'Préstamo: ' + nuevoPrestId + ' (REFINANCIACIÓN)\nCliente: ' + clienteNombre + ' (' + refiClienteId + ')\nMonto cuota: ' + fmt(cuotaM) + '\nConsolida: ' + selIds.join(', ') + '\nTipo: ' + tipo + (tipo === 'tercero' ? ' — Tercero: ' + tercero : ''),
+          description: 'Préstamo: ' + nuevoPrestId + ' (REFINANCIACIÓN)\nCliente: ' + clienteNombre + ' (' + refiClienteId + ')\nMonto cuota: ' + fmt(cuotaM) + '\nConsolida: ' + selIds.join(', ') + (extra > 0 ? '\nDinero extra entregado: ' + fmt(extra) : '') + '\nTipo: ' + tipo + (tipo === 'tercero' ? ' — Tercero: ' + tercero : ''),
           start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
           end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
           colorId: '3',
@@ -4445,7 +4459,7 @@ async function confirmarRefinanciar() {
     invalidateCache();
     closeRefiModal();
     const calMsg = calRows.length === cuotasN ? ' · Calendar sincronizado ✓' : calRows.length > 0 ? ' · Calendar: ' + calRows.length + '/' + cuotasN : '';
-    showToast('✓ Refinanciación exitosa → ' + nuevoPrestId + ' · ' + selIds.length + ' créditos consolidados' + (calBorrados > 0 ? ' · ' + calBorrados + ' eventos eliminados' : '') + calMsg);
+    showToast('✓ Refinanciación exitosa → ' + nuevoPrestId + ' · ' + selIds.length + ' créditos consolidados' + (extra > 0 ? ' + ' + fmt(extra) + ' extra' : '') + (calBorrados > 0 ? ' · ' + calBorrados + ' eventos eliminados' : '') + calMsg);
     await loadAll(true);
     nav('detalle-prestamo', nuevoPrestId);
 
