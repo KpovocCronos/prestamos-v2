@@ -2794,6 +2794,7 @@ async function confirmarPago() {
   const fechaStr = document.getElementById('pago-fecha').value;
   const notas = document.getElementById('pago-notas').value.trim();
   if (!monto || monto <= 0) { showToast('Ingresá un monto válido', 'error'); return; }
+  if (!fechaStr) { showToast('Elegí la fecha del pago', 'error'); return; }
   const c = pagoActual;
   const fechaVenc = parseFecha(c.vencimiento);
   const fechaPago = new Date(fechaStr+'T12:00:00');
@@ -3919,7 +3920,9 @@ async function marcarEventoPagadoCalendar(cuota, fechaPago, monto, nuevoSaldo, d
   const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + cuota.eventId;
   try {
     const getRes = await fetch(url, { headers: { Authorization: 'Bearer ' + TOKEN } });
-    if (handleCalendarAuthError(getRes.status)) throw Object.assign(new Error('Calendar GET auth ' + getRes.status), { _noRetry: true });
+    // El pago ya quedó guardado en Sheets: ante error de sesión no se relanza,
+    // handleAuthError ya avisa y redirige; el flujo del pago debe terminar bien.
+    if (handleCalendarAuthError(getRes.status)) return false;
     if (!getRes.ok) return false;
     const ev = await getRes.json();
     const fechaPagoES = fmtFechaES(fechaPago);
@@ -3939,10 +3942,9 @@ async function marcarEventoPagadoCalendar(cuota, fechaPago, monto, nuevoSaldo, d
       patch.description = (ev.description || '') + '\n🟡 Pago parcial de $' + Math.round(monto).toLocaleString('es-AR') + ' el ' + fechaPagoES + ' · Saldo restante: $' + Math.round(nuevoSaldo).toLocaleString('es-AR');
     }
     const patchRes = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
-    if (handleCalendarAuthError(patchRes.status)) throw Object.assign(new Error('Calendar PATCH auth ' + patchRes.status), { _noRetry: true });
+    if (handleCalendarAuthError(patchRes.status)) return false;
     return patchRes.ok;
   } catch(e) {
-    if (e._noRetry) throw e;
     console.warn('No se pudo actualizar evento Calendar:', cuota.eventId, e);
     return false;
   }
