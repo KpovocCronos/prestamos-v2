@@ -2810,9 +2810,13 @@ async function confirmarPago() {
       const sheetRow = rowIdx + 1;
       await sheetsUpdate(`Cuotas!G${sheetRow}:I${sheetRow}`, [[nuevoMontoPagado.toFixed(2), nuevoSaldo.toFixed(2), nuevoEstado]]);
     }
+    // Actualizar el evento de Calendar: si quedó saldada se mueve a la fecha
+    // real de pago con ✅ verde; si fue parcial se anota 🟡 en el evento.
+    let calOk = false;
+    if (c.eventId) calOk = await marcarEventoPagadoCalendar(c, fechaPago, monto, nuevoSaldo, diasAtraso);
     invalidateCache();
     closePagoModal();
-    showToast('✓ Pago registrado' + (diasAtraso > 0 ? ' · ' + diasAtraso + ' días de atraso' : ''));
+    showToast('✓ Pago registrado' + (diasAtraso > 0 ? ' · ' + diasAtraso + ' días de atraso' : '') + (calOk ? ' · Calendar actualizado ✓' : ''));
     await loadAll();
     nav(document.querySelector('.nav-item.active')?.dataset?.screen || 'dashboard');
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
@@ -3900,6 +3904,51 @@ async function borrarEventoCalendar(eventId) {
   } catch(e) {
     if (e._noRetry) throw e;
     console.warn('No se pudo borrar evento Calendar:', eventId, e);
+  }
+}
+
+// ============================================================
+// HELPER: MARCAR EVENTO CALENDAR COMO PAGADO
+// Cuando se salda una cuota, mueve el evento a la fecha real de
+// pago, lo renombra con ✅ PAGADO + fecha y lo pinta de verde.
+// Si el pago es parcial, agrega 🟡 y anota el pago en la descripción.
+// ============================================================
+async function marcarEventoPagadoCalendar(cuota, fechaPago, monto, nuevoSaldo, diasAtraso) {
+  if (!cuota.eventId || !CFG.calId) return false;
+  const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + cuota.eventId;
+  try {
+    const getRes = await fetch(url, { headers: { Authorization: 'Bearer ' + TOKEN } });
+    if (handleCalendarAuthError(getRes.status)) throw Object.assign(new Error('Calendar GET auth ' + getRes.status), { _noRetry: true });
+    if (!getRes.ok) return false;
+    const ev = await getRes.json();
+    const fechaPagoES = fmtFechaES(fechaPago);
+    const fechaPagoISO = fechaPago.toISOString().split('T')[0];
+    // Quitar prefijos de pagos anteriores (parciales) para no acumularlos en el título
+    const baseSummary = (ev.summary || '').replace(/^✅ PAGADO[^—]*— /, '').replace(/^🟡 /, '').replace(/^💰 /, '');
+    const patch = {};
+    if (nuevoSaldo <= 0) {
+      const fechaVenc = parseFecha(cuota.vencimiento);
+      const diasAdelanto = (fechaVenc && diasAtraso === 0) ? Math.max(0, Math.round((fechaVenc - fechaPago) / 86400000)) : 0;
+      const nota = diasAtraso > 0 ? ' (' + diasAtraso + 'd de atraso)' : diasAdelanto > 0 ? ' (adelantado ' + diasAdelanto + 'd)' : '';
+      patch.summary = '✅ PAGADO ' + fechaPagoES + nota + ' — ' + baseSummary;
+      patch.colorId = '10'; // verde (Basil)
+      // Mover el evento a la fecha real de pago para que quede registrado ese día
+      patch.start = { dateTime: fechaPagoISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' };
+      patch.end   = { dateTime: fechaPagoISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' };
+      patch.reminders = { useDefault: false, overrides: [] }; // ya no hace falta recordatorio
+      patch.description = (ev.description || '') + '\n\n✅ Pagado el ' + fechaPagoES + nota + ' · Vencía el ' + cuota.vencimiento;
+    } else {
+      patch.summary = '🟡 ' + baseSummary;
+      patch.colorId = '5';
+      patch.description = (ev.description || '') + '\n🟡 Pago parcial de $' + Math.round(monto).toLocaleString('es-AR') + ' el ' + fechaPagoES + ' · Saldo restante: $' + Math.round(nuevoSaldo).toLocaleString('es-AR');
+    }
+    const patchRes = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
+    if (handleCalendarAuthError(patchRes.status)) throw Object.assign(new Error('Calendar PATCH auth ' + patchRes.status), { _noRetry: true });
+    return patchRes.ok;
+  } catch(e) {
+    if (e._noRetry) throw e;
+    console.warn('No se pudo actualizar evento Calendar:', cuota.eventId, e);
+    return false;
   }
 }
 
