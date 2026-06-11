@@ -2810,8 +2810,8 @@ async function confirmarPago() {
       const sheetRow = rowIdx + 1;
       await sheetsUpdate(`Cuotas!G${sheetRow}:I${sheetRow}`, [[nuevoMontoPagado.toFixed(2), nuevoSaldo.toFixed(2), nuevoEstado]]);
     }
-    // Actualizar el evento de Calendar: si quedó saldada se mueve a la fecha
-    // real de pago con ✅ verde; si fue parcial se anota 🟡 en el evento.
+    // Actualizar el evento de Calendar: si quedó saldada se marca ✅ verde
+    // con la fecha de pago; si fue parcial se anota 🟡 en el evento.
     let calOk = false;
     if (c.eventId) calOk = await marcarEventoPagadoCalendar(c, fechaPago, monto, nuevoSaldo, diasAtraso);
     invalidateCache();
@@ -3909,8 +3909,9 @@ async function borrarEventoCalendar(eventId) {
 
 // ============================================================
 // HELPER: MARCAR EVENTO CALENDAR COMO PAGADO
-// Cuando se salda una cuota, mueve el evento a la fecha real de
-// pago, lo renombra con ✅ PAGADO + fecha y lo pinta de verde.
+// Cuando se salda una cuota, el evento queda en su fecha de
+// vencimiento pero se renombra con ✅ PAGADO + fecha de pago
+// y se pinta de verde.
 // Si el pago es parcial, agrega 🟡 y anota el pago en la descripción.
 // ============================================================
 async function marcarEventoPagadoCalendar(cuota, fechaPago, monto, nuevoSaldo, diasAtraso) {
@@ -3922,7 +3923,6 @@ async function marcarEventoPagadoCalendar(cuota, fechaPago, monto, nuevoSaldo, d
     if (!getRes.ok) return false;
     const ev = await getRes.json();
     const fechaPagoES = fmtFechaES(fechaPago);
-    const fechaPagoISO = fechaPago.toISOString().split('T')[0];
     // Quitar prefijos de pagos anteriores (parciales) para no acumularlos en el título
     const baseSummary = (ev.summary || '').replace(/^✅ PAGADO[^—]*— /, '').replace(/^🟡 /, '').replace(/^💰 /, '');
     const patch = {};
@@ -3932,10 +3932,7 @@ async function marcarEventoPagadoCalendar(cuota, fechaPago, monto, nuevoSaldo, d
       const nota = diasAtraso > 0 ? ' (' + diasAtraso + 'd de atraso)' : diasAdelanto > 0 ? ' (adelantado ' + diasAdelanto + 'd)' : '';
       patch.summary = '✅ PAGADO ' + fechaPagoES + nota + ' — ' + baseSummary;
       patch.colorId = '10'; // verde (Basil)
-      // Mover el evento a la fecha real de pago para que quede registrado ese día
-      patch.start = { dateTime: fechaPagoISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' };
-      patch.end   = { dateTime: fechaPagoISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' };
-      patch.description = (ev.description || '') + '\n\n✅ Pagado el ' + fechaPagoES + nota + ' · Vencía el ' + cuota.vencimiento;
+      patch.description = (ev.description || '') + '\n\n✅ Pagado el ' + fechaPagoES + nota;
     } else {
       patch.summary = '🟡 ' + baseSummary;
       patch.colorId = '5';
