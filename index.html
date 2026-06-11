@@ -3935,7 +3935,6 @@ async function marcarEventoPagadoCalendar(cuota, fechaPago, monto, nuevoSaldo, d
       // Mover el evento a la fecha real de pago para que quede registrado ese día
       patch.start = { dateTime: fechaPagoISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' };
       patch.end   = { dateTime: fechaPagoISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' };
-      patch.reminders = { useDefault: false, overrides: [] }; // ya no hace falta recordatorio
       patch.description = (ev.description || '') + '\n\n✅ Pagado el ' + fechaPagoES + nota + ' · Vencía el ' + cuota.vencimiento;
     } else {
       patch.summary = '🟡 ' + baseSummary;
