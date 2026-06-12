@@ -2772,7 +2772,9 @@ function abrirPagoModal(cuotaId) {
   pagoActual = cuota;
   const hoy = new Date().toISOString().split('T')[0];
   document.getElementById('pago-fecha').value = hoy;
-  document.getElementById('pago-monto').value = cuota.saldo.toFixed(0);
+  // Redondear hacia arriba: si el saldo tiene centavos (ej $230.008,33) sugerir
+  // $230.009 evita que quede un resto de centavos como "Pago parcial"
+  document.getElementById('pago-monto').value = Math.ceil(cuota.saldo);
   document.getElementById('pago-notas').value = '';
   document.getElementById('pago-modal-sub').textContent = 'Cuota ' + cuota.nro + ' — ' + cuota.prestId;
   calcPagoModal();
@@ -2809,7 +2811,10 @@ async function confirmarPago() {
   const fechaPago = new Date(fechaStr+'T12:00:00');
   const diasAtraso = fechaVenc ? Math.max(0, Math.floor((fechaPago-fechaVenc)/86400000)) : 0;
   const nuevoMontoPagado = c.pagado + monto;
-  const nuevoSaldo = Math.max(0, c.monto - nuevoMontoPagado);
+  let nuevoSaldo = Math.max(0, c.monto - nuevoMontoPagado);
+  // Tolerancia de centavos: la cuota suele tener decimales (total/cuotas) pero
+  // el pago se carga redondeado; si queda debiendo menos de $1 se da por saldada.
+  if (nuevoSaldo < 1) nuevoSaldo = 0;
   let nuevoEstado = nuevoSaldo <= 0 ? (diasAtraso > 0 ? 'Pagada con atraso ('+diasAtraso+'d)' : 'Pagada') : 'Pago parcial';
   const pagoId = nextId('PAGO-', DB.pagos);
   try {
