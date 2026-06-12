@@ -751,7 +751,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     <div class="modal-sub" id="salteo-sub">—</div>
     <div style="background:var(--amberbg);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px">
       <div style="font-size:12px;color:var(--amber);font-weight:600;margin-bottom:4px">🚫 Saltear esta cuota</div>
-      <div style="font-size:12px;color:var(--muted)">La cuota actual queda como salteada (no se cobra). Se agregan <b>2 cuotas nuevas al final del plan</b> (el cliente termina pagando 1 cuota más en total). Podés editar fechas y monto.</div>
+      <div style="font-size:12px;color:var(--muted)">La cuota actual queda como salteada (no se cobra). Se reemplaza por <b>hasta 2 cuotas nuevas al final del plan</b>, cada una con su fecha y monto. Ej: una por el monto salteado y otra menor como interés por el atraso. Si querés una sola cuota nueva, dejá el monto 2 en 0.</div>
     </div>
     <div class="calc-box" style="margin-bottom:16px">
       <div class="calc-row"><span class="calc-label">Cuota a saltear</span><span class="calc-val" id="salteo-cuota-info">—</span></div>
@@ -760,17 +760,22 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
       <div class="calc-row"><span class="calc-label">Se generarán</span><span class="calc-val text-amber" id="salteo-nueva-nro">—</span></div>
     </div>
     <div class="form-grid">
-      <div class="form-field full">
-        <label class="form-label">Monto por cuota nueva ($) — aplicable a las 2</label>
-        <input class="form-input" type="number" id="salteo-monto">
-      </div>
       <div class="form-field">
         <label class="form-label">Vto cuota nueva 1</label>
         <input class="form-input" type="date" id="salteo-fecha1">
       </div>
       <div class="form-field">
+        <label class="form-label">Monto cuota nueva 1 ($)</label>
+        <input class="form-input" type="number" id="salteo-monto1" min="0">
+      </div>
+      <div class="form-field">
         <label class="form-label">Vto cuota nueva 2</label>
         <input class="form-input" type="date" id="salteo-fecha2">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Monto cuota nueva 2 ($)</label>
+        <input class="form-input" type="number" id="salteo-monto2" min="0">
+        <div class="form-hint">Poné 0 para crear una sola cuota nueva</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -2378,15 +2383,19 @@ function renderDetallePrestamo(prestId) {
           const cuotaNuevaTxt = s && s.cuotasNuevas && s.cuotasNuevas.length
             ? ('cuota' + (s.cuotasNuevas.length > 1 ? 's ' : ' ') + s.cuotasNuevas.join(' y '))
             : 'cuotas nuevas al final';
+          // Se puede deshacer solo si todas las cuotas generadas siguen pendientes sin pagos
+          const puedeDeshacer = s && s.cuotasNuevas && s.cuotasNuevas.length &&
+            s.cuotasNuevas.every(n => { const g = cuotasAll.find(x => x.nro === n); return g && g.estado === 'Pendiente' && g.pagado === 0; });
           return `<div class="cuota-item" style="opacity:.6;cursor:default;background:rgba(255,255,255,0.02)">
             <div class="cuota-num" style="border-color:rgba(160,160,160,.25);color:var(--muted);text-decoration:line-through">${String(c.nro).padStart(2,'0')}</div>
             <div style="flex:1">
               <div class="cuota-fecha" style="text-decoration:line-through;color:var(--muted)">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} <span style="color:var(--amber);font-size:11px;text-decoration:none;display:inline-block;margin-left:6px">🚫 SALTEADA el ${fechaSalteoTxt}</span></div>
               <div class="cuota-sub" style="color:var(--muted)">Original: ${fmt(c.monto)} con vto ${c.vencimiento} → reemplazada por ${cuotaNuevaTxt}</div>
             </div>
-            <div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
               <div class="cuota-monto" style="color:var(--muted);text-decoration:line-through">${fmt(c.monto)}</div>
               <div class="cuota-saldo">${estadoPill(c.estado)}</div>
+              ${puedeDeshacer ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px;margin-top:2px" onclick="deshacerSalteo('${p.id}', ${c.nro})" title="Revierte el salteo: la cuota vuelve a Pendiente y se eliminan las cuotas generadas">↩ Deshacer</button>` : ''}
             </div>
           </div>`;
         }).join('')}
@@ -3014,7 +3023,7 @@ function abrirSalteoModal(cuotaId) {
   document.getElementById('salteo-cuota-info').textContent = '#' + cuota.nro;
   document.getElementById('salteo-venc-orig').textContent = cuota.vencimiento;
   document.getElementById('salteo-monto-orig').textContent = fmt(cuota.monto);
-  document.getElementById('salteo-nueva-nro').textContent = 'Cuotas #' + nuevoNro + ' y #' + (nuevoNro + 1);
+  document.getElementById('salteo-nueva-nro').textContent = 'Hasta 2: #' + nuevoNro + ' y #' + (nuevoNro + 1);
 
   // Fechas default: +30 y +60 días después de la última cuota actual
   const ultimaFecha = ultimaCuota ? parseFecha(ultimaCuota.vencimiento) : new Date();
@@ -3022,7 +3031,8 @@ function abrirSalteoModal(cuotaId) {
   const fecha2 = new Date(ultimaFecha); fecha2.setDate(fecha2.getDate() + 60);
   document.getElementById('salteo-fecha1').value = fecha1.toISOString().split('T')[0];
   document.getElementById('salteo-fecha2').value = fecha2.toISOString().split('T')[0];
-  document.getElementById('salteo-monto').value = Math.round(cuota.monto);
+  document.getElementById('salteo-monto1').value = Math.round(cuota.monto);
+  document.getElementById('salteo-monto2').value = Math.round(cuota.monto);
 
   document.getElementById('salteoModal').classList.add('open');
 }
@@ -3036,10 +3046,13 @@ async function confirmarSalteo() {
   if (!salteoCuotaId) return;
   const fecha1Str = document.getElementById('salteo-fecha1').value;
   const fecha2Str = document.getElementById('salteo-fecha2').value;
-  const monto = parseFloat(document.getElementById('salteo-monto').value) || 0;
+  const monto1 = parseFloat(document.getElementById('salteo-monto1').value) || 0;
+  const monto2 = parseFloat(document.getElementById('salteo-monto2').value) || 0;
+  const crearSegunda = monto2 > 0;
 
-  if (!fecha1Str || !fecha2Str) { showToast('Completá las dos fechas', 'error'); return; }
-  if (monto <= 0) { showToast('El monto debe ser mayor a 0', 'error'); return; }
+  if (monto1 <= 0) { showToast('El monto de la cuota nueva 1 debe ser mayor a 0', 'error'); return; }
+  if (!fecha1Str) { showToast('Completá la fecha de la cuota nueva 1', 'error'); return; }
+  if (crearSegunda && !fecha2Str) { showToast('Completá la fecha de la cuota nueva 2 (o dejá su monto en 0)', 'error'); return; }
 
   const cuota = DB.cuotas.find(c => c.id === salteoCuotaId);
   if (!cuota) return;
@@ -3053,9 +3066,12 @@ async function confirmarSalteo() {
   const id1 = cuota.prestId + '-C' + String(nro1).padStart(2, '0');
   const id2 = cuota.prestId + '-C' + String(nro2).padStart(2, '0');
   const f1 = new Date(fecha1Str + 'T12:00:00');
-  const f2 = new Date(fecha2Str + 'T12:00:00');
   const f1ES = fmtFechaES(f1), f1ISO = f1.toISOString().split('T')[0];
-  const f2ES = fmtFechaES(f2), f2ISO = f2.toISOString().split('T')[0];
+  let f2ES = '', f2ISO = '';
+  if (crearSegunda) {
+    const f2 = new Date(fecha2Str + 'T12:00:00');
+    f2ES = fmtFechaES(f2); f2ISO = f2.toISOString().split('T')[0];
+  }
   const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.nombre;
   const hoy = new Date();
   const hoyISO = hoy.toISOString().split('T')[0];
@@ -3095,10 +3111,10 @@ async function confirmarSalteo() {
       try { await borrarEventoCalendar(cuota.eventId); } catch(e) { console.warn('Calendar delete error', e); }
     }
 
-    // 2. Crear eventos Calendar para las dos cuotas nuevas
+    // 2. Crear eventos Calendar para las cuotas nuevas
     btn.textContent = 'Creando eventos Calendar...';
-    const evt1 = await crearEventoCal(nro1, monto, f1ISO);
-    const evt2 = await crearEventoCal(nro2, monto, f2ISO);
+    const evt1 = await crearEventoCal(nro1, monto1, f1ISO);
+    const evt2 = crearSegunda ? await crearEventoCal(nro2, monto2, f2ISO) : '';
 
     // 3. Update cuota salteada en Sheets: estado='Salteada', saldo=0, eventId=''
     btn.textContent = 'Actualizando cuota salteada...';
@@ -3116,9 +3132,9 @@ async function confirmarSalteo() {
     if (rowIdxPrest >= 0) {
       const sheetRow = rowIdxPrest + 1;
       const notasActuales = prestData[rowIdxPrest][15] || '';
-      const nuevasNotas = appendSalteoNotas(notasActuales, { fecha: hoyISO, cuotaOriginal: cuota.nro, cuotasNuevas: [nro1, nro2] });
-      const nuevoTotal = p.total + monto * 2;
-      const nuevaCantCuotas = nro2;
+      const nuevasNotas = appendSalteoNotas(notasActuales, { fecha: hoyISO, cuotaOriginal: cuota.nro, cuotasNuevas: crearSegunda ? [nro1, nro2] : [nro1] });
+      const nuevoTotal = p.total + monto1 + (crearSegunda ? monto2 : 0);
+      const nuevaCantCuotas = crearSegunda ? nro2 : nro1;
       const nuevaGB = nuevoTotal - p.capital;
       const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
       const nuevaCom = esTercero ? nuevaGB * 0.2 : 0;
@@ -3128,12 +3144,11 @@ async function confirmarSalteo() {
     }
     await sheetsBatchUpdate(updates);
 
-    // 5. Append las dos cuotas nuevas
+    // 5. Append las cuotas nuevas (1 o 2 según monto2)
     btn.textContent = 'Creando cuotas nuevas...';
-    await sheetsAppend('Cuotas!A:J', [
-      [id1, cuota.prestId, p.clienteId, nro1, f1ES, monto.toFixed(2), 0, monto.toFixed(2), 'Pendiente', evt1],
-      [id2, cuota.prestId, p.clienteId, nro2, f2ES, monto.toFixed(2), 0, monto.toFixed(2), 'Pendiente', evt2],
-    ]);
+    const filasNuevas = [[id1, cuota.prestId, p.clienteId, nro1, f1ES, monto1.toFixed(2), 0, monto1.toFixed(2), 'Pendiente', evt1]];
+    if (crearSegunda) filasNuevas.push([id2, cuota.prestId, p.clienteId, nro2, f2ES, monto2.toFixed(2), 0, monto2.toFixed(2), 'Pendiente', evt2]);
+    await sheetsAppend('Cuotas!A:J', filasNuevas);
 
     // 6. Append Calendario sheet
     const calRows = [];
@@ -3147,7 +3162,8 @@ async function confirmarSalteo() {
     // Renumerar los eventos restantes con la numeración nueva (ej: Cuota 1/5)
     btn.textContent = 'Renumerando eventos Calendar...';
     const ren = await renumerarEventosCalendar(cuota.prestId);
-    showToast('✓ Cuota ' + cuota.nro + ' salteada · 2 cuotas nuevas (' + f1ES + ', ' + f2ES + ')' + (ren.ok > 0 ? ' · ' + ren.ok + ' eventos renumerados' : ''));
+    const cuotasMsg = crearSegunda ? '2 cuotas nuevas (' + f1ES + ' ' + fmt(monto1) + ', ' + f2ES + ' ' + fmt(monto2) + ')' : '1 cuota nueva (' + f1ES + ' ' + fmt(monto1) + ')';
+    showToast('✓ Cuota ' + cuota.nro + ' salteada · ' + cuotasMsg + (ren.ok > 0 ? ' · ' + ren.ok + ' eventos renumerados' : ''));
     renderDetallePrestamo(cuota.prestId);
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
@@ -3160,6 +3176,98 @@ async function confirmarSalteo() {
 document.getElementById('salteoModal').addEventListener('click', e => {
   if (e.target === document.getElementById('salteoModal')) closeSalteoModal();
 });
+
+// ============================================================
+// DESHACER SALTEO
+// Revierte un salteo: la cuota original vuelve a Pendiente con su
+// vencimiento, se eliminan las cuotas generadas (si siguen sin pagos),
+// se restauran total/ganancias del préstamo y se sincroniza Calendar.
+// ============================================================
+async function deshacerSalteo(prestId, nroOriginal) {
+  const p = DB.prestamos.find(x => x.id === prestId);
+  if (!p) return;
+  const salteos = parseSalteos(p.notas);
+  const s = salteos.filter(x => x.cuotaOriginal === nroOriginal).pop();
+  if (!s) { showToast('No encontré el registro de este salteo en las notas del préstamo', 'error'); return; }
+  const cuotaOrig = DB.cuotas.find(c => c.prestId === prestId && c.nro === nroOriginal && c.estado === 'Salteada');
+  if (!cuotaOrig) { showToast('No encontré la cuota salteada', 'error'); return; }
+  const generadas = (s.cuotasNuevas || []).map(n => DB.cuotas.find(c => c.prestId === prestId && c.nro === n)).filter(Boolean);
+  if (generadas.length !== (s.cuotasNuevas || []).length) { showToast('No encontré todas las cuotas generadas por el salteo', 'error'); return; }
+  if (generadas.some(c => c.pagado > 0 || c.estado !== 'Pendiente')) { showToast('Alguna cuota generada ya tiene pagos o cambió de estado; no se puede deshacer', 'error'); return; }
+
+  mostrarConfirm('↩ Deshacer salteo',
+    'La cuota ' + nroOriginal + ' vuelve a estar Pendiente por ' + fmt(cuotaOrig.monto) + ' con vencimiento ' + cuotaOrig.vencimiento +
+    '. Se eliminan las cuotas generadas (' + s.cuotasNuevas.join(' y ') + ') y sus eventos de Calendar. Después podés volver a saltearla.',
+    async () => {
+      showToast('Deshaciendo salteo...');
+      try {
+        // 1. Borrar eventos Calendar de las cuotas generadas
+        for (const c of generadas) { if (c.eventId) await borrarEventoCalendar(c.eventId); }
+
+        // 2. Recrear el evento Calendar de la cuota original
+        let eventId = '';
+        const fechaOrig = parseFecha(cuotaOrig.vencimiento);
+        if (CFG.calId && fechaOrig) {
+          const fISO = fechaOrig.toISOString().split('T')[0];
+          try {
+            const eventoBody = {
+              summary: '💰 ' + p.nombre + ' — Cuota ' + nroOriginal + ' | ' + fmt(cuotaOrig.monto) + ' (' + prestId + ')',
+              description: 'Préstamo: ' + prestId + '\nCliente: ' + p.nombre + ' (' + p.clienteId + ')\nMonto cuota: ' + fmt(cuotaOrig.monto) + '\n↩ Evento recreado al deshacer un salteo',
+              start: { dateTime: fISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
+              end:   { dateTime: fISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
+              colorId: '5',
+              reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
+            };
+            const calRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events', { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) });
+            if (!handleCalendarAuthError(calRes.status) && calRes.ok) { const d = await calRes.json(); eventId = d.id || ''; }
+          } catch(e) { console.warn('No se pudo recrear el evento de la cuota original', e); }
+        }
+
+        // 3. Restaurar la cuota original en Sheets (pagado, saldo, estado, eventId)
+        const cuotasData = await sheetsGet('Cuotas!A1:J');
+        const rowIdx = cuotasData.findIndex(r => r[0] === cuotaOrig.id);
+        if (rowIdx >= 0) {
+          await sheetsUpdate(`Cuotas!G${rowIdx + 1}:J${rowIdx + 1}`, [['0', cuotaOrig.monto.toFixed(2), 'Pendiente', eventId]]);
+        }
+
+        // 4. Eliminar las filas de las cuotas generadas (Cuotas + Calendario)
+        for (const c of generadas) {
+          await eliminarFilasSheets('Cuotas!A:J', 0, c.id);
+          try { await eliminarFilasSheets('Calendario!A:F', 0, c.id); } catch(e) { console.warn('Error limpiando Calendario para', c.id, e); }
+        }
+        if (eventId) await sheetsAppend('Calendario!A:F', [[cuotaOrig.id, prestId, p.clienteId, eventId, CFG.calId || '', 'Activo']]);
+
+        // 5. Restaurar total/cuotas/ganancias del préstamo y quitar la nota del salteo
+        const montoGeneradas = generadas.reduce((a, c) => a + c.monto, 0);
+        const prestData = await sheetsGet('Préstamos!A1:P');
+        const rowIdxP = prestData.findIndex(r => r[0] === prestId);
+        if (rowIdxP >= 0) {
+          const sheetRow = rowIdxP + 1;
+          const entry = 'Salteo:' + s.fecha + ':' + s.cuotaOriginal + '->' + s.cuotasNuevas.join('+');
+          const notas = (prestData[rowIdxP][15] || '').split(' | ').filter(x => x.trim() !== entry).join(' | ');
+          const nuevoTotal = p.total - montoGeneradas;
+          const nuevaCant = Math.max.apply(null, DB.cuotas.filter(c => c.prestId === prestId && !generadas.some(g => g.id === c.id)).map(c => c.nro));
+          const nuevaGB = nuevoTotal - p.capital;
+          const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
+          const nuevaCom = esTercero ? nuevaGB * 0.2 : 0;
+          const nuevaGN = nuevaGB - nuevaCom;
+          await sheetsBatchUpdate([
+            { range: `Préstamos!G${sheetRow}:H${sheetRow}`, values: [[nuevoTotal.toFixed(2), nuevaCant]] },
+            { range: `Préstamos!L${sheetRow}:P${sheetRow}`, values: [[nuevaGB.toFixed(2), nuevaCom.toFixed(2), nuevaGN.toFixed(2), p.estado || 'Activo', notas]] }
+          ]);
+        }
+
+        invalidateCache();
+        await loadAll(true);
+        // Renumerar los eventos restantes con la numeración restaurada
+        await renumerarEventosCalendar(prestId);
+        showToast('✓ Salteo deshecho: la cuota ' + nroOriginal + ' vuelve a estar Pendiente');
+        renderDetallePrestamo(prestId);
+      } catch(e) {
+        showToast('Error al deshacer salteo: ' + e.message, 'error');
+      }
+    });
+}
 
 // ============================================================
 // UTILITIES
