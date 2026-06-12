@@ -2341,6 +2341,7 @@ function renderDetallePrestamo(prestId) {
       <div class="flex-row">
         ${p.estado !== 'Refinanciado' ? `<button class="btn btn-amber btn-sm" onclick="abrirCuotaExtraModal('${p.id}')">⊕ Agregar cuota extra</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirReprogModal('${p.id}')">📅 Reprogramar fechas</button>
+        <button class="btn btn-ghost btn-sm" onclick="sincronizarCalendarPrestamo('${p.id}')" title="Reescribe los títulos de los eventos pendientes con la numeración actual">🔃 Sincronizar Calendar</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirEditPrestModal('${p.id}')">✏ Editar</button>` : `<span class="pill pill-amber" style="font-size:12px;padding:6px 14px">🔄 Préstamo refinanciado — solo lectura</span>`}
         <button class="btn btn-danger btn-sm" onclick="pedirEliminarPrestamo('${p.id}')">🗑 Eliminar</button>
       </div>
@@ -3142,8 +3143,11 @@ async function confirmarSalteo() {
 
     invalidateCache();
     closeSalteoModal();
-    showToast('✓ Cuota ' + cuota.nro + ' salteada · 2 cuotas nuevas (' + f1ES + ', ' + f2ES + ')');
     await loadAll(true);
+    // Renumerar los eventos restantes con la numeración nueva (ej: Cuota 1/5)
+    btn.textContent = 'Renumerando eventos Calendar...';
+    const ren = await renumerarEventosCalendar(cuota.prestId);
+    showToast('✓ Cuota ' + cuota.nro + ' salteada · 2 cuotas nuevas (' + f1ES + ', ' + f2ES + ')' + (ren.ok > 0 ? ' · ' + ren.ok + ' eventos renumerados' : ''));
     renderDetallePrestamo(cuota.prestId);
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
@@ -3962,6 +3966,60 @@ async function marcarEventoPagadoCalendar(cuota, fechaPago, monto, nuevoSaldo, d
     console.warn('No se pudo actualizar evento Calendar:', cuota.eventId, e);
     return false;
   }
+}
+
+// ============================================================
+// HELPER: RENUMERAR EVENTOS CALENDAR DE UN PRÉSTAMO
+// Después de un salteo la numeración visible cambia (ej: la cuota
+// interna 2 pasa a verse "1 de 5"). Esto reescribe el título de los
+// eventos pendientes con esa numeración y deja nota en la descripción.
+// Los eventos ✅ ya pagados no se tocan (quedan como historial).
+// ============================================================
+async function renumerarEventosCalendar(prestId) {
+  if (!CFG.calId) return { ok: 0, fail: 0 };
+  const p = DB.prestamos.find(x => x.id === prestId);
+  if (!p) return { ok: 0, fail: 0 };
+  const activas = DB.cuotas
+    .filter(c => c.prestId === prestId && c.estado !== 'Salteada' && c.estado !== 'Refinanciada')
+    .sort((a, b) => a.nro - b.nro);
+  const total = activas.length;
+  const huboSalteo = DB.cuotas.some(c => c.prestId === prestId && c.estado === 'Salteada');
+  let ok = 0, fail = 0;
+  for (let i = 0; i < activas.length; i++) {
+    const c = activas[i];
+    if (!c.eventId || c.estado.startsWith('Pagada')) continue;
+    const pos = i + 1;
+    const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId;
+    try {
+      const getRes = await fetch(url, { headers: { Authorization: 'Bearer ' + TOKEN } });
+      if (handleCalendarAuthError(getRes.status)) { fail++; break; }
+      if (!getRes.ok) { fail++; continue; }
+      const ev = await getRes.json();
+      const prefix = c.estado === 'Pago parcial' ? '🟡 ' : '💰 ';
+      const summary = prefix + p.nombre + ' — Cuota ' + pos + '/' + total + ' | ' + fmt(c.monto) + ' (' + prestId + (huboSalteo ? ' · refinanciado' : '') + ')';
+      // Quitar la nota de renumeración anterior (si la hay) y agregar la actual
+      const desc = (ev.description || '').split('\n').filter(l => !l.startsWith('🔄 Numeración actualizada')).join('\n')
+        + '\n🔄 Numeración actualizada: cuota ' + pos + ' de ' + total + (huboSalteo ? ' (crédito refinanciado por salteo de cuota)' : '');
+      const patchRes = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: summary, description: desc }) });
+      if (handleCalendarAuthError(patchRes.status)) { fail++; break; }
+      if (patchRes.ok) ok++; else fail++;
+    } catch(e) {
+      console.warn('Renumerar evento error', c.id, e);
+      fail++;
+    }
+  }
+  return { ok: ok, fail: fail };
+}
+
+// Botón "Sincronizar Calendar" del detalle de préstamo: aplica la
+// renumeración a un préstamo existente (sirve para los salteos viejos).
+async function sincronizarCalendarPrestamo(prestId) {
+  if (!CFG.calId) { showToast('No tenés Calendar ID configurado', 'error'); return; }
+  showToast('Sincronizando eventos de Calendar...');
+  const r = await renumerarEventosCalendar(prestId);
+  if (r.fail > 0) showToast('⚠ Calendar: ' + r.ok + ' eventos actualizados, ' + r.fail + ' con error', 'error');
+  else if (r.ok === 0) showToast('No hay eventos pendientes para actualizar en este préstamo');
+  else showToast('✓ Calendar sincronizado: ' + r.ok + ' evento' + (r.ok !== 1 ? 's' : '') + ' renumerado' + (r.ok !== 1 ? 's' : ''));
 }
 
 // ============================================================
