@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Prestamo$ V2</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%237c6fff'/><text x='50' y='72' font-size='68' font-weight='700' font-family='Arial,sans-serif' text-anchor='middle' fill='white'>%24</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -332,7 +331,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
 .calc-val { font-family: var(--mono); font-size: 13px; }
 
 /* Freq selector */
-.freq-group { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; }
+.freq-group { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
 .freq-btn {
   padding: 10px 6px;
   border-radius: 8px;
@@ -448,9 +447,8 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
 .client-selected-meta { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
 .client-selected-hist { font-size: 11px; color: var(--amber); margin-top: 4px; }
 
-/* Preview cuotas: sin límite de alto para que se vean todas las fechas
-   y se pueda sacar captura completa para enviar al cliente */
-.preview-list { overflow: visible; }
+/* Preview cuotas */
+.preview-list { max-height: 180px; overflow-y: auto; }
 .preview-item {
   display: flex;
   align-items: center;
@@ -744,42 +742,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
   </div>
 </div>
 
-<!-- MODAL SALTEAR CUOTA -->
-<div class="modal-overlay" id="salteoModal">
-  <div class="modal">
-    <div class="modal-title">Saltear cuota</div>
-    <div class="modal-sub" id="salteo-sub">—</div>
-    <div style="background:var(--amberbg);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px">
-      <div style="font-size:12px;color:var(--amber);font-weight:600;margin-bottom:4px">🚫 Saltear esta cuota</div>
-      <div style="font-size:12px;color:var(--muted)">La cuota actual queda como salteada (no se cobra). Se agregan <b>2 cuotas nuevas al final del plan</b> (el cliente termina pagando 1 cuota más en total). Podés editar fechas y monto.</div>
-    </div>
-    <div class="calc-box" style="margin-bottom:16px">
-      <div class="calc-row"><span class="calc-label">Cuota a saltear</span><span class="calc-val" id="salteo-cuota-info">—</span></div>
-      <div class="calc-row"><span class="calc-label">Vencimiento original</span><span class="calc-val" id="salteo-venc-orig">—</span></div>
-      <div class="calc-row"><span class="calc-label">Monto original</span><span class="calc-val" id="salteo-monto-orig">—</span></div>
-      <div class="calc-row"><span class="calc-label">Se generarán</span><span class="calc-val text-amber" id="salteo-nueva-nro">—</span></div>
-    </div>
-    <div class="form-grid">
-      <div class="form-field full">
-        <label class="form-label">Monto por cuota nueva ($) — aplicable a las 2</label>
-        <input class="form-input" type="number" id="salteo-monto">
-      </div>
-      <div class="form-field">
-        <label class="form-label">Vto cuota nueva 1</label>
-        <input class="form-input" type="date" id="salteo-fecha1">
-      </div>
-      <div class="form-field">
-        <label class="form-label">Vto cuota nueva 2</label>
-        <input class="form-input" type="date" id="salteo-fecha2">
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeSalteoModal()">Cancelar</button>
-      <button class="btn btn-amber" id="btn-salteo" onclick="confirmarSalteo()">Saltear cuota →</button>
-    </div>
-  </div>
-</div>
-
 <!-- MODAL CUOTA EXTRA -->
 <div class="modal-overlay" id="cuotaExtraModal">
   <div class="modal">
@@ -921,11 +883,10 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
       <div class="screen" id="screen-clientes">
         <div id="clientes-loading" class="loading"><div class="spinner"></div> Cargando clientes...</div>
         <div id="clientes-content" style="display:none">
-          <div id="clientes-warning" style="display:none;background:var(--amberbg);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:var(--amber);line-height:1.5"></div>
           <div class="table-wrap">
             <div class="card-header">
               <span class="card-title">Todos los clientes</span>
-              <input class="form-input" id="clientes-search" style="width:200px;padding:6px 12px;font-size:12px" placeholder="🔍 Buscar..." oninput="filtrarTablaClientes(this.value)">
+              <input class="form-input" style="width:200px;padding:6px 12px;font-size:12px" placeholder="🔍 Buscar..." oninput="filtrarTablaClientes(this.value)">
             </div>
             <table>
               <thead><tr>
@@ -1035,13 +996,8 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
                   <input class="form-input" type="number" id="np-interes" value="40" oninput="recalcNP()">
                 </div>
                 <div class="form-field">
-                  <label class="form-label">Fecha de creación del préstamo</label>
+                  <label class="form-label">Fecha de inicio</label>
                   <input class="form-input" type="date" id="np-fecha" oninput="recalcNP()">
-                </div>
-                <div class="form-field">
-                  <label class="form-label">Fecha de primera cuota (opcional)</label>
-                  <input class="form-input" type="date" id="np-fecha-primera" oninput="recalcNP()">
-                  <div class="form-hint">Si la dejás vacía, se calcula con la frecuencia</div>
                 </div>
                 <div class="form-field">
                   <label class="form-label">Cantidad de cuotas</label>
@@ -1054,11 +1010,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
                     <button class="freq-btn" onclick="setFreqNP(15,this)">Quincenal<div class="freq-sub">cada 15 días</div></button>
                     <button class="freq-btn active" onclick="setFreqNP(30,this)">Mensual<div class="freq-sub">cada 30 días</div></button>
                     <button class="freq-btn" onclick="setFreqNP(60,this)">Bimestral<div class="freq-sub">cada 60 días</div></button>
-                    <button class="freq-btn" onclick="setFreqNPCustom(this)">Personalizada<div class="freq-sub" id="np-freq-custom-sub">cada N días</div></button>
-                  </div>
-                  <div class="form-field" id="np-freq-custom-field" style="display:none;margin-top:10px;max-width:200px">
-                    <label class="form-label">Días entre cuotas</label>
-                    <input class="form-input" type="number" id="np-freq-custom" min="1" max="365" value="8" oninput="onFreqCustomInput()">
                   </div>
                 </div>
                 <div class="form-field">
@@ -1132,7 +1083,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
               <input class="form-input" id="cli-notas" placeholder="Opcional...">
             </div>
           </div>
-          <button class="btn btn-primary" id="btn-guardar-cliente" style="width:100%;justify-content:center;padding:13px" onclick="guardarCliente()">
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:13px" onclick="guardarCliente()">
             Guardar cliente →
           </button>
         </div>
@@ -1143,27 +1094,16 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <div id="est-loading" class="loading"><div class="spinner"></div> Calculando...</div>
         <div id="est-content" style="display:none">
           <!-- Period selector + Sub-tabs -->
-          <div style="margin-bottom:12px">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Período:</span>
-              <div class="mode-toggle" style="margin-bottom:0">
-                <button class="mode-btn"        id="est-btn-hoy"        onclick="setEstPeriodo('hoy',this)">Hoy</button>
-                <button class="mode-btn active" id="est-btn-7d"         onclick="setEstPeriodo('7d',this)">7 días</button>
-                <button class="mode-btn"        id="est-btn-mes-actual" onclick="setEstPeriodo('mes-actual',this)">Este mes</button>
-                <button class="mode-btn"        id="est-btn-mes"        onclick="toggleEstMesPicker(event)">Mes ▾</button>
-                <button class="mode-btn"        id="est-btn-rango"      onclick="toggleEstRangoPicker(event)">Rango ▾</button>
-                <button class="mode-btn"        id="est-btn-todo"       onclick="setEstPeriodo('todo',this)">Todo</button>
-              </div>
-              <span id="est-rango-label" style="font-size:12px;color:var(--muted);margin-left:8px;font-family:var(--mono)"></span>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Período:</span>
+            <div class="mode-toggle" style="margin-bottom:0">
+              <button class="mode-btn active" id="est-btn-7"   onclick="setEstPeriodo(7,this)">7 días</button>
+              <button class="mode-btn"        id="est-btn-30"  onclick="setEstPeriodo(30,this)">Mes</button>
+              <button class="mode-btn"        id="est-btn-90"  onclick="setEstPeriodo(90,this)">Trimestre</button>
+              <button class="mode-btn"        id="est-btn-365" onclick="setEstPeriodo(365,this)">Año</button>
+              <button class="mode-btn"        id="est-btn-0"   onclick="setEstPeriodo(0,this)">Todo</button>
             </div>
-            <div id="est-mes-picker" style="display:none;margin-top:8px;flex-wrap:wrap;gap:4px"></div>
-            <div id="est-rango-picker" style="display:none;margin-top:8px;align-items:center;gap:8px;flex-wrap:wrap">
-              <span style="font-size:12px;color:var(--muted)">Desde</span>
-              <input type="date" id="est-rango-desde" style="padding:6px 8px;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:13px">
-              <span style="font-size:12px;color:var(--muted)">Hasta</span>
-              <input type="date" id="est-rango-hasta" style="padding:6px 8px;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:13px">
-              <button class="btn btn-accent btn-sm" onclick="aplicarEstRango()">Aplicar</button>
-            </div>
+            <span id="est-rango-label" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
           </div>
           <div style="display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap">
             <button class="mode-btn active" id="est-tab-resumen" onclick="setEstTab('resumen')" style="padding:7px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s;border:none;background:var(--card);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.4)">Resumen</button>
@@ -1218,19 +1158,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
                 <div class="stat-meta">cuotas vencidas / total</div>
               </div>
             </div>
-            <div class="stats-grid" style="margin-bottom:20px;grid-template-columns:1fr 1fr">
-              <div class="stat-card">
-                <div class="stat-label" id="est-cobro-label">Cuándo recuperás lo prestado</div>
-                <div class="stat-value text-green" id="est-cobro-monto">—</div>
-                <div style="font-family:var(--mono);font-size:15px;color:var(--accent2);margin-top:-2px;margin-bottom:6px" id="est-cobro-fin">—</div>
-                <div class="stat-meta" id="est-cobro-fin-meta">fecha del último vencimiento</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-label">Plazo promedio</div>
-                <div class="stat-value" id="est-plazo-prom">—</div>
-                <div class="stat-meta" id="est-plazo-prom-meta">desde la creación hasta la última cuota</div>
-              </div>
-            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
               <div class="card">
                 <div class="card-header"><span class="card-title">Propio vs Tercero</span></div>
@@ -1280,24 +1207,24 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
           <div id="est-panel-rendimiento" style="display:none">
             <div class="stats-grid" style="margin-bottom:20px">
               <div class="stat-card">
-                <div class="stat-label">Ganancia ya cobrada</div>
+                <div class="stat-label">ROI real</div>
                 <div class="stat-value text-green" id="rend-roi">0%</div>
-                <div class="stat-meta" id="rend-roi-meta">$0 cobrados / $0 invertidos</div>
+                <div class="stat-meta" id="rend-roi-meta">cobrado vs invertido</div>
               </div>
               <div class="stat-card">
-                <div class="stat-label">Si cobrás todo</div>
+                <div class="stat-label">ROI prometido</div>
                 <div class="stat-value text-accent" id="rend-roi-prom">0%</div>
-                <div class="stat-meta" id="rend-roi-prom-meta">$0 de ganancia total</div>
+                <div class="stat-meta" id="rend-roi-prom-meta">si se cobra todo</div>
               </div>
               <div class="stat-card">
-                <div class="stat-label">Cobranza</div>
+                <div class="stat-label">Tasa cobro efectivo</div>
                 <div class="stat-value" id="rend-cobro">0%</div>
-                <div class="stat-meta" id="rend-cobro-meta">0 de 0 cuotas vencidas cobradas</div>
+                <div class="stat-meta" id="rend-cobro-meta">de lo que venció, cuánto se cobró</div>
               </div>
               <div class="stat-card">
-                <div class="stat-label">Atraso promedio</div>
+                <div class="stat-label">Prom. días atraso</div>
                 <div class="stat-value" id="rend-atraso">0</div>
-                <div class="stat-meta" id="rend-atraso-meta">días que tardan en pagar</div>
+                <div class="stat-meta" id="rend-atraso-meta">en pagos del período</div>
               </div>
             </div>
             <div class="stats-grid" style="margin-bottom:20px">
@@ -1312,14 +1239,14 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
                 <div class="stat-meta" id="rend-conatraso-meta">0 pagos tarde</div>
               </div>
               <div class="stat-card">
-                <div class="stat-label">Préstamo promedio</div>
+                <div class="stat-label">Ticket promedio</div>
                 <div class="stat-value text-accent" id="rend-ticket">$0</div>
-                <div class="stat-meta" id="rend-ticket-meta">capital prestado por operación</div>
+                <div class="stat-meta" id="rend-ticket-meta">capital por préstamo</div>
               </div>
               <div class="stat-card">
-                <div class="stat-label">Rinde</div>
+                <div class="stat-label">Ganancia por peso</div>
                 <div class="stat-value text-green" id="rend-ganxpeso">$0</div>
-                <div class="stat-meta" id="rend-ganxpeso-meta">de ganancia por cada $100 prestados</div>
+                <div class="stat-meta" id="rend-ganxpeso-meta">ganancia neta / capital</div>
               </div>
             </div>
             <!-- Rendimiento propio vs tercero -->
@@ -1500,9 +1427,8 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <div class="form-hint" id="ep-capital-hint" style="color:var(--amber)"></div>
       </div>
       <div class="form-field">
-        <label class="form-label">Interés (%)</label>
-        <input class="form-input" id="ep-interes" type="number" min="0" step="1" placeholder="0" oninput="actualizarPreviewCapital()">
-        <div class="form-hint" id="ep-interes-hint" style="color:var(--amber)"></div>
+        <label class="form-label">Interés actual</label>
+        <input class="form-input" id="ep-interes-display" disabled style="opacity:.5">
       </div>
       <div class="form-field">
         <label class="form-label">Tipo de crédito</label>
@@ -1530,7 +1456,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeEditPrestModal()">Cancelar</button>
-      <button class="btn btn-primary" id="btn-guardar-edit-prest" onclick="guardarEditPrest()">Guardar cambios</button>
+      <button class="btn btn-primary" onclick="guardarEditPrest()">Guardar cambios</button>
     </div>
   </div>
 </div>
@@ -1553,7 +1479,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeEditClienteModal()">Cancelar</button>
-      <button class="btn btn-primary" id="btn-guardar-edit-cliente" onclick="guardarEditCliente()">Guardar cambios</button>
+      <button class="btn btn-primary" onclick="guardarEditCliente()">Guardar cambios</button>
     </div>
   </div>
 </div>
@@ -1641,20 +1567,20 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     <div class="calc-box" id="refi-saldo-box" style="margin-bottom:16px">
       <div class="calc-row"><span class="calc-label">Saldo total a refinanciar</span><span class="calc-val text-amber" id="refi-saldo-total">$0</span></div>
       <div class="calc-row"><span class="calc-label">Cuotas pendientes absorbidas</span><span class="calc-val" id="refi-cuotas-abs">0</span></div>
-      <div class="calc-row"><span class="calc-label">Eventos Calendar a eliminar</span><span class="calc-val text-red" id="refi-cal-count">0</span></div>
+      <div class="calc-row"><span class="calc-label">Eventos Calendar a actualizar</span><span class="calc-val" id="refi-cal-count">0</span></div>
     </div>
 
     <div class="form-section-title">Condiciones del nuevo crédito</div>
     <div class="form-grid">
       <div class="form-field">
-        <label class="form-label">💵 Dinero extra entregado ($)</label>
-        <input class="form-input" type="number" id="refi-extra" value="0" min="0" oninput="recalcRefi()">
-        <div class="form-hint">Efectivo adicional para el cliente; se suma al capital del nuevo crédito</div>
-      </div>
-      <div class="form-field">
-        <label class="form-label">Interés sobre el capital (%)</label>
+        <label class="form-label">Interés sobre el saldo (%)</label>
         <input class="form-input" type="number" id="refi-interes" value="0" min="0" oninput="recalcRefi()">
         <div class="form-hint">0% = solo consolida deuda, sin interés extra</div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Monto extra a sumar ($)</label>
+        <input class="form-input" type="number" id="refi-extra" value="0" min="0" oninput="recalcRefi()">
+        <div class="form-hint">Plata adicional que le das al cliente sobre la deuda</div>
       </div>
       <div class="form-field">
         <label class="form-label">Cantidad de cuotas</label>
@@ -1688,7 +1614,8 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
 
     <div class="calc-box mt-12" id="refi-preview-box">
       <div class="calc-row"><span class="calc-label">Capital del nuevo crédito</span><span class="calc-val" id="refi-p-capital">$0</span></div>
-      <div class="calc-row" id="refi-p-desglose-row" style="display:none"><span class="calc-label">↳ Saldo refinanciado + dinero extra</span><span class="calc-val" id="refi-p-desglose">—</span></div>
+      <div class="calc-row" id="refi-p-extra-row" style="display:none"><span class="calc-label" style="padding-left:12px;font-size:0.82em;opacity:0.7">· Saldo refinanciado</span><span class="calc-val text-amber" id="refi-p-saldo-ref" style="font-size:0.85em">$0</span></div>
+      <div class="calc-row" id="refi-p-extra-row2" style="display:none"><span class="calc-label" style="padding-left:12px;font-size:0.82em;opacity:0.7">· Monto extra</span><span class="calc-val text-accent" id="refi-p-extra-val" style="font-size:0.85em">$0</span></div>
       <div class="calc-row"><span class="calc-label">Total a devolver</span><span class="calc-val" id="refi-p-total">$0</span></div>
       <div class="calc-row"><span class="calc-label">Ganancia bruta</span><span class="calc-val text-green" id="refi-p-gb">$0</span></div>
       <div class="calc-row" id="refi-p-com-row" style="display:none"><span class="calc-label">Comisión 20%</span><span class="calc-val text-amber" id="refi-p-com">$0</span></div>
@@ -1717,7 +1644,6 @@ let DB = { clientes: [], prestamos: [], cuotas: [], pagos: [], documentos: [], c
 let npFreqDias = 30, npFreqLabel = 'mensual', npClienteSeleccionado = null, npModoCliente = 'existente';
 let pagoActual = null;
 let cuotaExtraPrestId = null;
-let salteoCuotaId = null;
 
 // ============================================================
 // AUTH
@@ -1921,16 +1847,7 @@ function nextId(prefix, collection, padding) {
 // ============================================================
 const TITLES = { dashboard:'Dashboard', estadisticas:'Estadísticas', clientes:'Clientes', 'detalle-cliente':'Detalle cliente', prestamos:'Préstamos', 'detalle-prestamo':'Detalle préstamo', vencimientos:'Vencimientos', 'nuevo-prestamo':'Nuevo préstamo', 'nuevo-cliente':'Nuevo cliente', calculadora:'Calculadora de préstamos' };
 
-let navStack = [];
-let _navCurrentData = null;
-async function nav(screen, data, opts) {
-  const isBack = opts && opts.back;
-  const currentScreen = document.querySelector('.screen.active')?.id?.replace('screen-','');
-  if (!isBack && currentScreen && currentScreen !== screen) {
-    navStack.push({ screen: currentScreen, data: _navCurrentData });
-    if (navStack.length > 20) navStack.shift();
-  }
-  _navCurrentData = data;
+async function nav(screen, data) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector(`.nav-item[data-screen="${screen}"]`)?.classList.add('active');
@@ -1949,12 +1866,6 @@ async function nav(screen, data, opts) {
   if (screen === 'calculadora')      calcRenderOpciones();
 }
 
-function navBack(fallback) {
-  const prev = navStack.pop();
-  if (prev) nav(prev.screen, prev.data, { back: true });
-  else nav(fallback || 'dashboard', null, { back: true });
-}
-
 // ============================================================
 // HELPERS DE ESTADO DINÁMICO
 // ============================================================
@@ -1967,7 +1878,7 @@ function calcEstadoPrestamo(prestId) {
   const saldoTotal = cuotas.reduce((a,c) => a + (parseFloat(c.saldo)||0), 0);
   if (saldoTotal <= 0.01) return 'Finalizado';
   // Check if all remaining cuotas are Refinanciada
-  const pendientes = cuotas.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Salteada');
+  const pendientes = cuotas.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'));
   if (pendientes.length > 0 && pendientes.every(c => c.estado === 'Refinanciada')) return 'Refinanciado';
   const hayVencidas = pendientes.some(c => {
     const d = parseFecha(c.vencimiento);
@@ -1983,7 +1894,7 @@ function calcEstadoCliente(clienteId) {
   const cuotas = DB.cuotas.filter(c => c.clienteId === clienteId);
   if (!cuotas.length) return 'Sin préstamos';
   // Exclude refinanciada cuotas from saldo calc
-  const cuotasActivas = cuotas.filter(c => c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
+  const cuotasActivas = cuotas.filter(c => c.estado !== 'Refinanciada');
   const saldoTotal = cuotasActivas.reduce((a,c) => a + (parseFloat(c.saldo)||0), 0);
   if (saldoTotal <= 0.01) return 'Crédito finalizado';
   const hayVencidas = cuotasActivas.some(c => {
@@ -2015,7 +1926,7 @@ async function renderDashboard() {
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const mesActual = hoy.getMonth();
   const anioActual = hoy.getFullYear();
-  const cuotasPend = DB.cuotas.filter(c => c.saldo > 0 && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
+  const cuotasPend = DB.cuotas.filter(c => c.saldo > 0 && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada');
   const prestConSaldo = new Set(cuotasPend.map(c => c.prestId));
   const capitalTotal = DB.prestamos.filter(p => prestConSaldo.has(p.id)).reduce((a,p) => a + p.capital, 0);
   const cantPrestActivos = prestConSaldo.size;
@@ -2042,7 +1953,7 @@ async function renderDashboard() {
   document.getElementById('stat-clientes-meta').textContent = tercerosActivos + ' de tercero activos';
 
   const cuotasConFecha = DB.cuotas
-    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada')
+    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada')
     .map(c => ({...c, _fecha: parseFecha(c.vencimiento)}))
     .filter(c => c._fecha)
     .sort((a,b) => a._fecha - b._fecha);
@@ -2153,35 +2064,13 @@ async function renderDashboard() {
 // ============================================================
 // CLIENTES
 // ============================================================
-let _clientesSearchQuery = '';
-
 async function renderClientes() {
   document.getElementById('clientes-loading').style.display = 'flex';
   document.getElementById('clientes-content').style.display = 'none';
   await loadAll();
-  renderWarningClientes();
-  const input = document.getElementById('clientes-search');
-  if (input) input.value = _clientesSearchQuery;
-  if (_clientesSearchQuery) filtrarTablaClientes(_clientesSearchQuery);
-  else renderTablaClientes(DB.clientes);
+  renderTablaClientes(DB.clientes);
   document.getElementById('clientes-loading').style.display = 'none';
   document.getElementById('clientes-content').style.display = 'block';
-}
-
-function renderWarningClientes() {
-  const el = document.getElementById('clientes-warning');
-  if (!el) return;
-  const counts = {};
-  for (const c of DB.clientes) counts[c.id] = (counts[c.id] || 0) + 1;
-  const dupes = Object.entries(counts).filter(([,n]) => n > 1);
-  if (!dupes.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
-  const items = dupes.map(([id,n]) => {
-    const c = DB.clientes.find(x => x.id === id);
-    const nombre = c ? `${c.apellido}, ${c.nombre}` : '?';
-    return `<b>${id}</b> — ${escapeHtml(nombre)} (×${n})`;
-  }).join(' · ');
-  el.style.display = 'block';
-  el.innerHTML = `⚠ <b>IDs de cliente duplicados detectados.</b> Hay filas con el mismo ID en la hoja <i>Clientes</i> del spreadsheet — abrila y eliminá la fila repetida. Mientras tanto, las búsquedas y listados van a mostrar al cliente dos veces.<br><span style="opacity:.85">${items}</span>`;
 }
 
 function renderTablaClientes(lista) {
@@ -2202,7 +2091,6 @@ function renderTablaClientes(lista) {
 }
 
 function filtrarTablaClientes(q) {
-  _clientesSearchQuery = q;
   const ql = q.toLowerCase();
   renderTablaClientes(DB.clientes.filter(c =>
     (c.apellido+c.nombre+c.alias+c.dni).toLowerCase().includes(ql)
@@ -2224,7 +2112,7 @@ function renderDetalleCliente(clienteId) {
   document.getElementById('dc-content').innerHTML = `
     <div class="flex-between" style="margin-bottom:20px">
       <div class="flex-row">
-        <button class="btn btn-ghost btn-sm" onclick="navBack('clientes')">← Volver</button>
+        <button class="btn btn-ghost btn-sm" onclick="nav('clientes')">← Volver</button>
         <div>
           <div style="font-size:20px;font-weight:700">${escapeHtml(c.apellido)}, ${escapeHtml(c.nombre)}</div>
           <div class="text-muted" style="font-size:12px">${c.id} · @${escapeHtml(c.alias)} · DNI: ****${c.dni}</div>
@@ -2291,7 +2179,7 @@ function renderTablaPrestamos(lista) {
   const tbody = document.getElementById('prestamos-table');
   tbody.innerHTML = lista.map(p => {
     const cuotasP = DB.cuotas.filter(c => c.prestId === p.id);
-    const pendientes = cuotasP.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').length;
+    const pendientes = cuotasP.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada').length;
     return `<tr class="clickable" onclick="nav('detalle-prestamo','${p.id}')">
       <td class="td-mono">${p.id}</td>
       ${(() => {
@@ -2316,23 +2204,13 @@ function renderDetallePrestamo(prestId) {
   const p = DB.prestamos.find(x => x.id === prestId);
   if (!p) return;
   const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
-  const cuotasAll = DB.cuotas.filter(c => c.prestId === prestId).sort((a,b) => a.nro - b.nro);
-  const salteadas = cuotasAll.filter(c => c.estado === 'Salteada');
-  const activas = cuotasAll.filter(c => c.estado !== 'Salteada' && c.estado !== 'Refinanciada');
-  const refinanciadas = cuotasAll.filter(c => c.estado === 'Refinanciada');
-  const totalActivas = activas.length;
-  const salteos = parseSalteos(p.notas);
-  const salteoByOrig = {}, salteoByNuevo = {};
-  salteos.forEach(s => {
-    salteoByOrig[s.cuotaOriginal] = s;
-    (s.cuotasNuevas || []).forEach(n => { salteoByNuevo[n] = s; });
-  });
-  const fmtSalteoFecha = iso => { const d = new Date(iso + 'T12:00:00'); return isNaN(d) ? iso : fmtFecha(d); };
+  const cuotas = DB.cuotas.filter(c => c.prestId === prestId).sort((a,b) => a.nro - b.nro);
+  const totalCuotasReal = cuotas.length;
 
   document.getElementById('dp-content').innerHTML = `
     <div class="flex-between" style="margin-bottom:20px">
       <div class="flex-row">
-        <button class="btn btn-ghost btn-sm" onclick="navBack('prestamos')">← Volver</button>
+        <button class="btn btn-ghost btn-sm" onclick="nav('prestamos')">← Volver</button>
         <div>
           <div style="font-size:20px;font-weight:700">${p.id}</div>
           <div class="text-muted" style="font-size:12px">${escapeHtml(cl.apellido||'')}, ${escapeHtml(cl.nombre||'')} · ${p.clienteId}</div>
@@ -2359,69 +2237,36 @@ function renderDetallePrestamo(prestId) {
       </div>
       <div class="detail-card">
         <div class="detail-card-label">Estado de cuotas</div>
-        <div class="detail-row"><span class="detail-key">Total cuotas activas</span><span class="detail-val">${totalActivas}${totalActivas > p.cuotas ? ' <span class="pill pill-amber" style="font-size:10px">+' + (totalActivas - p.cuotas) + ' extra</span>' : ''}</span></div>
-        <div class="detail-row"><span class="detail-key">Pagadas</span><span class="detail-val text-green">${activas.filter(c=>c.estado.startsWith('Pagada')).length}</span></div>
-        <div class="detail-row"><span class="detail-key">Pago parcial</span><span class="detail-val text-amber">${activas.filter(c=>c.estado==='Pago parcial').length}</span></div>
-        <div class="detail-row"><span class="detail-key">Pendientes</span><span class="detail-val">${activas.filter(c=>c.estado==='Pendiente').length}</span></div>
-        ${salteadas.length ? `<div class="detail-row"><span class="detail-key">Salteadas</span><span class="detail-val" style="opacity:.75">${salteadas.length}</span></div>` : ''}
-        <div class="detail-row"><span class="detail-key">Cobrado</span><span class="detail-val mono text-green">${fmt(activas.reduce((a,c)=>a+c.pagado,0))}</span></div>
-        <div class="detail-row"><span class="detail-key">Saldo total</span><span class="detail-val mono text-amber">${fmt(activas.reduce((a,c)=>a+c.saldo,0))}</span></div>
+        <div class="detail-row"><span class="detail-key">Total cuotas</span><span class="detail-val">${totalCuotasReal}${totalCuotasReal > p.cuotas ? ' <span class="pill pill-amber" style="font-size:10px">+' + (totalCuotasReal - p.cuotas) + ' extra</span>' : ''}</span></div>
+        <div class="detail-row"><span class="detail-key">Pagadas</span><span class="detail-val text-green">${cuotas.filter(c=>c.estado.startsWith('Pagada')).length}</span></div>
+        <div class="detail-row"><span class="detail-key">Pago parcial</span><span class="detail-val text-amber">${cuotas.filter(c=>c.estado==='Pago parcial').length}</span></div>
+        <div class="detail-row"><span class="detail-key">Pendientes</span><span class="detail-val">${cuotas.filter(c=>c.estado==='Pendiente').length}</span></div>
+        <div class="detail-row"><span class="detail-key">Cobrado</span><span class="detail-val mono text-green">${fmt(cuotas.reduce((a,c)=>a+c.pagado,0))}</span></div>
+        <div class="detail-row"><span class="detail-key">Saldo total</span><span class="detail-val mono text-amber">${fmt(cuotas.reduce((a,c)=>a+c.saldo,0))}</span></div>
       </div>
     </div>
     <div class="table-wrap">
       <div class="card-header"><span class="card-title">Cuotas</span></div>
       <div id="cuotas-list-dp">
-        ${salteadas.map(c => {
-          const s = salteoByOrig[c.nro];
-          const fechaSalteoTxt = s ? fmtSalteoFecha(s.fecha) : '—';
-          const cuotaNuevaTxt = s && s.cuotasNuevas && s.cuotasNuevas.length
-            ? ('cuota' + (s.cuotasNuevas.length > 1 ? 's ' : ' ') + s.cuotasNuevas.join(' y '))
-            : 'cuotas nuevas al final';
-          return `<div class="cuota-item" style="opacity:.6;cursor:default;background:rgba(255,255,255,0.02)">
-            <div class="cuota-num" style="border-color:rgba(160,160,160,.25);color:var(--muted);text-decoration:line-through">${String(c.nro).padStart(2,'0')}</div>
-            <div style="flex:1">
-              <div class="cuota-fecha" style="text-decoration:line-through;color:var(--muted)">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} <span style="color:var(--amber);font-size:11px;text-decoration:none;display:inline-block;margin-left:6px">🚫 SALTEADA el ${fechaSalteoTxt}</span></div>
-              <div class="cuota-sub" style="color:var(--muted)">Original: ${fmt(c.monto)} con vto ${c.vencimiento} → reemplazada por ${cuotaNuevaTxt}</div>
-            </div>
-            <div>
-              <div class="cuota-monto" style="color:var(--muted);text-decoration:line-through">${fmt(c.monto)}</div>
-              <div class="cuota-saldo">${estadoPill(c.estado)}</div>
-            </div>
-          </div>`;
-        }).join('')}
-        ${activas.map((c, idx) => {
+        ${cuotas.map(c => {
           const pct = c.monto > 0 ? Math.min(100, (c.pagado/c.monto)*100) : 0;
           const pagada = c.estado.startsWith('Pagada');
-          const vencida = !pagada && parseFecha(c.vencimiento) < new Date();
+          const refi = c.estado === 'Refinanciada';
+          const vencida = !pagada && !refi && parseFecha(c.vencimiento) < new Date();
           const esExtra = c.nro > p.cuotas;
-          const sOrigen = salteoByNuevo[c.nro];
-          const posDisplay = idx + 1;
-          const sePuedeSaltear = !pagada;
-          return `<div class="cuota-item" onclick="abrirPagoModal('${c.id}')">
-            <div class="cuota-num" style="${vencida?'border-color:rgba(248,113,113,.3);color:var(--red)':pagada?'border-color:rgba(52,211,153,.3);color:var(--green)':esExtra?'border-color:rgba(251,191,36,.3);color:var(--amber)':''}">${String(posDisplay).padStart(2,'0')}${esExtra?'<span style="position:absolute;top:-4px;right:-4px;font-size:8px;background:var(--amber);color:#000;border-radius:50%;width:12px;height:12px;display:flex;align-items:center;justify-content:center;font-weight:700">+</span>':''}</div>
+          return `<div class="cuota-item" onclick="abrirPagoModal('${c.id}')" style="${refi?'opacity:0.5;cursor:default':''}">
+            <div class="cuota-num" style="${refi?'border-color:rgba(124,111,255,.3);color:var(--accent)':vencida?'border-color:rgba(248,113,113,.3);color:var(--red)':pagada?'border-color:rgba(52,211,153,.3);color:var(--green)':esExtra?'border-color:rgba(251,191,36,.3);color:var(--amber)':''}">${String(c.nro).padStart(2,'0')}${esExtra?'<span style="position:absolute;top:-4px;right:-4px;font-size:8px;background:var(--amber);color:#000;border-radius:50%;width:12px;height:12px;display:flex;align-items:center;justify-content:center;font-weight:700">+</span>':''}</div>
             <div style="flex:1">
-              <div class="cuota-fecha">Cuota ${posDisplay} de ${totalActivas} · ${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} ${vencida?'<span style="color:var(--red);font-size:11px">● Vencida</span>':''}${esExtra?' <span class="pill pill-amber" style="font-size:9px;padding:1px 6px">Extra</span>':''}</div>
-              <div class="cuota-sub">${c.estado} · Pagado: ${fmt(c.pagado)}${sOrigen?' <span style="color:var(--amber);font-size:11px;margin-left:6px">↩ generada por salteo de cuota ' + sOrigen.cuotaOriginal + ' (' + fmtSalteoFecha(sOrigen.fecha) + ')</span>':''}</div>
-              <div class="cuota-prog"><div class="cuota-prog-fill" style="width:${pct}%;background:${pagada?'var(--green)':pct>0?'var(--amber)':'var(--border2)'}"></div></div>
+              <div class="cuota-fecha">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} ${vencida?'<span style="color:var(--red);font-size:11px">● Vencida</span>':''}${refi?' <span style="color:var(--accent);font-size:11px">🔄 Refinanciada</span>':''}${esExtra?' <span class="pill pill-amber" style="font-size:9px;padding:1px 6px">Extra</span>':''}</div>
+              <div class="cuota-sub">${c.estado} · Pagado: ${fmt(c.pagado)}</div>
+              <div class="cuota-prog"><div class="cuota-prog-fill" style="width:${pct}%;background:${pagada?'var(--green)':refi?'var(--accent)':pct>0?'var(--amber)':'var(--border2)'}"></div></div>
             </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-              <div class="cuota-monto" style="color:${pagada?'var(--green)':vencida?'var(--red)':'var(--accent2)'}">${fmt(c.saldo)}</div>
+            <div>
+              <div class="cuota-monto" style="color:${pagada?'var(--green)':refi?'var(--muted)':vencida?'var(--red)':'var(--accent2)'}">${refi?'—':fmt(c.saldo)}</div>
               <div class="cuota-saldo">${estadoPill(c.estado)}</div>
-              ${sePuedeSaltear ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px;margin-top:2px" onclick="event.stopPropagation();abrirSalteoModal('${c.id}')" title="Saltear esta cuota">🚫 Saltear</button>` : ''}
             </div>
           </div>`;
         }).join('')}
-        ${refinanciadas.map(c => `<div class="cuota-item" style="opacity:0.5;cursor:default">
-          <div class="cuota-num" style="border-color:rgba(124,111,255,.3);color:var(--accent)">${String(c.nro).padStart(2,'0')}</div>
-          <div style="flex:1">
-            <div class="cuota-fecha">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} <span style="color:var(--accent);font-size:11px">🔄 Refinanciada</span></div>
-            <div class="cuota-sub">${c.estado} · Pagado: ${fmt(c.pagado)}</div>
-          </div>
-          <div>
-            <div class="cuota-monto" style="color:var(--muted)">—</div>
-            <div class="cuota-saldo">${estadoPill(c.estado)}</div>
-          </div>
-        </div>`).join('')}
       </div>
     </div>`;
 }
@@ -2435,7 +2280,7 @@ async function renderVencimientos() {
   await loadAll();
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const pendientes = DB.cuotas
-    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada')
+    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada')
     .map(c => ({ ...c, _fecha: parseFecha(c.vencimiento) }))
     .sort((a,b) => (a._fecha || 0) - (b._fecha || 0));
   const tbody = document.getElementById('venc-table');
@@ -2452,7 +2297,7 @@ async function renderVencimientos() {
       <td class="td-mono text-green">${fmt(c.pagado)}</td>
       <td class="td-mono text-amber">${fmt(c.saldo)}</td>
       <td>${estadoPill(c.estado)}</td>
-      <td style="white-space:nowrap"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal('${c.id}')">Pagar</button> <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="event.stopPropagation();abrirSalteoModal('${c.id}')" title="Saltear esta cuota">🚫</button></td>
+      <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal('${c.id}')">Pagar</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">No hay cuotas pendientes 🎉</td></tr>';
   document.getElementById('venc-loading').style.display = 'none';
@@ -2465,8 +2310,6 @@ async function renderVencimientos() {
 function initNuevoPrestamo() {
   const hoy = new Date().toISOString().split('T')[0];
   document.getElementById('np-fecha').value = hoy;
-  document.getElementById('np-fecha-primera').value = '';
-  document.getElementById('np-freq-custom-field').style.display = 'none';
   npClienteSeleccionado = null;
   limpiarClienteNP();
   setModoCliente('existente');
@@ -2549,22 +2392,6 @@ function setFreqNP(dias, btn) {
   npFreqLabel = labels[dias];
   document.querySelectorAll('.freq-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('np-freq-custom-field').style.display = 'none';
-  recalcNP();
-}
-
-function setFreqNPCustom(btn) {
-  document.querySelectorAll('.freq-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('np-freq-custom-field').style.display = 'flex';
-  onFreqCustomInput();
-}
-
-function onFreqCustomInput() {
-  const n = Math.max(1, parseInt(document.getElementById('np-freq-custom').value) || 1);
-  npFreqDias = n;
-  npFreqLabel = 'cada ' + n + ' días';
-  document.getElementById('np-freq-custom-sub').textContent = 'cada ' + n + ' días';
   recalcNP();
 }
 
@@ -2589,18 +2416,11 @@ function sumarMesesRespetandoDia(base, mesesASumar) {
 
 function calcularFechaCuota(base, numeroCuota, freqDias) {
   const d = new Date(base);
-  if (freqDias === 7) { d.setDate(d.getDate() + (7 * numeroCuota)); return d; }
-  // Quincena: 14 días reales (ej: día 11 → 25), no 15 que corre todo un día
-  if (freqDias === 15) { d.setDate(d.getDate() + (14 * numeroCuota)); return d; }
+  if (freqDias === 7 || freqDias === 15) { d.setDate(d.getDate() + (freqDias * numeroCuota)); return d; }
   if (freqDias === 30) return sumarMesesRespetandoDia(base, numeroCuota);
   if (freqDias === 60) return sumarMesesRespetandoDia(base, numeroCuota * 2);
   d.setDate(d.getDate() + (freqDias * numeroCuota));
   return d;
-}
-
-function fechaCuotaIndex(fechaCreacion, fechaPrimera, i, freqDias) {
-  if (fechaPrimera) return calcularFechaCuota(fechaPrimera, i - 1, freqDias);
-  return calcularFechaCuota(fechaCreacion, i, freqDias);
 }
 
 function recalcNP() {
@@ -2609,7 +2429,6 @@ function recalcNP() {
   const cuotas = Math.max(1, parseInt(document.getElementById('np-cuotas')?.value) || 1);
   const tipo = document.getElementById('np-tipo')?.value || 'propio';
   const fechaStr = document.getElementById('np-fecha')?.value;
-  const fechaPrimStr = document.getElementById('np-fecha-primera')?.value;
   const total = cap * (1 + int / 100);
   const gb = total - cap;
   const com = tipo === 'tercero' ? gb * 0.2 : 0;
@@ -2622,17 +2441,15 @@ function recalcNP() {
   document.getElementById('np-r-cuota').textContent = fmt(cuotaM);
   document.getElementById('np-r-freq').textContent = npFreqLabel;
   document.getElementById('np-r-com-row').style.display = tipo === 'tercero' ? 'flex' : 'none';
-  const pluralMap = { 'mensual':'mensuales', 'bimestral':'bimestrales', 'quincenal':'quincenales', 'semanal':'semanales' };
-  const labelPlural = pluralMap[npFreqLabel] || npFreqLabel;
+  const labelPlural = npFreqLabel === 'mensual' ? 'mensuales' : npFreqLabel === 'bimestral' ? 'bimestrales' : npFreqLabel === 'quincenal' ? 'quincenales' : 'semanales';
   document.getElementById('np-preview-badge').textContent = cuotas + ' cuotas · ' + labelPlural;
   const list = document.getElementById('np-preview-list');
   list.innerHTML = '';
   if (!fechaStr) return;
   const base = new Date(fechaStr + 'T12:00:00');
-  const primera = fechaPrimStr ? new Date(fechaPrimStr + 'T12:00:00') : null;
   const ds = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   for (let i = 1; i <= cuotas; i++) {
-    const d = fechaCuotaIndex(base, primera, i, npFreqDias);
+    const d = calcularFechaCuota(base, i, npFreqDias);
     const item = document.createElement('div');
     item.className = 'preview-item';
     item.innerHTML = `<span class="preview-num">${String(i).padStart(2,'0')}</span><span class="preview-fecha">${ds[d.getDay()]} ${fmtFecha(d)}</span><span class="preview-dias">${npFreqLabel}</span><span class="preview-monto">${fmt(cuotaM)}</span>`;
@@ -2646,10 +2463,9 @@ async function crearPrestamo() {
   const cuotas = Math.max(1, parseInt(document.getElementById('np-cuotas').value)||1);
   const tipo = document.getElementById('np-tipo').value;
   const fechaStr = document.getElementById('np-fecha').value;
-  const fechaPrimStr = document.getElementById('np-fecha-primera')?.value || '';
   const tercero = document.getElementById('np-tercero')?.value||'';
   const notas = document.getElementById('np-notas')?.value||'';
-  let clienteId, clienteNombre, nuevoClienteRow = null;
+  let clienteId, clienteNombre;
   if (npModoCliente === 'nuevo') {
     const apellido = document.getElementById('nc-apellido').value.trim();
     const nombre = document.getElementById('nc-nombre').value.trim();
@@ -2661,33 +2477,29 @@ async function crearPrestamo() {
     const hoy = fmtFechaES(new Date());
     clienteId = nextId('CLI-', DB.clientes);
     clienteNombre = apellido + ', ' + nombre;
-    nuevoClienteRow = [clienteId, apellido, nombre, alias, dni, tel, tel2, '', '', hoy, 'Sí', ''];
+    await sheetsAppend('Clientes!A:L', [[clienteId, apellido, nombre, alias, dni, tel, tel2, '', '', hoy, 'Sí', '']]);
   } else {
     if (!npClienteSeleccionado) { showToast('Seleccioná un cliente', 'error'); return; }
     clienteId = npClienteSeleccionado.id;
     clienteNombre = npClienteSeleccionado.apellido + ', ' + npClienteSeleccionado.nombre;
   }
-  if (!fechaStr) { showToast('Elegí la fecha de creación del préstamo', 'error'); return; }
+  if (!fechaStr) { showToast('Elegí una fecha de inicio', 'error'); return; }
   const total = cap*(1+int/100);
   const gb = total-cap;
   const com = tipo==='tercero' ? gb*0.2 : 0;
   const gn = gb-com;
   const cuotaM = total/cuotas;
   const fechaInicio = new Date(fechaStr+'T12:00:00');
-  const fechaPrimera = fechaPrimStr ? new Date(fechaPrimStr+'T12:00:00') : null;
-  if (fechaPrimera && fechaPrimera < fechaInicio) { showToast('La primera cuota no puede ser anterior a la fecha de creación', 'error'); return; }
   const prestId = nextId('PREST-', DB.prestamos);
   const btn = document.getElementById('btn-crear-prestamo');
-  if (btn.disabled) return;
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
-    if (nuevoClienteRow) await sheetsAppend('Clientes!A:L', [nuevoClienteRow]);
     await sheetsAppend('Préstamos!A:P', [[prestId, clienteId, clienteNombre, fmtFechaES(fechaInicio), cap, int+'%', total.toFixed(2), cuotas, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notas]]);
     const cuotasRows = [];
     const calRows = [];
     btn.textContent = 'Creando cuotas...';
     for (let i=1;i<=cuotas;i++) {
-      const d = fechaCuotaIndex(fechaInicio, fechaPrimera, i, npFreqDias);
+      const d = calcularFechaCuota(fechaInicio, i, npFreqDias);
       const cuotaId = prestId + '-C' + String(i).padStart(2,'0');
       const fechaVencES = fmtFechaES(d);
       const fechaISO = d.toISOString().split('T')[0];
@@ -2743,9 +2555,6 @@ async function guardarCliente() {
   if (!apellido || !nombre || !dni) { showToast('Completá apellido, nombre y DNI', 'error'); return; }
   const hoy = fmtFechaES(new Date());
   const id = nextId('CLI-', DB.clientes);
-  const btn = document.getElementById('btn-guardar-cliente');
-  if (btn.disabled) return;
-  btn.disabled = true; const btnLabel = btn.textContent; btn.textContent = 'Guardando...';
   try {
     await sheetsAppend('Clientes!A:L', [[id, apellido, nombre, alias, dni, tel, tel2, email, dir, hoy, 'Sí', notas]]);
     if (doc) await sheetsAppend('Documentos!A:F', [['DOC-'+String(Date.now()), id, 'Documentación', doc, hoy, '']]);
@@ -2754,11 +2563,7 @@ async function guardarCliente() {
     ['cli-apellido','cli-nombre','cli-alias','cli-dni','cli-tel','cli-tel2','cli-email','cli-dir','cli-doc','cli-notas'].forEach(f => { const el=document.getElementById(f); if(el) el.value=''; });
     await loadAll();
     nav('clientes');
-  } catch(e) {
-    showToast('Error: ' + e.message, 'error');
-  } finally {
-    btn.disabled = false; btn.textContent = btnLabel;
-  }
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 // ============================================================
@@ -2768,7 +2573,6 @@ function abrirPagoModal(cuotaId) {
   const cuota = DB.cuotas.find(c => c.id === cuotaId);
   if (!cuota) return;
   if (cuota.estado === 'Refinanciada') { showToast('Esta cuota fue refinanciada y ya no se puede pagar', 'error'); return; }
-  if (cuota.estado === 'Salteada') { showToast('Esta cuota fue salteada y ya no se puede pagar', 'error'); return; }
   pagoActual = cuota;
   const hoy = new Date().toISOString().split('T')[0];
   document.getElementById('pago-fecha').value = hoy;
@@ -2793,8 +2597,8 @@ function calcPagoModal() {
   document.getElementById('pc-este').textContent    = fmt(monto);
   document.getElementById('pc-atraso').textContent  = diasAtraso + ' días';
   document.getElementById('pc-atraso').style.color  = diasAtraso > 0 ? 'var(--red)' : 'var(--green)';
-  document.getElementById('pc-saldo').textContent   = saldoNuevo <= 0 ? '$0 — Cuota saldada ✓' : fmt(saldoNuevo);
-  document.getElementById('pc-saldo').style.color   = saldoNuevo <= 0 ? 'var(--green)' : 'var(--amber)';
+  document.getElementById('pc-saldo').textContent   = saldoNuevo <= 1 ? '$0 — Cuota saldada ✓' : fmt(saldoNuevo);
+  document.getElementById('pc-saldo').style.color   = saldoNuevo <= 1 ? 'var(--green)' : 'var(--amber)';
 }
 
 async function confirmarPago() {
@@ -2803,13 +2607,13 @@ async function confirmarPago() {
   const fechaStr = document.getElementById('pago-fecha').value;
   const notas = document.getElementById('pago-notas').value.trim();
   if (!monto || monto <= 0) { showToast('Ingresá un monto válido', 'error'); return; }
-  if (!fechaStr) { showToast('Elegí la fecha del pago', 'error'); return; }
   const c = pagoActual;
   const fechaVenc = parseFecha(c.vencimiento);
   const fechaPago = new Date(fechaStr+'T12:00:00');
   const diasAtraso = fechaVenc ? Math.max(0, Math.floor((fechaPago-fechaVenc)/86400000)) : 0;
   const nuevoMontoPagado = c.pagado + monto;
-  const nuevoSaldo = Math.max(0, c.monto - nuevoMontoPagado);
+  let nuevoSaldo = Math.max(0, c.monto - nuevoMontoPagado);
+  if (nuevoSaldo <= 1) nuevoSaldo = 0;
   let nuevoEstado = nuevoSaldo <= 0 ? (diasAtraso > 0 ? 'Pagada con atraso ('+diasAtraso+'d)' : 'Pagada') : 'Pago parcial';
   const pagoId = nextId('PAGO-', DB.pagos);
   try {
@@ -2820,13 +2624,9 @@ async function confirmarPago() {
       const sheetRow = rowIdx + 1;
       await sheetsUpdate(`Cuotas!G${sheetRow}:I${sheetRow}`, [[nuevoMontoPagado.toFixed(2), nuevoSaldo.toFixed(2), nuevoEstado]]);
     }
-    // Actualizar el evento de Calendar: si quedó saldada se marca ✅ verde
-    // con la fecha de pago; si fue parcial se anota 🟡 en el evento.
-    let calOk = false;
-    if (c.eventId) calOk = await marcarEventoPagadoCalendar(c, fechaPago, monto, nuevoSaldo, diasAtraso);
     invalidateCache();
     closePagoModal();
-    showToast('✓ Pago registrado' + (diasAtraso > 0 ? ' · ' + diasAtraso + ' días de atraso' : '') + (calOk ? ' · Calendar actualizado ✓' : ''));
+    showToast('✓ Pago registrado' + (diasAtraso > 0 ? ' · ' + diasAtraso + ' días de atraso' : ''));
     await loadAll();
     nav(document.querySelector('.nav-item.active')?.dataset?.screen || 'dashboard');
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
@@ -2963,196 +2763,6 @@ document.getElementById('cuotaExtraModal').addEventListener('click', e => {
 });
 
 // ============================================================
-// SALTEAR CUOTA
-// ============================================================
-function parseSalteos(notasStr) {
-  if (!notasStr) return [];
-  const salteos = [];
-  // Formato nuevo: Salteo:YYYY-MM-DD:orig->n1+n2+n3
-  const re = /Salteo:(\d{4}-\d{2}-\d{2}):(\d+)->([\d+]+)/g;
-  let m;
-  while ((m = re.exec(notasStr)) !== null) {
-    const nuevas = m[3].split('+').map(n => parseInt(n)).filter(n => !isNaN(n));
-    salteos.push({ fecha: m[1], cuotaOriginal: parseInt(m[2]), cuotasNuevas: nuevas });
-  }
-  return salteos;
-}
-
-function appendSalteoNotas(notasStr, salteo) {
-  const nuevasStr = (salteo.cuotasNuevas || [salteo.cuotaNueva]).join('+');
-  const entry = 'Salteo:' + salteo.fecha + ':' + salteo.cuotaOriginal + '->' + nuevasStr;
-  if (!notasStr) return entry;
-  return notasStr + ' | ' + entry;
-}
-
-function abrirSalteoModal(cuotaId) {
-  const cuota = DB.cuotas.find(c => c.id === cuotaId);
-  if (!cuota) return;
-  if (cuota.estado.startsWith('Pagada') || cuota.estado === 'Refinanciada' || cuota.estado === 'Salteada') {
-    showToast('Esta cuota no se puede saltear (' + cuota.estado + ')', 'error');
-    return;
-  }
-  if (cuota.pagado > 0) {
-    showToast('Esta cuota tiene un pago parcial (' + fmt(cuota.pagado) + '). Ajustá el pago antes de saltear.', 'error');
-    return;
-  }
-  const p = DB.prestamos.find(x => x.id === cuota.prestId);
-  if (!p) return;
-  salteoCuotaId = cuotaId;
-  const cuotasPrest = DB.cuotas.filter(c => c.prestId === cuota.prestId).sort((a,b) => a.nro - b.nro);
-  const ultimaCuota = cuotasPrest[cuotasPrest.length - 1];
-  const maxNro = cuotasPrest.reduce((m, c) => c.nro > m ? c.nro : m, 0);
-  const nuevoNro = maxNro + 1;
-
-  document.getElementById('salteo-sub').textContent = cuota.prestId + ' · Cuota ' + cuota.nro;
-  document.getElementById('salteo-cuota-info').textContent = '#' + cuota.nro;
-  document.getElementById('salteo-venc-orig').textContent = cuota.vencimiento;
-  document.getElementById('salteo-monto-orig').textContent = fmt(cuota.monto);
-  document.getElementById('salteo-nueva-nro').textContent = 'Cuotas #' + nuevoNro + ' y #' + (nuevoNro + 1);
-
-  // Fechas default: +30 y +60 días después de la última cuota actual
-  const ultimaFecha = ultimaCuota ? parseFecha(ultimaCuota.vencimiento) : new Date();
-  const fecha1 = new Date(ultimaFecha); fecha1.setDate(fecha1.getDate() + 30);
-  const fecha2 = new Date(ultimaFecha); fecha2.setDate(fecha2.getDate() + 60);
-  document.getElementById('salteo-fecha1').value = fecha1.toISOString().split('T')[0];
-  document.getElementById('salteo-fecha2').value = fecha2.toISOString().split('T')[0];
-  document.getElementById('salteo-monto').value = Math.round(cuota.monto);
-
-  document.getElementById('salteoModal').classList.add('open');
-}
-
-function closeSalteoModal() {
-  document.getElementById('salteoModal').classList.remove('open');
-  salteoCuotaId = null;
-}
-
-async function confirmarSalteo() {
-  if (!salteoCuotaId) return;
-  const fecha1Str = document.getElementById('salteo-fecha1').value;
-  const fecha2Str = document.getElementById('salteo-fecha2').value;
-  const monto = parseFloat(document.getElementById('salteo-monto').value) || 0;
-
-  if (!fecha1Str || !fecha2Str) { showToast('Completá las dos fechas', 'error'); return; }
-  if (monto <= 0) { showToast('El monto debe ser mayor a 0', 'error'); return; }
-
-  const cuota = DB.cuotas.find(c => c.id === salteoCuotaId);
-  if (!cuota) return;
-  const p = DB.prestamos.find(x => x.id === cuota.prestId);
-  if (!p) return;
-  const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
-  const cuotasPrest = DB.cuotas.filter(c => c.prestId === cuota.prestId);
-  const maxNro = cuotasPrest.reduce((m, c) => c.nro > m ? c.nro : m, 0);
-  const nro1 = maxNro + 1;
-  const nro2 = maxNro + 2;
-  const id1 = cuota.prestId + '-C' + String(nro1).padStart(2, '0');
-  const id2 = cuota.prestId + '-C' + String(nro2).padStart(2, '0');
-  const f1 = new Date(fecha1Str + 'T12:00:00');
-  const f2 = new Date(fecha2Str + 'T12:00:00');
-  const f1ES = fmtFechaES(f1), f1ISO = f1.toISOString().split('T')[0];
-  const f2ES = fmtFechaES(f2), f2ISO = f2.toISOString().split('T')[0];
-  const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.nombre;
-  const hoy = new Date();
-  const hoyISO = hoy.toISOString().split('T')[0];
-
-  const btn = document.getElementById('btn-salteo');
-  btn.disabled = true;
-  btn.textContent = 'Salteando...';
-
-  const crearEventoCal = async (nro, monto, fISO) => {
-    if (!CFG.calId) return '';
-    try {
-      const eventoBody = {
-        summary: '💰 ' + clienteNombre + ' — Cuota ' + nro + ' (post salteo cuota ' + cuota.nro + ') | ' + fmt(monto) + ' (' + cuota.prestId + ')',
-        description: 'Préstamo: ' + cuota.prestId + '\nCliente: ' + clienteNombre + '\nMonto cuota: ' + fmt(monto) + '\n🚫 Cuota generada por SALTEO de cuota ' + cuota.nro + ' (vto original ' + cuota.vencimiento + ', monto ' + fmt(cuota.monto) + ')',
-        start: { dateTime: fISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
-        end:   { dateTime: fISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
-        colorId: '6',
-        reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
-      };
-      const calRes = await fetch(
-        'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events',
-        { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(eventoBody) }
-      );
-      if (handleCalendarAuthError(calRes.status)) throw Object.assign(new Error('Calendar auth ' + calRes.status), { _noRetry: true });
-      if (calRes.ok) { const calData = await calRes.json(); return calData.id || ''; }
-    } catch(calErr) {
-      if (calErr._noRetry) throw calErr;
-      console.warn('Calendar error salteo cuota ' + nro, calErr);
-    }
-    return '';
-  };
-
-  try {
-    // 1. Borrar evento Calendar de la cuota salteada
-    if (cuota.eventId && CFG.calId) {
-      btn.textContent = 'Borrando evento Calendar...';
-      try { await borrarEventoCalendar(cuota.eventId); } catch(e) { console.warn('Calendar delete error', e); }
-    }
-
-    // 2. Crear eventos Calendar para las dos cuotas nuevas
-    btn.textContent = 'Creando eventos Calendar...';
-    const evt1 = await crearEventoCal(nro1, monto, f1ISO);
-    const evt2 = await crearEventoCal(nro2, monto, f2ISO);
-
-    // 3. Update cuota salteada en Sheets: estado='Salteada', saldo=0, eventId=''
-    btn.textContent = 'Actualizando cuota salteada...';
-    const cuotasData = await sheetsGet('Cuotas!A1:J');
-    const rowIdxSalteada = cuotasData.findIndex(r => r[0] === cuota.id);
-    const updates = [];
-    if (rowIdxSalteada >= 0) {
-      const sheetRow = rowIdxSalteada + 1;
-      updates.push({ range: `Cuotas!H${sheetRow}:J${sheetRow}`, values: [['0', 'Salteada', '']] });
-    }
-
-    // 4. Update notas del préstamo con el log de salteo + recalcular total/cuotas/ganancia
-    const prestData = await sheetsGet('Préstamos!A1:P');
-    const rowIdxPrest = prestData.findIndex(r => r[0] === cuota.prestId);
-    if (rowIdxPrest >= 0) {
-      const sheetRow = rowIdxPrest + 1;
-      const notasActuales = prestData[rowIdxPrest][15] || '';
-      const nuevasNotas = appendSalteoNotas(notasActuales, { fecha: hoyISO, cuotaOriginal: cuota.nro, cuotasNuevas: [nro1, nro2] });
-      const nuevoTotal = p.total + monto * 2;
-      const nuevaCantCuotas = nro2;
-      const nuevaGB = nuevoTotal - p.capital;
-      const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
-      const nuevaCom = esTercero ? nuevaGB * 0.2 : 0;
-      const nuevaGN = nuevaGB - nuevaCom;
-      updates.push({ range: `Préstamos!G${sheetRow}:H${sheetRow}`, values: [[nuevoTotal.toFixed(2), nuevaCantCuotas]] });
-      updates.push({ range: `Préstamos!L${sheetRow}:P${sheetRow}`, values: [[nuevaGB.toFixed(2), nuevaCom.toFixed(2), nuevaGN.toFixed(2), p.estado || 'Activo', nuevasNotas]] });
-    }
-    await sheetsBatchUpdate(updates);
-
-    // 5. Append las dos cuotas nuevas
-    btn.textContent = 'Creando cuotas nuevas...';
-    await sheetsAppend('Cuotas!A:J', [
-      [id1, cuota.prestId, p.clienteId, nro1, f1ES, monto.toFixed(2), 0, monto.toFixed(2), 'Pendiente', evt1],
-      [id2, cuota.prestId, p.clienteId, nro2, f2ES, monto.toFixed(2), 0, monto.toFixed(2), 'Pendiente', evt2],
-    ]);
-
-    // 6. Append Calendario sheet
-    const calRows = [];
-    if (evt1) calRows.push([id1, cuota.prestId, p.clienteId, evt1, CFG.calId || '', 'Activo']);
-    if (evt2) calRows.push([id2, cuota.prestId, p.clienteId, evt2, CFG.calId || '', 'Activo']);
-    if (calRows.length) await sheetsAppend('Calendario!A:F', calRows);
-
-    invalidateCache();
-    closeSalteoModal();
-    showToast('✓ Cuota ' + cuota.nro + ' salteada · 2 cuotas nuevas (' + f1ES + ', ' + f2ES + ')');
-    await loadAll(true);
-    renderDetallePrestamo(cuota.prestId);
-  } catch(e) {
-    showToast('Error: ' + e.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Saltear cuota →';
-  }
-}
-
-document.getElementById('salteoModal').addEventListener('click', e => {
-  if (e.target === document.getElementById('salteoModal')) closeSalteoModal();
-});
-
-// ============================================================
 // UTILITIES
 // ============================================================
 function fmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
@@ -3192,7 +2802,6 @@ function estadoPill(estado) {
   if (estado === 'Pendiente') return '<span class="pill pill-gray">Pendiente</span>';
   if (estado === 'Activo') return '<span class="pill pill-green">Activo</span>';
   if (estado === 'Refinanciada') return '<span class="pill pill-purple">Refinanciada</span>';
-  if (estado === 'Salteada') return '<span class="pill pill-gray" style="opacity:.75;text-decoration:line-through">Salteada</span>';
   return '<span class="pill pill-gray">' + estado + '</span>';
 }
 
@@ -3219,9 +2828,7 @@ document.getElementById('setupModal').addEventListener('click', e => {
 // ============================================================
 // ESTADISTICAS
 // ============================================================
-let estPeriodoTipo = '7d';
-let estPeriodoMes = null;     // {año, mes} cuando tipo === 'mes'
-let estPeriodoRango = null;   // {desde, hasta} en YYYY-MM-DD cuando tipo === 'rango'
+let estPeriodoDias = 7;
 let estTabActivo = 'resumen';
 
 function setEstTab(tab) {
@@ -3238,120 +2845,10 @@ function setEstTab(tab) {
   renderEstadisticas();
 }
 
-const _EST_BTN_IDS = ['est-btn-hoy','est-btn-7d','est-btn-mes-actual','est-btn-mes','est-btn-rango','est-btn-todo'];
-
-function getEstRango() {
-  const hoy = new Date(); hoy.setHours(23,59,59,999);
-  let desde = new Date(2000, 0, 1), hasta = new Date(hoy);
-  switch(estPeriodoTipo) {
-    case 'hoy':
-      desde = new Date(); desde.setHours(0,0,0,0);
-      break;
-    case '7d':
-      desde = new Date(hoy.getTime() - 6 * 86400000); desde.setHours(0,0,0,0);
-      break;
-    case 'mes-actual':
-      desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1, 0, 0, 0);
-      break;
-    case 'mes':
-      if (estPeriodoMes) {
-        desde = new Date(estPeriodoMes.año, estPeriodoMes.mes, 1, 0, 0, 0);
-        hasta = new Date(estPeriodoMes.año, estPeriodoMes.mes + 1, 0, 23, 59, 59, 999);
-      }
-      break;
-    case 'rango':
-      if (estPeriodoRango && estPeriodoRango.desde && estPeriodoRango.hasta) {
-        const [y1,m1,d1] = estPeriodoRango.desde.split('-').map(Number);
-        const [y2,m2,d2] = estPeriodoRango.hasta.split('-').map(Number);
-        desde = new Date(y1, m1-1, d1, 0, 0, 0);
-        hasta = new Date(y2, m2-1, d2, 23, 59, 59, 999);
-      }
-      break;
-  }
-  return { desde, hasta, esTodo: estPeriodoTipo === 'todo' };
-}
-
-function getEstRangoLabel() {
-  if (estPeriodoTipo === 'todo') return 'Desde siempre';
-  const { desde, hasta } = getEstRango();
-  if (estPeriodoTipo === 'hoy') return 'Hoy · ' + fmtFecha(hasta);
-  const dias = Math.round((hasta.getTime() - desde.getTime()) / 86400000) + 1;
-  return 'Del ' + fmtFecha(desde) + ' al ' + fmtFecha(hasta) + ' · ' + dias + ' día' + (dias!==1?'s':'');
-}
-
-function setEstPeriodo(tipo, btn) {
-  estPeriodoTipo = tipo;
-  document.getElementById('est-mes-picker').style.display = 'none';
-  document.getElementById('est-rango-picker').style.display = 'none';
-  document.getElementById('est-btn-mes').textContent = 'Mes ▾';
-  document.getElementById('est-btn-rango').textContent = 'Rango ▾';
-  _EST_BTN_IDS.forEach(id => document.getElementById(id)?.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  renderEstadisticas();
-}
-
-function toggleEstMesPicker(e) {
-  if (e) e.stopPropagation();
-  const picker = document.getElementById('est-mes-picker');
-  document.getElementById('est-rango-picker').style.display = 'none';
-  if (picker.style.display !== 'none') { picker.style.display = 'none'; return; }
-  const hoy = new Date();
-  let html = '';
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-    const lbl = d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
-    const lblCap = lbl.charAt(0).toUpperCase() + lbl.slice(1);
-    html += `<button class="mode-btn" onclick="setEstPeriodoMes(${d.getFullYear()},${d.getMonth()})" style="font-size:12px">${lblCap}</button>`;
-  }
-  picker.innerHTML = html;
-  picker.style.display = 'flex';
-}
-
-function setEstPeriodoMes(año, mes) {
-  estPeriodoTipo = 'mes';
-  estPeriodoMes = { año, mes };
-  document.getElementById('est-mes-picker').style.display = 'none';
-  document.getElementById('est-rango-picker').style.display = 'none';
-  document.getElementById('est-btn-rango').textContent = 'Rango ▾';
-  const lbl = new Date(año, mes, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
-  const btnMes = document.getElementById('est-btn-mes');
-  btnMes.textContent = lbl.charAt(0).toUpperCase() + lbl.slice(1) + ' ▾';
-  _EST_BTN_IDS.forEach(id => document.getElementById(id)?.classList.remove('active'));
-  btnMes.classList.add('active');
-  renderEstadisticas();
-}
-
-function toggleEstRangoPicker(e) {
-  if (e) e.stopPropagation();
-  const picker = document.getElementById('est-rango-picker');
-  document.getElementById('est-mes-picker').style.display = 'none';
-  if (picker.style.display !== 'none') { picker.style.display = 'none'; return; }
-  const desdeEl = document.getElementById('est-rango-desde');
-  const hastaEl = document.getElementById('est-rango-hasta');
-  if (!desdeEl.value || !hastaEl.value) {
-    const hoy = new Date();
-    const hace30 = new Date(hoy.getTime() - 30*86400000);
-    const toIso = d => [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
-    desdeEl.value = toIso(hace30);
-    hastaEl.value = toIso(hoy);
-  }
-  picker.style.display = 'flex';
-}
-
-function aplicarEstRango() {
-  const desde = document.getElementById('est-rango-desde').value;
-  const hasta = document.getElementById('est-rango-hasta').value;
-  if (!desde || !hasta) { showToast('Elegí ambas fechas', 'error'); return; }
-  if (desde > hasta) { showToast('La fecha "desde" debe ser anterior a "hasta"', 'error'); return; }
-  estPeriodoTipo = 'rango';
-  estPeriodoRango = { desde, hasta };
-  document.getElementById('est-rango-picker').style.display = 'none';
-  document.getElementById('est-btn-mes').textContent = 'Mes ▾';
-  const fmtIso = iso => { const [y,m,d] = iso.split('-'); return `${d}/${m}/${y.slice(2)}`; };
-  const btnRango = document.getElementById('est-btn-rango');
-  btnRango.textContent = `${fmtIso(desde)} → ${fmtIso(hasta)} ▾`;
-  _EST_BTN_IDS.forEach(id => document.getElementById(id)?.classList.remove('active'));
-  btnRango.classList.add('active');
+function setEstPeriodo(dias, btn) {
+  estPeriodoDias = dias;
+  document.querySelectorAll('#est-btn-7,#est-btn-30,#est-btn-90,#est-btn-365,#est-btn-0').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
   renderEstadisticas();
 }
 
@@ -3359,20 +2856,22 @@ async function renderEstadisticas() {
   document.getElementById('est-loading').style.display = 'flex';
   document.getElementById('est-content').style.display = 'none';
   await loadAll();
-  const { desde, hasta, esTodo } = getEstRango();
-  const hoy = hasta; // alias para mantener legibilidad en el resto del código
-  document.getElementById('est-rango-label').textContent = getEstRangoLabel();
+  const hoy = new Date(); hoy.setHours(23,59,59,999);
+  const desde = estPeriodoDias === 0 ? new Date('2000-01-01') : new Date(hoy.getTime() - estPeriodoDias * 86400000);
+  desde.setHours(0,0,0,0);
+  const labels = {7:'Últimos 7 días', 30:'Último mes', 90:'Último trimestre', 365:'Último año', 0:'Desde siempre'};
+  document.getElementById('est-rango-label').textContent = '(' + labels[estPeriodoDias] + ')';
 
   // ---- Datos base filtrados por período ----
   // Préstamos del período: los que INICIARON en el período
-  const prestPeriodo = esTodo
+  const prestPeriodo = estPeriodoDias === 0
     ? DB.prestamos
-    : DB.prestamos.filter(p => { const d = parseFecha(p.fechaInicio); return d && d >= desde && d <= hasta; });
+    : DB.prestamos.filter(p => { const d = parseFecha(p.fechaInicio); return d && d >= desde && d <= hoy; });
 
   // Pagos del período: los que se COBRARON en el período
-  const pagosPeriodo = esTodo
+  const pagosPeriodo = estPeriodoDias === 0
     ? DB.pagos
-    : DB.pagos.filter(p => { const d = parseFecha(p.fecha); return d && d >= desde && d <= hasta; });
+    : DB.pagos.filter(p => { const d = parseFecha(p.fecha); return d && d >= desde && d <= hoy; });
 
   const montoCobrado = pagosPeriodo.reduce((a,p) => a + p.monto, 0);
   const capitalTotal = prestPeriodo.reduce((a,p) => a + (p.capital || 0), 0);
@@ -3389,18 +2888,18 @@ async function renderEstadisticas() {
     const d = parseFecha(c.vencimiento);
     if (!d) return false;
     if (d > hoyMidnight) return false; // no venció aún
-    if (esTodo) return true;
-    return d >= desde && d <= hasta;
+    if (estPeriodoDias === 0) return true;
+    return d >= desde;
   });
   const montoMora = cuotasVencPeriodo.reduce((a,c) => a + c.saldo, 0);
-  const totalCuotasPeriodo = esTodo
+  const totalCuotasPeriodo = estPeriodoDias === 0
     ? DB.cuotas.length
-    : DB.cuotas.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hasta; }).length;
+    : DB.cuotas.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hoy; }).length;
   const tasaMora = totalCuotasPeriodo > 0 ? (cuotasVencPeriodo.length / totalCuotasPeriodo * 100).toFixed(1) : 0;
 
-  const clientesNuevos = esTodo
+  const clientesNuevos = estPeriodoDias === 0
     ? DB.clientes
-    : DB.clientes.filter(c => { const d = parseFecha(c.alta); return d && d >= desde && d <= hasta; });
+    : DB.clientes.filter(c => { const d = parseFecha(c.alta); return d && d >= desde && d <= hoy; });
 
   // ========================= TAB: RESUMEN =========================
   if (estTabActivo === 'resumen') {
@@ -3419,76 +2918,6 @@ async function renderEstadisticas() {
     document.getElementById('est-tasa-mora').textContent = tasaMora + '%';
     document.getElementById('est-cli-nuevos').textContent = clientesNuevos.length;
     document.getElementById('est-cli-nuevos-meta').textContent = clientesNuevos.length ? clientesNuevos.map(c => c.apellido).join(', ') : 'en el período';
-
-    // Cobro completo + plazo promedio (sobre los préstamos del período)
-    let fechaCierreMax = null;
-    let sumaPlazoPond = 0;
-    let sumaPesos = 0;
-    let prestamosCompletos = 0;
-    for (const p of prestPeriodo) {
-      const cuotasP = DB.cuotas.filter(c => c.prestId === p.id);
-      if (!cuotasP.length) continue;
-      let ultimaFecha = null;
-      let todasPagas = true;
-      for (const c of cuotasP) {
-        const d = parseFecha(c.vencimiento);
-        if (d && (!ultimaFecha || d > ultimaFecha)) ultimaFecha = d;
-        if (c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada') todasPagas = false;
-      }
-      if (!ultimaFecha) continue;
-      if (todasPagas) prestamosCompletos++;
-      if (!fechaCierreMax || ultimaFecha > fechaCierreMax) fechaCierreMax = ultimaFecha;
-      const fInicio = parseFecha(p.fechaInicio);
-      if (fInicio) {
-        const dias = Math.max(0, Math.round((ultimaFecha - fInicio) / 86400000));
-        const peso = p.total || p.capital || 1;
-        sumaPlazoPond += dias * peso;
-        sumaPesos += peso;
-      }
-    }
-    const cobroMontoEl = document.getElementById('est-cobro-monto');
-    const cobroEl = document.getElementById('est-cobro-fin');
-    const cobroMetaEl = document.getElementById('est-cobro-fin-meta');
-    const cobroLabelEl = document.getElementById('est-cobro-label');
-    cobroLabelEl.textContent = esTodo
-      ? 'Cuándo recuperás todo lo prestado'
-      : 'Cuándo recuperás lo prestado en este período';
-    const totalARecuperar = prestPeriodo.reduce((a,p) => a + (p.total || 0), 0);
-    // Si tiene préstamos del período: cuánto ya está cobrado vs cuánto falta
-    const prestIdsPeriodo = new Set(prestPeriodo.map(p => p.id));
-    const cobradoDelPeriodo = DB.pagos.filter(pg => prestIdsPeriodo.has(pg.prestId)).reduce((a,pg) => a + pg.monto, 0);
-    const faltaCobrar = Math.max(0, totalARecuperar - cobradoDelPeriodo);
-    if (!fechaCierreMax) {
-      cobroMontoEl.textContent = '—';
-      cobroEl.textContent = '—';
-      cobroMetaEl.textContent = 'sin préstamos en el período';
-    } else {
-      cobroMontoEl.textContent = fmt(totalARecuperar);
-      cobroEl.textContent = '📅 ' + fmtFecha(fechaCierreMax);
-      const diffDias = Math.round((fechaCierreMax - hoyMidnight) / 86400000);
-      const restoStr = faltaCobrar > 0 ? ` · falta cobrar ${fmt(faltaCobrar)}` : ' · ✓ todo cobrado';
-      if (prestamosCompletos === prestPeriodo.length) {
-        cobroMetaEl.textContent = '✓ Ya está todo cobrado';
-      } else if (diffDias > 0) {
-        const meses = (diffDias / 30).toFixed(1);
-        cobroMetaEl.textContent = `Faltan ${diffDias} días (~${meses} meses)${restoStr}`;
-      } else if (diffDias === 0) {
-        cobroMetaEl.textContent = `Hoy vence la última cuota${restoStr}`;
-      } else {
-        cobroMetaEl.textContent = `Vencido hace ${Math.abs(diffDias)} días${restoStr}`;
-      }
-    }
-    const plazoEl = document.getElementById('est-plazo-prom');
-    const plazoMetaEl = document.getElementById('est-plazo-prom-meta');
-    if (sumaPesos === 0) {
-      plazoEl.textContent = '—';
-      plazoMetaEl.textContent = 'sin datos';
-    } else {
-      const plazoDias = Math.round(sumaPlazoPond / sumaPesos);
-      const plazoMeses = (plazoDias / 30).toFixed(1);
-      plazoEl.textContent = plazoDias + ' días';
-      plazoMetaEl.textContent = `~${plazoMeses} meses · ponderado por monto del préstamo`;
-    }
 
     // Propio vs Tercero
     const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
@@ -3558,7 +2987,7 @@ function renderBalanceReal(prestPeriodo, pagosPeriodo, desde, hoy, hoyMidnight) 
   // Pendiente de cobro: cuotas pendientes de préstamos del período
   const prestIdsP = new Set(prestPeriodo.map(p => p.id));
   const cuotasDePeriodo = DB.cuotas.filter(c => prestIdsP.has(c.prestId));
-  const pendienteCobro = cuotasDePeriodo.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').reduce((a,c) => a + c.saldo, 0);
+  const pendienteCobro = cuotasDePeriodo.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con')).reduce((a,c) => a + c.saldo, 0);
 
   // Ganancia neta prometida
   const gnPrometida = prestPeriodo.reduce((a,p) => a + (p.ganNeta || 0), 0);
@@ -3683,7 +3112,7 @@ function renderBalanceReal(prestPeriodo, pagosPeriodo, desde, hoy, hoyMidnight) 
 
   // CAPITAL EN LA CALLE
   // Cuánta plata está afuera por cobrar, dividida en: por vencer (ok) vs vencido (riesgo)
-  const cuotasPendientes = DB.cuotas.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
+  const cuotasPendientes = DB.cuotas.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con'));
   const totalEnCalle = cuotasPendientes.reduce((a,c) => a + c.saldo, 0);
   const vencidas = cuotasPendientes.filter(c => { const d = parseFecha(c.vencimiento); return d && d < hoyMidnight; });
   const porVencer = cuotasPendientes.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= hoyMidnight; });
@@ -3732,31 +3161,32 @@ function renderRendimiento(prestPeriodo, pagosPeriodo, capitalTotal, gbTotal, gn
 
   const roiReal = capitalInvertidoPropio > 0 ? (gananciaRealizada / capitalInvertidoPropio * 100) : 0;
   document.getElementById('rend-roi').textContent = roiReal.toFixed(1) + '%';
-  document.getElementById('rend-roi-meta').textContent = fmt(gananciaRealizada) + ' cobrados / ' + fmt(capitalInvertidoPropio) + ' invertidos';
+  document.getElementById('rend-roi-meta').textContent = fmt(gananciaRealizada) + ' ganado / ' + fmt(capitalInvertidoPropio) + ' invertido';
 
-  // Si cobrás todo: ganancia neta prometida / capital invertido propio
+  // ROI prometido: ganancia neta prometida / capital invertido propio
   const roiProm = capitalInvertidoPropio > 0 ? (gnTotal / capitalInvertidoPropio * 100) : 0;
   document.getElementById('rend-roi-prom').textContent = roiProm.toFixed(1) + '%';
-  document.getElementById('rend-roi-prom-meta').textContent = fmt(gnTotal) + ' de ganancia total';
+  document.getElementById('rend-roi-prom-meta').textContent = fmt(gnTotal) + ' si se cobra todo';
 
-  // Cobranza: de las cuotas que YA VENCIERON, cuántas se cobraron (contando cuotas, no pesos)
+  // Tasa de cobro efectivo: de las cuotas que YA VENCIERON en el período, qué % se cobró
   const prestIdsP = new Set(prestPeriodo.map(p => p.id));
   const cuotasDelPeriodo = DB.cuotas.filter(c => prestIdsP.has(c.prestId));
   const cuotasYaVencidas = cuotasDelPeriodo.filter(c => {
     const d = parseFecha(c.vencimiento);
     return d && d < hoyMidnight;
   });
-  const cuotasCobradas = cuotasYaVencidas.filter(c => c.estado === 'Pagada' || (c.estado && c.estado.startsWith('Pagada con')));
-  const tasaCobro = cuotasYaVencidas.length > 0 ? (cuotasCobradas.length / cuotasYaVencidas.length * 100) : 0;
-  document.getElementById('rend-cobro').textContent = tasaCobro.toFixed(0) + '%';
+  const montoDeberiaCobrarse = cuotasYaVencidas.reduce((a,c) => a + c.monto, 0);
+  const montoPagadoDeVencidas = cuotasYaVencidas.reduce((a,c) => a + c.pagado, 0);
+  const tasaCobro = montoDeberiaCobrarse > 0 ? (montoPagadoDeVencidas / montoDeberiaCobrarse * 100) : 0;
+  document.getElementById('rend-cobro').textContent = tasaCobro.toFixed(1) + '%';
   document.getElementById('rend-cobro').style.color = tasaCobro >= 80 ? 'var(--green)' : tasaCobro >= 50 ? 'var(--amber)' : 'var(--red)';
-  document.getElementById('rend-cobro-meta').textContent = cuotasCobradas.length + ' de ' + cuotasYaVencidas.length + ' cuotas vencidas cobradas';
+  document.getElementById('rend-cobro-meta').textContent = fmt(montoPagadoDeVencidas) + ' de ' + fmt(montoDeberiaCobrarse) + ' vencido';
 
-  // Atraso promedio
+  // Promedio días atraso
   const pagosConAtraso = pagosPeriodo.filter(p => p.diasAtraso > 0);
   const promAtraso = pagosPeriodo.length > 0 ? (pagosPeriodo.reduce((a,p) => a + p.diasAtraso, 0) / pagosPeriodo.length) : 0;
   document.getElementById('rend-atraso').textContent = promAtraso.toFixed(1) + 'd';
-  document.getElementById('rend-atraso-meta').textContent = pagosConAtraso.length + ' de ' + pagosPeriodo.length + ' pagos llegaron tarde';
+  document.getElementById('rend-atraso-meta').textContent = pagosConAtraso.length + ' de ' + pagosPeriodo.length + ' pagos con atraso';
 
   // A tiempo vs con atraso
   const pagosATiempo = pagosPeriodo.filter(p => p.diasAtraso === 0);
@@ -3767,16 +3197,15 @@ function renderRendimiento(prestPeriodo, pagosPeriodo, capitalTotal, gbTotal, gn
   document.getElementById('rend-conatraso').textContent = pctConAtraso.toFixed(0) + '%';
   document.getElementById('rend-conatraso-meta').textContent = pagosConAtraso.length + ' pagos tarde';
 
-  // Préstamo promedio
+  // Ticket promedio
   const ticketProm = prestPeriodo.length > 0 ? capitalTotal / prestPeriodo.length : 0;
   document.getElementById('rend-ticket').textContent = fmt(ticketProm);
-  document.getElementById('rend-ticket-meta').textContent = prestPeriodo.length + ' préstamo' + (prestPeriodo.length!==1?'s':'') + ' en el período';
+  document.getElementById('rend-ticket-meta').textContent = prestPeriodo.length + ' préstamos en período';
 
-  // Rinde: por cada $100 prestados, cuántos ganás de neto
+  // Ganancia por peso invertido
   const ganXPeso = capitalTotal > 0 ? gnTotal / capitalTotal : 0;
-  const gan100 = ganXPeso * 100;
-  document.getElementById('rend-ganxpeso').textContent = '$' + gan100.toFixed(0);
-  document.getElementById('rend-ganxpeso-meta').textContent = 'de ganancia por cada $100 prestados';
+  document.getElementById('rend-ganxpeso').textContent = '$' + ganXPeso.toFixed(2);
+  document.getElementById('rend-ganxpeso-meta').textContent = 'Por cada $1 prestado, ganás $' + ganXPeso.toFixed(2) + ' neto';
 
   // Rendimiento propio vs tercero
   const propios = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
@@ -3917,45 +3346,18 @@ async function borrarEventoCalendar(eventId) {
   }
 }
 
-// ============================================================
-// HELPER: MARCAR EVENTO CALENDAR COMO PAGADO
-// Cuando se salda una cuota, el evento queda en su fecha de
-// vencimiento pero se renombra con ✅ PAGADO + fecha de pago
-// y se pinta de verde.
-// Si el pago es parcial, agrega 🟡 y anota el pago en la descripción.
-// ============================================================
-async function marcarEventoPagadoCalendar(cuota, fechaPago, monto, nuevoSaldo, diasAtraso) {
-  if (!cuota.eventId || !CFG.calId) return false;
-  const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + cuota.eventId;
+async function actualizarEventoCalendar(eventId, patch) {
+  if (!eventId || !CFG.calId) return;
   try {
-    const getRes = await fetch(url, { headers: { Authorization: 'Bearer ' + TOKEN } });
-    // El pago ya quedó guardado en Sheets: ante error de sesión no se relanza,
-    // handleAuthError ya avisa y redirige; el flujo del pago debe terminar bien.
-    if (handleCalendarAuthError(getRes.status)) return false;
-    if (!getRes.ok) return false;
-    const ev = await getRes.json();
-    const fechaPagoES = fmtFechaES(fechaPago);
-    // Quitar prefijos de pagos anteriores (parciales) para no acumularlos en el título
-    const baseSummary = (ev.summary || '').replace(/^✅ PAGADO[^—]*— /, '').replace(/^🟡 /, '').replace(/^💰 /, '');
-    const patch = {};
-    if (nuevoSaldo <= 0) {
-      const fechaVenc = parseFecha(cuota.vencimiento);
-      const diasAdelanto = (fechaVenc && diasAtraso === 0) ? Math.max(0, Math.round((fechaVenc - fechaPago) / 86400000)) : 0;
-      const nota = diasAtraso > 0 ? ' (' + diasAtraso + 'd de atraso)' : diasAdelanto > 0 ? ' (adelantado ' + diasAdelanto + 'd)' : '';
-      patch.summary = '✅ PAGADO ' + fechaPagoES + nota + ' — ' + baseSummary;
-      patch.colorId = '10'; // verde (Basil)
-      patch.description = (ev.description || '') + '\n\n✅ Pagado el ' + fechaPagoES + nota;
-    } else {
-      patch.summary = '🟡 ' + baseSummary;
-      patch.colorId = '5';
-      patch.description = (ev.description || '') + '\n🟡 Pago parcial de $' + Math.round(monto).toLocaleString('es-AR') + ' el ' + fechaPagoES + ' · Saldo restante: $' + Math.round(nuevoSaldo).toLocaleString('es-AR');
-    }
-    const patchRes = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
-    if (handleCalendarAuthError(patchRes.status)) return false;
-    return patchRes.ok;
+    const r = await fetch(
+      'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + encodeURIComponent(eventId),
+      { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }
+    );
+    if (handleCalendarAuthError(r.status)) throw Object.assign(new Error('Calendar PATCH auth ' + r.status), { _noRetry: true });
+    if (!r.ok) console.warn('Calendar PATCH error', r.status);
   } catch(e) {
-    console.warn('No se pudo actualizar evento Calendar:', cuota.eventId, e);
-    return false;
+    if (e._noRetry) throw e;
+    console.warn('No se pudo actualizar evento Calendar:', eventId, e);
   }
 }
 
@@ -3981,7 +3383,7 @@ function pedirEliminarPrestamo(prestId) {
   const p = DB.prestamos.find(x => x.id === prestId);
   if (!p) return;
   const cuotas = DB.cuotas.filter(c => c.prestId === prestId);
-  const todasPagas = cuotas.every(c => c.estado.startsWith('Pagada') || c.estado === 'Refinanciada' || c.estado === 'Salteada');
+  const todasPagas = cuotas.every(c => c.estado.startsWith('Pagada'));
   const msg = todasPagas
     ? `El préstamo ${prestId} está completamente pago. Se eliminará de Sheets pero los eventos del Calendar se conservarán como historial.`
     : `El préstamo ${prestId} tiene cuotas pendientes. Se eliminará de Sheets Y se borrarán los eventos pendientes del Calendar. Esta acción no se puede deshacer.`;
@@ -3993,9 +3395,9 @@ async function eliminarPrestamo(prestId) {
   try {
     const cuotasRaw = await sheetsGet('Cuotas!A:J');
     const cuotasPrest = cuotasRaw.filter(r => r[1] === prestId).map(rowToCuota);
-    const todasPagas = cuotasPrest.length > 0 && cuotasPrest.every(c => c.estado.startsWith('Pagada') || c.estado === 'Refinanciada' || c.estado === 'Salteada');
+    const todasPagas = cuotasPrest.length > 0 && cuotasPrest.every(c => c.estado.startsWith('Pagada'));
     if (!todasPagas && CFG.calId) {
-      const pendientes = cuotasPrest.filter(c => !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada' && c.eventId);
+      const pendientes = cuotasPrest.filter(c => !c.estado.startsWith('Pagada') && c.eventId);
       for (const c of pendientes) { await borrarEventoCalendar(c.eventId); }
     }
     await eliminarFilasSheets('Cuotas!A:J', 1, prestId);
@@ -4039,19 +3441,16 @@ async function sheetsClear(range) {
 // ============================================================
 let editPrestId = null;
 let _epCapitalOriginal = 0;
-let _epInteresOriginal = 0;
 
 function abrirEditPrestModal(prestId) {
   const p = DB.prestamos.find(x => x.id === prestId);
   if (!p) return;
   editPrestId = prestId;
   _epCapitalOriginal = p.capital || 0;
-  _epInteresOriginal = parseFloat(String(p.interes).replace('%','').trim()) || 0;
   document.getElementById('edit-prest-sub').textContent = prestId + ' · ' + p.nombre;
   document.getElementById('ep-capital').value = p.capital || '';
-  document.getElementById('ep-interes').value = _epInteresOriginal;
+  document.getElementById('ep-interes-display').value = (p.interes || '') + (String(p.interes).includes('%') ? '' : '%');
   document.getElementById('ep-capital-hint').textContent = '';
-  document.getElementById('ep-interes-hint').textContent = '';
   document.getElementById('ep-capital-preview').style.display = 'none';
   document.getElementById('ep-tipo').value = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? 'tercero' : 'propio';
   document.getElementById('ep-tercero').value = p.terceroNombre || '';
@@ -4065,36 +3464,22 @@ function actualizarPreviewCapital() {
   const p = DB.prestamos.find(x => x.id === editPrestId);
   if (!p) return;
   const nuevoCapital = parseFloat(document.getElementById('ep-capital').value) || 0;
-  const nuevoInteres = parseFloat(document.getElementById('ep-interes').value) || 0;
   const preview = document.getElementById('ep-capital-preview');
-  const hintCap = document.getElementById('ep-capital-hint');
-  const hintInt = document.getElementById('ep-interes-hint');
-  const capitalCambio = nuevoCapital && nuevoCapital !== _epCapitalOriginal;
-  const interesCambio = nuevoInteres !== _epInteresOriginal;
-  if (!nuevoCapital || (!capitalCambio && !interesCambio)) {
+  const hint = document.getElementById('ep-capital-hint');
+  if (!nuevoCapital || nuevoCapital === _epCapitalOriginal) {
     preview.style.display = 'none';
-    hintCap.textContent = '';
-    hintInt.textContent = '';
+    hint.textContent = '';
     return;
   }
-  if (capitalCambio) {
-    const diff = nuevoCapital - _epCapitalOriginal;
-    hintCap.textContent = (diff > 0 ? '▲ +' : '▼ ') + fmt(diff) + ' respecto al original';
-    hintCap.style.color = diff > 0 ? 'var(--amber)' : 'var(--red)';
-  } else {
-    hintCap.textContent = '';
-  }
-  if (interesCambio) {
-    const diffI = nuevoInteres - _epInteresOriginal;
-    hintInt.textContent = (diffI > 0 ? '▲ +' : '▼ ') + diffI.toFixed(2) + '% respecto al original (' + _epInteresOriginal + '%)';
-    hintInt.style.color = diffI > 0 ? 'var(--amber)' : 'var(--red)';
-  } else {
-    hintInt.textContent = '';
-  }
-  // Nuevo total = capital * (1 + interes/100)
-  const nuevoTotal = nuevoCapital * (1 + nuevoInteres / 100);
+  const diff = nuevoCapital - _epCapitalOriginal;
+  hint.textContent = (diff > 0 ? '▲ +' : '▼ ') + fmt(diff) + ' respecto al original';
+  hint.style.color = diff > 0 ? 'var(--amber)' : 'var(--red)';
+  // Calcular nuevo total
+  // Calcular tasa real desde los valores originales del préstamo (evita problemas de formato string)
+  const tasaReal = _epCapitalOriginal > 0 ? (p.total / _epCapitalOriginal) : 1;
+  const nuevoTotal = nuevoCapital * tasaReal;
   // Calcular cuotas pendientes y nuevo saldo por cuota
-  const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
+  const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada'));
   const totalCuotas = DB.cuotas.filter(c => c.prestId === editPrestId).length;
   const nuevaCuotaMonto = totalCuotas > 0 ? nuevoTotal / totalCuotas : 0;
   document.getElementById('ep-prev-capital').textContent = fmt(nuevoCapital);
@@ -4110,22 +3495,17 @@ function closeEditPrestModal() { document.getElementById('editPrestModal').class
 async function guardarEditPrest() {
   if (!editPrestId) return;
   const nuevoCapital = parseFloat(document.getElementById('ep-capital').value) || 0;
-  const nuevoInteres = parseFloat(document.getElementById('ep-interes').value) || 0;
   const tipo = document.getElementById('ep-tipo').value;
   const tercero = document.getElementById('ep-tercero').value.trim();
   const notas = document.getElementById('ep-notas').value.trim();
   if (!nuevoCapital || nuevoCapital <= 0) { showToast('El capital debe ser mayor a 0', 'error'); return; }
-  if (nuevoInteres < 0) { showToast('El interés no puede ser negativo', 'error'); return; }
 
-  const btn = document.getElementById('btn-guardar-edit-prest');
-  if (btn.disabled) return;
-  btn.disabled = true; const btnLabel = btn.textContent; btn.textContent = 'Guardando...';
   try {
     const p = DB.prestamos.find(x => x.id === editPrestId);
     if (!p) throw new Error('Préstamo no encontrado en memoria');
     const capitalCambio = nuevoCapital !== _epCapitalOriginal;
-    const interesCambio = nuevoInteres !== _epInteresOriginal;
-    const nuevoTotal = nuevoCapital * (1 + nuevoInteres / 100);
+    const tasaReal = _epCapitalOriginal > 0 ? (p.total / _epCapitalOriginal) : 1;
+    const nuevoTotal = nuevoCapital * tasaReal;
     const ganBruta = nuevoTotal - nuevoCapital;
     const comision = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? ganBruta * 0.2 : 0;
     const ganNeta = ganBruta - comision;
@@ -4138,16 +3518,16 @@ async function guardarEditPrest() {
     const tipoStr = tipo === 'tercero' ? 'De tercero' : 'propio';
     // Columnas: E=capital, F=interes, G=total, I=tipo, J=terceroId, K=terceroNombre, L=ganBruta, M=comision, N=ganNeta, P=notas
     await sheetsBatchUpdate([
-      { range: `Préstamos!E${sheetRow}:G${sheetRow}`, values: [[nuevoCapital, nuevoInteres + '%', nuevoTotal.toFixed(2)]] },
+      { range: `Préstamos!E${sheetRow}:G${sheetRow}`, values: [[nuevoCapital, p.interes, nuevoTotal.toFixed(2)]] },
       { range: `Préstamos!I${sheetRow}:K${sheetRow}`, values: [[tipoStr, '', tercero]] },
       { range: `Préstamos!L${sheetRow}:N${sheetRow}`, values: [[ganBruta.toFixed(2), comision.toFixed(2), ganNeta.toFixed(2)]] },
       { range: `Préstamos!P${sheetRow}`, values: [[notas]] },
     ]);
 
-    // 2. Si cambió el capital o el interés, actualizar cuotas pendientes
-    if (capitalCambio || interesCambio) {
+    // 2. Si cambió el capital, actualizar cuotas pendientes
+    if (capitalCambio) {
       const cuotasData = await sheetsGet('Cuotas!A:J');
-      const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').sort((a,b) => a.nro - b.nro);
+      const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada')).sort((a,b) => a.nro - b.nro);
       const totalCuotasN = DB.cuotas.filter(c => c.prestId === editPrestId).length;
       const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
       const nombreCliente = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.clienteId;
@@ -4183,7 +3563,7 @@ async function guardarEditPrest() {
                 headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   summary: '💰 ' + nombreCliente + ' — Cuota ' + c.nro + '/' + totalCuotasN + ' | ' + fmt(nuevoSaldo) + ' (' + editPrestId + ')',
-                  description: 'Préstamo: ' + editPrestId + '\nCliente: ' + nombreCliente + '\nMonto cuota: ' + fmt(nuevoMonto) + (capitalCambio ? '\n⚠ Capital modificado: ' + fmt(_epCapitalOriginal) + ' → ' + fmt(nuevoCapital) : '') + (interesCambio ? '\n⚠ Interés modificado: ' + _epInteresOriginal + '% → ' + nuevoInteres + '%' : '')
+                  description: 'Préstamo: ' + editPrestId + '\nCliente: ' + nombreCliente + '\nMonto cuota: ' + fmt(nuevoMonto) + '\n⚠ Capital modificado: ' + fmt(_epCapitalOriginal) + ' → ' + fmt(nuevoCapital)
                 })
               }
             );
@@ -4198,14 +3578,10 @@ async function guardarEditPrest() {
 
     invalidateCache();
     closeEditPrestModal();
-    showToast((capitalCambio || interesCambio) ? '✓ Préstamo actualizado y Calendar sincronizado' : '✓ Préstamo actualizado');
+    showToast(capitalCambio ? '✓ Préstamo actualizado y Calendar sincronizado' : '✓ Préstamo actualizado');
     await loadAll(true);
     renderDetallePrestamo(editPrestId);
-  } catch(e) {
-    showToast('Error: ' + e.message, 'error');
-  } finally {
-    btn.disabled = false; btn.textContent = btnLabel;
-  }
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 document.getElementById('editPrestModal').addEventListener('click', e => { if (e.target === document.getElementById('editPrestModal')) closeEditPrestModal(); });
 
@@ -4242,7 +3618,7 @@ function abrirRefinanciarModal(clienteId) {
   container.innerHTML = prestConSaldo.map(p => {
     const cuotas = DB.cuotas.filter(cu => cu.prestId === p.id);
     const saldo = cuotas.reduce((a, cu) => a + cu.saldo, 0);
-    const pendientes = cuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada');
+    const pendientes = cuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con'));
     const hayVencidas = pendientes.some(cu => { const d = parseFecha(cu.vencimiento); return d && d < hoy; });
     return `<label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;transition:all .15s;background:var(--card)" onmouseenter="this.style.background='var(--bg3)'" onmouseleave="this.style.background=refiSeleccionados.has('${p.id}')?'var(--accentbg)':'var(--card)'" id="refi-row-${p.id}">
       <input type="checkbox" onchange="toggleRefiPrest('${p.id}', this.parentElement)" style="accent-color:var(--accent);width:18px;height:18px;flex-shrink:0">
@@ -4262,7 +3638,6 @@ function abrirRefinanciarModal(clienteId) {
   
   // Defaults
   document.getElementById('refi-fecha').value = new Date().toISOString().split('T')[0];
-  document.getElementById('refi-extra').value = '0';
   document.getElementById('refi-interes').value = '0';
   document.getElementById('refi-cuotas').value = '6';
   document.getElementById('refi-freq').value = '30';
@@ -4293,7 +3668,7 @@ function recalcRefi() {
   selIds.forEach(prestId => {
     const cuotas = DB.cuotas.filter(cu => cu.prestId === prestId);
     cuotas.forEach(cu => {
-      if (cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada') {
+      if (cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada') {
         saldoTotal += cu.saldo;
         cuotasAbsorbidas++;
         if (cu.eventId) calEventos++;
@@ -4305,22 +3680,24 @@ function recalcRefi() {
   document.getElementById('refi-cuotas-abs').textContent = cuotasAbsorbidas;
   document.getElementById('refi-cal-count').textContent = calEventos;
 
-  // Preview nuevo crédito: capital = saldo refinanciado + dinero extra entregado
+  // Preview nuevo crédito
   const interes = parseFloat(document.getElementById('refi-interes').value) || 0;
   const cuotas = Math.max(1, parseInt(document.getElementById('refi-cuotas').value) || 1);
   const tipo = document.getElementById('refi-tipo').value;
-  const extra = Math.max(0, parseFloat(document.getElementById('refi-extra').value) || 0);
-  const capital = saldoTotal + extra;
+  const montoExtra = parseFloat(document.getElementById('refi-extra').value) || 0;
+  const capital = saldoTotal + montoExtra;
   const total = capital * (1 + interes / 100);
   const gb = total - capital;
   const com = tipo === 'tercero' ? gb * 0.2 : 0;
   const gn = gb - com;
   const cuotaVal = total / cuotas;
 
+  const hayExtra = montoExtra > 0;
   document.getElementById('refi-p-capital').textContent = fmt(capital);
-  const desgloseRow = document.getElementById('refi-p-desglose-row');
-  desgloseRow.style.display = extra > 0 ? 'flex' : 'none';
-  document.getElementById('refi-p-desglose').textContent = fmt(saldoTotal) + ' + ' + fmt(extra);
+  document.getElementById('refi-p-extra-row').style.display = hayExtra ? 'flex' : 'none';
+  document.getElementById('refi-p-extra-row2').style.display = hayExtra ? 'flex' : 'none';
+  document.getElementById('refi-p-saldo-ref').textContent = fmt(saldoTotal);
+  document.getElementById('refi-p-extra-val').textContent = fmt(montoExtra);
   document.getElementById('refi-p-total').textContent = fmt(total);
   document.getElementById('refi-p-gb').textContent = fmt(gb);
   document.getElementById('refi-p-com').textContent = fmt(com);
@@ -4345,7 +3722,6 @@ async function confirmarRefinanciar() {
   if (!refiClienteId || refiSeleccionados.size === 0) return;
 
   const selIds = Array.from(refiSeleccionados);
-  const extra = Math.max(0, parseFloat(document.getElementById('refi-extra').value) || 0);
   const interes = parseFloat(document.getElementById('refi-interes').value) || 0;
   const cuotasN = Math.max(1, parseInt(document.getElementById('refi-cuotas').value) || 1);
   const freqDias = parseInt(document.getElementById('refi-freq').value) || 30;
@@ -4355,30 +3731,50 @@ async function confirmarRefinanciar() {
 
   if (!fechaStr) { showToast('Elegí una fecha de inicio', 'error'); return; }
 
+  const montoExtra = parseFloat(document.getElementById('refi-extra').value) || 0;
+
   const btn = document.getElementById('btn-confirmar-refi');
   btn.disabled = true;
   btn.textContent = 'Procesando...';
 
   try {
-    // 1. Calcular saldo total
+    // 1. Calcular saldo total y preparar datos del nuevo crédito
     let saldoTotal = 0;
     const cuotasPendientesAll = [];
     selIds.forEach(prestId => {
       DB.cuotas.filter(cu => cu.prestId === prestId).forEach(cu => {
-        if (cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada') {
+        if (cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada') {
           saldoTotal += cu.saldo;
           cuotasPendientesAll.push(cu);
         }
       });
     });
 
-    // 2. Eliminar eventos Calendar de cuotas pendientes
-    btn.textContent = 'Eliminando eventos Calendar...';
-    let calBorrados = 0;
+    const capital = saldoTotal + montoExtra;
+    const total = capital * (1 + interes / 100);
+    const gb = total - capital;
+    const com = tipo === 'tercero' ? gb * 0.2 : 0;
+    const gn = gb - com;
+    const cuotaM = total / cuotasN;
+    const fechaInicio = new Date(fechaStr + 'T12:00:00');
+    const nuevoPrestId = nextId('PREST-', DB.prestamos);
+    const primerVenc = calcularFechaCuota(fechaInicio, 1, freqDias);
+    const primerVencStr = fmtFechaES(primerVenc);
+
+    const cl = DB.clientes.find(x => x.id === refiClienteId) || {};
+    const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : refiClienteId;
+
+    // 2. Actualizar eventos Calendar de cuotas pendientes con texto de refinanciación
+    btn.textContent = 'Actualizando eventos Calendar...';
+    let calActualizados = 0;
     for (const cu of cuotasPendientesAll) {
       if (cu.eventId && CFG.calId) {
-        await borrarEventoCalendar(cu.eventId);
-        calBorrados++;
+        await actualizarEventoCalendar(cu.eventId, {
+          summary: '🔄 Refinanciada → ' + nuevoPrestId + ' | ' + fmt(Math.round(cuotaM)) + '/cuota | vto. ' + primerVencStr,
+          description: 'Esta cuota fue refinanciada.\nNuevo crédito: ' + nuevoPrestId + '\nCuota: ' + fmt(cuotaM) + '\nPrimer vencimiento: ' + primerVencStr + '\nTotal del crédito: ' + fmt(total),
+          colorId: '8'
+        });
+        calActualizados++;
       }
     }
 
@@ -4386,11 +3782,6 @@ async function confirmarRefinanciar() {
     btn.textContent = 'Actualizando cuotas y préstamos...';
     const cuotasData = await sheetsGet('Cuotas!A1:J');
     const prestData = await sheetsGet('Préstamos!A1:P');
-    const cl = DB.clientes.find(x => x.id === refiClienteId) || {};
-    const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : refiClienteId;
-
-    // Generate new prest ID before updating old ones (so we can reference it)
-    const nuevoPrestId = nextId('PREST-', DB.prestamos);
 
     const refiUpdates = [];
     for (const cu of cuotasPendientesAll) {
@@ -4413,16 +3804,9 @@ async function confirmarRefinanciar() {
       try { await eliminarFilasSheets('Calendario!A:F', 1, prestId); } catch(e) { console.warn('Error limpiando Calendario para', prestId, e); }
     }
 
-    // 6. Crear nuevo préstamo (capital = saldo refinanciado + dinero extra entregado)
+    // 6. Crear nuevo préstamo
     btn.textContent = 'Creando nuevo préstamo...';
-    const fechaInicio = new Date(fechaStr + 'T12:00:00');
-    const capital = saldoTotal + extra;
-    const total = capital * (1 + interes / 100);
-    const gb = total - capital;
-    const com = tipo === 'tercero' ? gb * 0.2 : 0;
-    const gn = gb - com;
-    const cuotaM = total / cuotasN;
-    const notaNuevo = 'Refinanciación de: ' + selIds.join(', ') + (extra > 0 ? ' + ' + fmt(extra) + ' extra entregado en efectivo' : '');
+    const notaNuevo = 'Refinanciación de: ' + selIds.join(', ') + (montoExtra > 0 ? ' + extra ' + fmt(montoExtra) : '');
 
     await sheetsAppend('Préstamos!A:P', [[nuevoPrestId, refiClienteId, clienteNombre, fmtFechaES(fechaInicio), capital, interes+'%', total.toFixed(2), cuotasN, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notaNuevo]]);
 
@@ -4439,7 +3823,7 @@ async function confirmarRefinanciar() {
         btn.textContent = 'Creando cuota ' + i + '/' + cuotasN + ' en Calendar...';
         const eventoBody = {
           summary: '💰 ' + clienteNombre + ' — Cuota ' + i + '/' + cuotasN + ' | ' + fmt(Math.round(cuotaM)) + ' (' + nuevoPrestId + ' REFI)',
-          description: 'Préstamo: ' + nuevoPrestId + ' (REFINANCIACIÓN)\nCliente: ' + clienteNombre + ' (' + refiClienteId + ')\nMonto cuota: ' + fmt(cuotaM) + '\nConsolida: ' + selIds.join(', ') + (extra > 0 ? '\nDinero extra entregado: ' + fmt(extra) : '') + '\nTipo: ' + tipo + (tipo === 'tercero' ? ' — Tercero: ' + tercero : ''),
+          description: 'Préstamo: ' + nuevoPrestId + ' (REFINANCIACIÓN)\nCliente: ' + clienteNombre + ' (' + refiClienteId + ')\nMonto cuota: ' + fmt(cuotaM) + '\nConsolida: ' + selIds.join(', ') + '\nTipo: ' + tipo + (tipo === 'tercero' ? ' — Tercero: ' + tercero : ''),
           start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
           end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
           colorId: '3',
@@ -4462,7 +3846,7 @@ async function confirmarRefinanciar() {
     invalidateCache();
     closeRefiModal();
     const calMsg = calRows.length === cuotasN ? ' · Calendar sincronizado ✓' : calRows.length > 0 ? ' · Calendar: ' + calRows.length + '/' + cuotasN : '';
-    showToast('✓ Refinanciación exitosa → ' + nuevoPrestId + ' · ' + selIds.length + ' créditos consolidados' + (extra > 0 ? ' + ' + fmt(extra) + ' extra' : '') + (calBorrados > 0 ? ' · ' + calBorrados + ' eventos eliminados' : '') + calMsg);
+    showToast('✓ Refinanciación exitosa → ' + nuevoPrestId + ' · ' + selIds.length + ' créditos consolidados' + (calActualizados > 0 ? ' · ' + calActualizados + ' eventos actualizados en Calendar' : '') + calMsg);
     await loadAll(true);
     nav('detalle-prestamo', nuevoPrestId);
 
@@ -4511,9 +3895,6 @@ async function guardarEditCliente() {
   const dir      = document.getElementById('ec-dir').value.trim();
   const notas    = document.getElementById('ec-notas').value.trim();
   if (!apellido || !nombre || !dni) { showToast('Apellido, nombre y DNI son obligatorios', 'error'); return; }
-  const btn = document.getElementById('btn-guardar-edit-cliente');
-  if (btn.disabled) return;
-  btn.disabled = true; const btnLabel = btn.textContent; btn.textContent = 'Guardando...';
   try {
     const datos = await sheetsGet('Clientes!A1:L');
     const rowIdx = datos.findIndex(r => r[0] === editClienteId);
@@ -4528,7 +3909,7 @@ async function guardarEditCliente() {
     }
     if (updates.length) await Promise.all(updates);
     if (CFG.calId) {
-      const cuotasPend = DB.cuotas.filter(c => c.clienteId === editClienteId && !c.estado.startsWith('Pagada') && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada' && c.eventId);
+      const cuotasPend = DB.cuotas.filter(c => c.clienteId === editClienteId && !c.estado.startsWith('Pagada') && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.eventId);
       // Precomputar total de cuotas por préstamo (evita N filters)
       const totalPorPrest = {};
       DB.cuotas.forEach(x => { totalPorPrest[x.prestId] = (totalPorPrest[x.prestId] || 0) + 1; });
@@ -4548,11 +3929,7 @@ async function guardarEditCliente() {
     showToast('Cliente actualizado');
     await loadAll(true);
     renderDetalleCliente(editClienteId);
-  } catch(e) {
-    showToast('Error: ' + e.message, 'error');
-  } finally {
-    btn.disabled = false; btn.textContent = btnLabel;
-  }
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 document.getElementById('editClienteModal').addEventListener('click', e => { if (e.target === document.getElementById('editClienteModal')) closeEditClienteModal(); });
 
@@ -4565,7 +3942,7 @@ function abrirReprogModal(prestId) {
   const p = DB.prestamos.find(x => x.id === prestId);
   if (!p) return;
   const cuotas = DB.cuotas.filter(c => c.prestId === prestId).sort((a,b) => a.nro - b.nro);
-  const pendientes = cuotas.filter(c => !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
+  const pendientes = cuotas.filter(c => !c.estado.startsWith('Pagada'));
   const pagadas = cuotas.filter(c => c.estado.startsWith('Pagada'));
   if (pendientes.length === 0) { showToast('Este préstamo no tiene cuotas pendientes para reprogramar', 'error'); return; }
   reprogPrestId = prestId;
@@ -4590,12 +3967,12 @@ function actualizarPreviewReprog() {
   // type="date" devuelve yyyy-mm-dd
   const base = new Date(fechaStr + 'T12:00:00');
   if (isNaN(base)) return;
-  const cuotas = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').sort((a,b) => a.nro - b.nro);
+  const cuotas = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada')).sort((a,b) => a.nro - b.nro);
   const ds = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const preview = document.getElementById('reprog-preview');
   preview.innerHTML = cuotas.map((c, i) => {
     const fecha = i === 0 ? base : calcularFechaCuota(base, i, freq);
-    return `<div class="preview-item"><span class="preview-num">${String(c.nro).padStart(2,'0')}</span><span class="preview-fecha">${ds[fecha.getDay()]} ${fmtFecha(fecha)}</span><span class="preview-dias">${i === 0 ? 'Primera' : '+' + Math.round((fecha - base) / 86400000) + 'd'}</span><span class="preview-monto">${fmt(c.saldo)}</span></div>`;
+    return `<div class="preview-item"><span class="preview-num">${String(c.nro).padStart(2,'0')}</span><span class="preview-fecha">${ds[fecha.getDay()]} ${fmtFecha(fecha)}</span><span class="preview-dias">${i === 0 ? 'Primera' : '+' + (freq * i) + 'd'}</span><span class="preview-monto">${fmt(c.saldo)}</span></div>`;
   }).join('');
 }
 
@@ -4608,7 +3985,7 @@ async function confirmarReprogramar() {
   if (!fechaStr) { showToast('Elegí una fecha', 'error'); return; }
   const base = new Date(fechaStr + 'T12:00:00');
   if (isNaN(base)) { showToast('Fecha inválida', 'error'); return; }
-  const cuotasPend = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').sort((a,b) => a.nro - b.nro);
+  const cuotasPend = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada')).sort((a,b) => a.nro - b.nro);
   if (cuotasPend.length === 0) { showToast('No hay cuotas pendientes', 'error'); return; }
   closeReprogModal();
   showToast('Reprogramando cuotas...');
@@ -4672,7 +4049,7 @@ function pedirEliminarCliente(clienteId) {
   const c = DB.clientes.find(x => x.id === clienteId);
   if (!c) return;
   const ps = DB.prestamos.filter(p => p.clienteId === clienteId);
-  const cuotasPend = DB.cuotas.filter(cu => cu.clienteId === clienteId && !cu.estado.startsWith('Pagada') && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada');
+  const cuotasPend = DB.cuotas.filter(cu => cu.clienteId === clienteId && !cu.estado.startsWith('Pagada') && cu.estado !== 'Refinanciada');
   if (cuotasPend.length > 0) {
     mostrarConfirm('Eliminar cliente con préstamos activos', c.apellido + ', ' + c.nombre + ' tiene ' + cuotasPend.length + ' cuota/s pendiente/s. Se eliminarán el cliente, todos sus préstamos, cuotas y eventos Calendar pendientes. Esta acción no se puede deshacer.', () => eliminarCliente(clienteId));
   } else if (ps.length > 0) {
@@ -4687,7 +4064,7 @@ async function eliminarCliente(clienteId) {
   try {
     if (CFG.calId) {
       const cuotasRaw = await sheetsGet('Cuotas!A:J');
-      const cuotasPend = cuotasRaw.filter(r => r[2] === clienteId && r[8] && !r[8].startsWith('Pagada') && r[8] !== 'Refinanciada' && r[8] !== 'Salteada' && r[9]).map(rowToCuota);
+      const cuotasPend = cuotasRaw.filter(r => r[2] === clienteId && r[8] && !r[8].startsWith('Pagada') && r[9]).map(rowToCuota);
       for (const c of cuotasPend) { await borrarEventoCalendar(c.eventId); }
     }
     await eliminarFilasSheets('Cuotas!A:J', 2, clienteId);
@@ -4742,7 +4119,7 @@ function abrirPlanCuotas(clienteId) {
   if (!c) return;
   const prestActivos = DB.prestamos.filter(p => p.clienteId === clienteId && calcEstadoPrestamo(p.id) !== 'Cancelado' && calcEstadoPrestamo(p.id) !== 'Refinanciado');
   const prestConPendientes = prestActivos.filter(p => {
-    const cuotas = DB.cuotas.filter(cu => cu.prestId === p.id && cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada');
+    const cuotas = DB.cuotas.filter(cu => cu.prestId === p.id && cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada');
     return cuotas.length > 0;
   });
 
@@ -4761,7 +4138,7 @@ function abrirPlanCuotas(clienteId) {
   prestConPendientes.forEach((p, idx) => {
     const colorIdx = idx % PLAN_COLORS.length;
     const allCuotas = DB.cuotas.filter(cu => cu.prestId === p.id).sort((a,b) => a.nro - b.nro);
-    const pendientes = allCuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada').sort((a,b) => a.nro - b.nro);
+    const pendientes = allCuotas.filter(cu => cu.estado !== 'Pagada' && !cu.estado.startsWith('Pagada con') && cu.estado !== 'Refinanciada').sort((a,b) => a.nro - b.nro);
     const totalCuotasReal = allCuotas.length;
     const cuotaMonto = pendientes.length > 0 ? pendientes[0].monto : 0;
     const maxNro = pendientes.length > 0 ? pendientes[pendientes.length - 1].nro : 0;
@@ -4949,7 +4326,7 @@ async function escanearCalendar() {
     await loadAll(true);
     const sinEvento = DB.cuotas.filter(c =>
       (!c.eventId || c.eventId.trim() === '') &&
-      c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada'
+      c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con')
     );
 
     if (sinEvento.length === 0) {
@@ -5364,3 +4741,4 @@ init();
 </script>
 </body>
 </html>
+
