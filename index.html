@@ -737,6 +737,21 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
       <div class="calc-row"><span class="calc-label">Días de atraso</span><span class="calc-val" id="pc-atraso">—</span></div>
       <div class="calc-row"><span class="calc-label">Saldo restante</span><span class="calc-val" id="pc-saldo">—</span></div>
     </div>
+    <div id="pago-ajuste-box" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:12px;color:var(--amber);font-weight:600;margin-bottom:8px">↩ Deshacer / ajustar pagos cargados</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Estas acciones corrigen pagos ya registrados (también ajustan las estadísticas). Pedí confirmación antes de aplicar.</div>
+      <div id="pago-historial" style="margin-bottom:10px"></div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-label">Quitar un monto puntual ($)</label>
+          <input class="form-input" type="number" id="pago-quitar-monto" min="0" placeholder="Ej: 50000">
+        </div>
+        <div class="form-field" style="display:flex;align-items:flex-end">
+          <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="quitarMontoManual()">➖ Quitar monto</button>
+        </div>
+      </div>
+      <button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:10px" onclick="resetearCuotaCero()">↩ Resetear cuota a cero (borra todos sus pagos)</button>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closePagoModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmarPago()">Confirmar pago</button>
@@ -844,7 +859,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
           <span class="nav-icon">◉</span> Clientes
         </div>
         <div class="nav-item" data-screen="prestamos" onclick="nav('prestamos')">
-          <span class="nav-icon">◎</span> Préstamos
+          <span class="nav-icon">◎</span> Cartera
         </div>
         <div class="nav-item" data-screen="vencimientos" onclick="nav('vencimientos')">
           <span class="nav-icon">◷</span> Vencimientos
@@ -952,15 +967,28 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <div id="prestamos-loading" class="loading"><div class="spinner"></div> Cargando préstamos...</div>
         <div id="prestamos-content" style="display:none">
           <div class="table-wrap">
-            <div class="card-header">
-              <span class="card-title">Todos los préstamos</span>
-              <div class="flex-row">
-                <input class="form-input" style="width:180px;padding:6px 12px;font-size:12px" placeholder="🔍 Buscar..." oninput="filtrarTablaPrestamos(this.value)">
+            <div class="card-header" style="flex-wrap:wrap;gap:10px">
+              <span class="card-title">Cartera de créditos</span>
+              <div class="flex-row" style="gap:8px;flex-wrap:wrap">
+                <select class="form-select" id="cartera-tipo" style="width:auto;padding:6px 10px;font-size:12px" onchange="aplicarFiltrosCartera()">
+                  <option value="">Todos los tipos</option>
+                  <option value="propio">Propios</option>
+                  <option value="tercero">De tercero</option>
+                </select>
+                <input class="form-input" id="cartera-buscar" style="width:180px;padding:6px 12px;font-size:12px" placeholder="🔍 Buscar..." oninput="aplicarFiltrosCartera()">
               </div>
             </div>
+            <div class="freq-group" id="cartera-filtros-estado" style="padding:0 16px 12px;flex-wrap:wrap">
+              <button type="button" class="freq-btn active" data-estado="" onclick="setFiltroCarteraEstado('',this)">Todos</button>
+              <button type="button" class="freq-btn" data-estado="Activo" onclick="setFiltroCarteraEstado('Activo',this)">Al día</button>
+              <button type="button" class="freq-btn" data-estado="En mora" onclick="setFiltroCarteraEstado('En mora',this)">En mora</button>
+              <button type="button" class="freq-btn" data-estado="Finalizado" onclick="setFiltroCarteraEstado('Finalizado',this)">Finalizados</button>
+              <button type="button" class="freq-btn" data-estado="Refinanciado" onclick="setFiltroCarteraEstado('Refinanciado',this)">Refinanciados</button>
+            </div>
+            <div id="cartera-resumen" style="padding:0 16px 12px;font-size:12px;color:var(--muted)"></div>
             <table>
               <thead><tr>
-                <th>ID</th><th>Cliente</th><th>Capital</th><th>Total</th><th>Tipo</th><th>Cuotas</th><th>Estado</th><th></th>
+                <th>ID</th><th>Cliente</th><th>Capital</th><th>Total</th><th>Saldo</th><th>Tipo</th><th>Cuotas</th><th>Estado</th><th></th>
               </tr></thead>
               <tbody id="prestamos-table"></tbody>
             </table>
@@ -1031,13 +1059,34 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
             <div class="form-section">
               <div class="form-section-title">Datos del préstamo</div>
               <div class="form-grid">
+                <div class="form-field full">
+                  <label class="form-label">¿Cómo cargás el crédito?</label>
+                  <div class="freq-group">
+                    <button type="button" class="freq-btn active" id="np-modo-interes" onclick="setModoNP('interes')">Por interés (%)<div class="freq-sub">vos ponés el %</div></button>
+                    <button type="button" class="freq-btn" id="np-modo-cuota" onclick="setModoNP('cuota')">Por monto de cuota ($)<div class="freq-sub">ej: 3 cuotas de 50.000</div></button>
+                  </div>
+                </div>
                 <div class="form-field">
                   <label class="form-label">Capital ($)</label>
                   <input class="form-input" type="number" id="np-capital" value="100000" oninput="recalcNP()">
                 </div>
-                <div class="form-field">
+                <div class="form-field" id="np-field-interes">
                   <label class="form-label">Interés (%)</label>
                   <input class="form-input" type="number" id="np-interes" value="40" oninput="recalcNP()">
+                </div>
+                <div class="form-field" id="np-field-monto-cuota" style="display:none">
+                  <label class="form-label">Monto por cuota ($)</label>
+                  <input class="form-input" type="number" id="np-monto-cuota" value="50000" oninput="recalcNP()">
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Redondeo de cuota</label>
+                  <select class="form-select" id="np-redondeo" onchange="recalcNP()">
+                    <option value="1000">A $1.000 (recomendado)</option>
+                    <option value="0">Sin redondear</option>
+                    <option value="100">A $100</option>
+                    <option value="5000">A $5.000</option>
+                    <option value="10000">A $10.000</option>
+                  </select>
                 </div>
                 <div class="form-field">
                   <label class="form-label">Fecha de creación del préstamo</label>
@@ -1085,6 +1134,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
             </div>
             <div class="calc-box mt-16">
               <div class="calc-row"><span class="calc-label">Total a devolver</span><span class="calc-val" id="np-r-total">$140.000</span></div>
+              <div class="calc-row"><span class="calc-label">Interés efectivo</span><span class="calc-val text-amber" id="np-r-int-ef">40%</span></div>
               <div class="calc-row"><span class="calc-label">Ganancia bruta</span><span class="calc-val text-green" id="np-r-gb">$40.000</span></div>
               <div class="calc-row" id="np-r-com-row" style="display:none"><span class="calc-label">Comisión 20% (tercero)</span><span class="calc-val text-amber" id="np-r-com">$8.000</span></div>
               <div class="calc-row"><span class="calc-label">Ganancia neta</span><span class="calc-val text-green" id="np-r-gn">$40.000</span></div>
@@ -1604,6 +1654,33 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
   </div>
 </div>
 
+<!-- MODAL UNIFICAR CUOTAS -->
+<div class="modal-overlay" id="unificarModal">
+  <div class="modal">
+    <div class="modal-title">🔗 Unificar cuotas pendientes</div>
+    <div class="modal-sub" id="unif-sub">—</div>
+    <div style="background:var(--amberbg);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--muted)">Todas las cuotas pendientes se juntan en <b>una sola cuota final</b> con la suma de los saldos. Las demás quedan anuladas (marcadas como unificadas, sin evento de Calendar) pero se conservan como historial. Lo ya pagado se respeta.</div>
+    </div>
+    <div class="calc-box" style="margin-bottom:16px">
+      <div class="calc-row"><span class="calc-label">Cuotas pendientes a unificar</span><span class="calc-val text-amber" id="unif-cant">—</span></div>
+      <div class="calc-row"><span class="calc-label">Suma de saldos</span><span class="calc-val" id="unif-suma">—</span></div>
+      <div class="calc-row"><span class="calc-label">Quedará 1 cuota de</span><span class="calc-val text-accent" id="unif-resultado">—</span></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-field full">
+        <label class="form-label">Fecha de la cuota única</label>
+        <input class="form-input" type="date" id="unif-fecha">
+      </div>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted)">⚠ Se borran los eventos de Calendar de las cuotas absorbidas y se actualiza el de la cuota final.</div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeUnificarModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarUnificar()">Unificar →</button>
+    </div>
+  </div>
+</div>
+
 <!-- REPARAR CALENDAR MODAL -->
 <div class="modal-overlay" id="repairCalModal">
   <div class="modal" style="max-width:640px">
@@ -1720,6 +1797,7 @@ let CFG = JSON.parse(localStorage.getItem(CFG_KEY) || '{}');
 let TOKEN = null;
 let DB = { clientes: [], prestamos: [], cuotas: [], pagos: [], documentos: [], calendario: [] };
 let npFreqDias = 30, npFreqLabel = 'mensual', npClienteSeleccionado = null, npModoCliente = 'existente';
+let npModoCalculo = 'interes'; // 'interes' = se ingresa %, 'cuota' = se ingresa monto por cuota
 let pagoActual = null;
 let cuotaExtraPrestId = null;
 let salteoCuotaId = null;
@@ -2283,20 +2361,52 @@ function renderDetalleCliente(clienteId) {
 // ============================================================
 // PRÉSTAMOS
 // ============================================================
+let carteraFiltroEstado = '';
+
 async function renderPrestamos() {
   document.getElementById('prestamos-loading').style.display = 'flex';
   document.getElementById('prestamos-content').style.display = 'none';
   await loadAll();
-  renderTablaPrestamos(DB.prestamos);
+  aplicarFiltrosCartera();
   document.getElementById('prestamos-loading').style.display = 'none';
   document.getElementById('prestamos-content').style.display = 'block';
 }
 
+function setFiltroCarteraEstado(estado, btn) {
+  carteraFiltroEstado = estado;
+  document.querySelectorAll('#cartera-filtros-estado .freq-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  aplicarFiltrosCartera();
+}
+
+// Combina buscador + filtro de estado + filtro de tipo y redibuja la tabla.
+function aplicarFiltrosCartera() {
+  const q = (document.getElementById('cartera-buscar')?.value || '').toLowerCase().trim();
+  const tipoF = document.getElementById('cartera-tipo')?.value || '';
+  let lista = DB.prestamos.slice();
+  if (q) lista = lista.filter(p => {
+    const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
+    return (p.id + ' ' + p.nombre + ' ' + p.clienteId + ' ' + (cl.apellido || '') + ' ' + (cl.nombre || '')).toLowerCase().includes(q);
+  });
+  if (tipoF === 'tercero') lista = lista.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero');
+  else if (tipoF === 'propio') lista = lista.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
+  if (carteraFiltroEstado) lista = lista.filter(p => calcEstadoPrestamo(p.id) === carteraFiltroEstado);
+  renderTablaPrestamos(lista);
+}
+
+function saldoPrestamo(prestId) {
+  return DB.cuotas.filter(c => c.prestId === prestId && c.estado !== 'Refinanciada' && c.estado !== 'Salteada')
+    .reduce((a, c) => a + (c.saldo || 0), 0);
+}
+
 function renderTablaPrestamos(lista) {
   const tbody = document.getElementById('prestamos-table');
+  let totCapital = 0, totTotal = 0, totSaldo = 0;
   tbody.innerHTML = lista.map(p => {
     const cuotasP = DB.cuotas.filter(c => c.prestId === p.id);
     const pendientes = cuotasP.filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').length;
+    const saldo = saldoPrestamo(p.id);
+    totCapital += p.capital || 0; totTotal += p.total || 0; totSaldo += saldo;
     return `<tr class="clickable" onclick="nav('detalle-prestamo','${p.id}')">
       <td class="td-mono">${p.id}</td>
       ${(() => {
@@ -2305,16 +2415,21 @@ function renderTablaPrestamos(lista) {
 })()}
       <td class="td-mono">${fmt(p.capital)}</td>
       <td class="td-mono">${fmt(p.total)}</td>
+      <td class="td-mono ${saldo > 0 ? 'text-amber' : 'text-green'}">${fmt(saldo)}</td>
       <td>${p.tipo === 'tercero' || p.tipo === 'De tercero' ? '<span class="pill pill-amber">Tercero</span>' : '<span class="pill pill-gray">Propio</span>'}</td>
       <td class="td-mono">${pendientes}/${p.cuotas} pend.</td>
       <td>${estadoPill2(calcEstadoPrestamo(p.id))}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();nav('detalle-prestamo','${p.id}')">Ver →</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Sin préstamos</td></tr>';
+  }).join('') || '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">Sin créditos que coincidan con el filtro</td></tr>';
+  const resumen = document.getElementById('cartera-resumen');
+  if (resumen) resumen.innerHTML = `<b>${lista.length}</b> crédito${lista.length !== 1 ? 's' : ''} · Capital: <b class="text-mono">${fmt(totCapital)}</b> · A devolver: <b class="text-mono">${fmt(totTotal)}</b> · Saldo por cobrar: <b class="text-mono text-amber">${fmt(totSaldo)}</b>`;
 }
 
+// Compatibilidad: el buscador viejo (si quedara) sigue funcionando.
 function filtrarTablaPrestamos(q) {
-  renderTablaPrestamos(DB.prestamos.filter(p => (p.id+p.nombre+p.clienteId).toLowerCase().includes(q.toLowerCase())));
+  const inp = document.getElementById('cartera-buscar'); if (inp) inp.value = q;
+  aplicarFiltrosCartera();
 }
 
 function renderDetallePrestamo(prestId) {
@@ -2332,6 +2447,7 @@ function renderDetallePrestamo(prestId) {
     salteoByOrig[s.cuotaOriginal] = s;
     (s.cuotasNuevas || []).forEach(n => { salteoByNuevo[n] = s; });
   });
+  const unifAbsorbidas = parseUnif(p.notas); // nros de cuotas absorbidas por una unificación
   const fmtSalteoFecha = iso => { const d = new Date(iso + 'T12:00:00'); return isNaN(d) ? iso : fmtFecha(d); };
 
   document.getElementById('dp-content').innerHTML = `
@@ -2346,6 +2462,7 @@ function renderDetallePrestamo(prestId) {
       <div class="flex-row">
         ${p.estado !== 'Refinanciado' ? `<button class="btn btn-amber btn-sm" onclick="abrirCuotaExtraModal('${p.id}')">⊕ Agregar cuota extra</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirReprogModal('${p.id}')">📅 Reprogramar fechas</button>
+        <button class="btn btn-ghost btn-sm" onclick="abrirUnificarModal('${p.id}')" title="Junta las cuotas pendientes en una sola al final">🔗 Unificar cuotas</button>
         <button class="btn btn-ghost btn-sm" onclick="sincronizarCalendarPrestamo('${p.id}')" title="Reescribe los títulos de los eventos pendientes con la numeración actual">🔃 Sincronizar Calendar</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirEditPrestModal('${p.id}')">✏ Editar</button>` : `<span class="pill pill-amber" style="font-size:12px;padding:6px 14px">🔄 Préstamo refinanciado — solo lectura</span>`}
         <button class="btn btn-danger btn-sm" onclick="pedirEliminarPrestamo('${p.id}')">🗑 Eliminar</button>
@@ -2421,17 +2538,17 @@ function renderDetallePrestamo(prestId) {
             </div>
           </div>`;
         }).join('')}
-        ${refinanciadas.map(c => `<div class="cuota-item" style="opacity:0.5;cursor:default">
+        ${refinanciadas.map(c => { const esUnif = unifAbsorbidas.includes(c.nro); return `<div class="cuota-item" style="opacity:0.5;cursor:default">
           <div class="cuota-num" style="border-color:rgba(124,111,255,.3);color:var(--accent)">${String(c.nro).padStart(2,'0')}</div>
           <div style="flex:1">
-            <div class="cuota-fecha">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} <span style="color:var(--accent);font-size:11px">🔄 Refinanciada</span></div>
-            <div class="cuota-sub">${c.estado} · Pagado: ${fmt(c.pagado)}</div>
+            <div class="cuota-fecha">${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} <span style="color:var(--accent);font-size:11px">${esUnif ? '🔗 Unificada' : '🔄 Refinanciada'}</span></div>
+            <div class="cuota-sub">${esUnif ? 'Saldo movido a la cuota final' : c.estado} · Pagado: ${fmt(c.pagado)}</div>
           </div>
           <div>
             <div class="cuota-monto" style="color:var(--muted)">—</div>
-            <div class="cuota-saldo">${estadoPill(c.estado)}</div>
+            <div class="cuota-saldo">${esUnif ? '<span class="pill pill-gray">🔗 Unificada</span>' : estadoPill(c.estado)}</div>
           </div>
-        </div>`).join('')}
+        </div>`; }).join('')}
       </div>
     </div>`;
 }
@@ -2613,22 +2730,52 @@ function fechaCuotaIndex(fechaCreacion, fechaPrimera, i, freqDias) {
   return calcularFechaCuota(fechaCreacion, i, freqDias);
 }
 
-function recalcNP() {
+// Cambia entre cargar por interés (%) o por monto de cuota ($).
+function setModoNP(modo) {
+  npModoCalculo = modo;
+  document.getElementById('np-modo-interes').classList.toggle('active', modo === 'interes');
+  document.getElementById('np-modo-cuota').classList.toggle('active', modo === 'cuota');
+  document.getElementById('np-field-interes').style.display = modo === 'interes' ? 'flex' : 'none';
+  document.getElementById('np-field-monto-cuota').style.display = modo === 'cuota' ? 'flex' : 'none';
+  recalcNP();
+}
+
+// Núcleo de cálculo compartido por la vista previa y la creación, para que
+// nunca diverjan. Aplica el redondeo de cuota elegido y deriva el interés
+// efectivo (que puede quedar con decimales, pero ya no lo tipea el usuario).
+function calcularMontosNP() {
   const cap = parseFloat(document.getElementById('np-capital')?.value) || 0;
-  const int = parseFloat(document.getElementById('np-interes')?.value) || 0;
   const cuotas = Math.max(1, parseInt(document.getElementById('np-cuotas')?.value) || 1);
   const tipo = document.getElementById('np-tipo')?.value || 'propio';
-  const fechaStr = document.getElementById('np-fecha')?.value;
-  const fechaPrimStr = document.getElementById('np-fecha-primera')?.value;
-  const total = cap * (1 + int / 100);
+  const step = parseInt(document.getElementById('np-redondeo')?.value) || 0;
+  let cuotaM;
+  if (npModoCalculo === 'cuota') {
+    const montoCuota = parseFloat(document.getElementById('np-monto-cuota')?.value) || 0;
+    cuotaM = step > 0 ? Math.round(montoCuota / step) * step : montoCuota;
+  } else {
+    const int = parseFloat(document.getElementById('np-interes')?.value) || 0;
+    const cuotaBruta = (cap * (1 + int / 100)) / cuotas;
+    cuotaM = step > 0 ? Math.round(cuotaBruta / step) * step : cuotaBruta;
+  }
+  const total = cuotaM * cuotas;
+  const interesEf = cap > 0 ? (total / cap - 1) * 100 : 0;
   const gb = total - cap;
   const com = tipo === 'tercero' ? gb * 0.2 : 0;
   const gn = gb - com;
-  const cuotaM = total / cuotas;
-  document.getElementById('np-r-total').textContent = fmt(total);
-  document.getElementById('np-r-gb').textContent = fmt(gb);
-  document.getElementById('np-r-com').textContent = fmt(com);
-  document.getElementById('np-r-gn').textContent = fmt(gn);
+  return { cap, cuotas, tipo, total, cuotaM, interesEf, gb, com, gn };
+}
+
+function recalcNP() {
+  const fechaStr = document.getElementById('np-fecha')?.value;
+  const fechaPrimStr = document.getElementById('np-fecha-primera')?.value;
+  const m = calcularMontosNP();
+  const cuotas = m.cuotas, tipo = m.tipo, cuotaM = m.cuotaM;
+  document.getElementById('np-r-total').textContent = fmt(m.total);
+  const intEfEl = document.getElementById('np-r-int-ef');
+  if (intEfEl) intEfEl.textContent = (Math.round(m.interesEf * 100) / 100) + '%';
+  document.getElementById('np-r-gb').textContent = fmt(m.gb);
+  document.getElementById('np-r-com').textContent = fmt(m.com);
+  document.getElementById('np-r-gn').textContent = fmt(m.gn);
   document.getElementById('np-r-cuota').textContent = fmt(cuotaM);
   document.getElementById('np-r-freq').textContent = npFreqLabel;
   document.getElementById('np-r-com-row').style.display = tipo === 'tercero' ? 'flex' : 'none';
@@ -2651,10 +2798,8 @@ function recalcNP() {
 }
 
 async function crearPrestamo() {
-  const cap = parseFloat(document.getElementById('np-capital').value)||0;
-  const int = parseFloat(document.getElementById('np-interes').value)||0;
-  const cuotas = Math.max(1, parseInt(document.getElementById('np-cuotas').value)||1);
-  const tipo = document.getElementById('np-tipo').value;
+  const m = calcularMontosNP();
+  const cap = m.cap, cuotas = m.cuotas, tipo = m.tipo;
   const fechaStr = document.getElementById('np-fecha').value;
   const fechaPrimStr = document.getElementById('np-fecha-primera')?.value || '';
   const tercero = document.getElementById('np-tercero')?.value||'';
@@ -2678,11 +2823,14 @@ async function crearPrestamo() {
     clienteNombre = npClienteSeleccionado.apellido + ', ' + npClienteSeleccionado.nombre;
   }
   if (!fechaStr) { showToast('Elegí la fecha de creación del préstamo', 'error'); return; }
-  const total = cap*(1+int/100);
-  const gb = total-cap;
-  const com = tipo==='tercero' ? gb*0.2 : 0;
-  const gn = gb-com;
-  const cuotaM = total/cuotas;
+  if (cap <= 0) { showToast('El capital debe ser mayor a 0', 'error'); return; }
+  if (m.cuotaM <= 0) { showToast('La cuota debe ser mayor a 0', 'error'); return; }
+  const total = m.total;
+  const gb = m.gb;
+  const com = m.com;
+  const gn = m.gn;
+  const cuotaM = m.cuotaM;
+  const int = Math.round(m.interesEf * 100) / 100; // interés efectivo (con redondeo de cuota aplicado)
   const fechaInicio = new Date(fechaStr+'T12:00:00');
   const fechaPrimera = fechaPrimStr ? new Date(fechaPrimStr+'T12:00:00') : null;
   if (fechaPrimera && fechaPrimera < fechaInicio) { showToast('La primera cuota no puede ser anterior a la fecha de creación', 'error'); return; }
@@ -2788,7 +2936,157 @@ function abrirPagoModal(cuotaId) {
   document.getElementById('pago-notas').value = '';
   document.getElementById('pago-modal-sub').textContent = 'Cuota ' + cuota.nro + ' — ' + cuota.prestId;
   calcPagoModal();
+  renderPagoAjuste(cuota);
   document.getElementById('pagoModal').classList.add('open');
+}
+
+// Panel "Deshacer / ajustar": lista los pagos cargados de la cuota y
+// permite quitar uno puntual, quitar un monto manual o resetear a cero.
+function renderPagoAjuste(cuota) {
+  const box = document.getElementById('pago-ajuste-box');
+  const quitarInput = document.getElementById('pago-quitar-monto');
+  if (quitarInput) quitarInput.value = '';
+  const pagos = DB.pagos.filter(p => p.cuotaId === cuota.id).sort((a, b) => (a.id > b.id ? 1 : -1));
+  if ((cuota.pagado || 0) <= 0 && pagos.length === 0) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  const hist = document.getElementById('pago-historial');
+  if (pagos.length === 0) {
+    hist.innerHTML = '<div style="font-size:11px;color:var(--muted)">No hay pagos individuales registrados, pero la cuota figura con ' + fmt(cuota.pagado) + ' pagado. Usá "Resetear cuota a cero".</div>';
+  } else {
+    hist.innerHTML = pagos.map(p => {
+      const esAjuste = p.monto < 0;
+      return `<div class="flex-between" style="padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px">
+          <span style="font-family:var(--mono);color:${esAjuste ? 'var(--red)' : 'var(--green)'}">${esAjuste ? '−' : ''}${fmt(Math.abs(p.monto))}</span>
+          <span style="color:var(--muted);margin-left:8px">${p.fecha}${p.notas ? ' · ' + escapeHtml(p.notas) : ''}</span>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px" onclick="quitarPagoEspecifico('${p.id}')" title="Quitar este movimiento">✕ Quitar</button>
+      </div>`;
+    }).join('');
+  }
+}
+
+// Recalcula pagado/saldo/estado de una cuota a partir de las filas de
+// Pagos que queden, actualiza Sheets y revierte/ajusta el evento de Calendar.
+async function recalcularCuotaDesdePagos(cuotaId) {
+  const cuota = DB.cuotas.find(c => c.id === cuotaId);
+  if (!cuota) throw new Error('Cuota no encontrada');
+  const pagosData = await sheetsGet('Pagos!A2:H');
+  const nuevoPagado = pagosData
+    .filter(r => (r[1] || '') === cuotaId)
+    .reduce((a, r) => a + (parseFloat(r[5]) || 0), 0);
+  let nuevoSaldo = Math.max(0, cuota.monto - nuevoPagado);
+  if (nuevoSaldo < 1) nuevoSaldo = 0;
+  let nuevoEstado;
+  if (nuevoPagado <= 0) nuevoEstado = 'Pendiente';
+  else if (nuevoSaldo <= 0) nuevoEstado = 'Pagada';
+  else nuevoEstado = 'Pago parcial';
+  const cuotasData = await sheetsGet('Cuotas!A1:J');
+  const rowIdx = cuotasData.findIndex(r => r[0] === cuotaId);
+  if (rowIdx >= 0) {
+    await sheetsUpdate(`Cuotas!G${rowIdx + 1}:I${rowIdx + 1}`, [[Math.max(0, nuevoPagado).toFixed(2), nuevoSaldo.toFixed(2), nuevoEstado]]);
+  }
+  if (cuota.eventId) { try { await revertirEventoPagoCalendar(cuota, nuevoPagado, nuevoSaldo); } catch(e) { console.warn('Calendar revert error', e); } }
+  return { nuevoPagado, nuevoSaldo, nuevoEstado };
+}
+
+// Devuelve el evento de Calendar al estado que corresponde tras un ajuste:
+// 💰 pendiente, 🟡 parcial o ✅ pagado, limpiando los prefijos previos.
+async function revertirEventoPagoCalendar(cuota, nuevoPagado, nuevoSaldo) {
+  if (!cuota.eventId || !CFG.calId) return false;
+  const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + cuota.eventId;
+  const getRes = await fetch(url, { headers: { Authorization: 'Bearer ' + TOKEN } });
+  if (handleCalendarAuthError(getRes.status) || !getRes.ok) return false;
+  const ev = await getRes.json();
+  const baseSummary = (ev.summary || '').replace(/^✅ PAGADO[^—]*— /, '').replace(/^🟡 /, '').replace(/^💰 /, '');
+  const baseDesc = (ev.description || '').split('\n').filter(l => !l.startsWith('✅ Pagado') && !l.startsWith('🟡 Pago parcial')).join('\n');
+  const fechaTxt = fmtFechaES(new Date());
+  const patch = {};
+  if (nuevoPagado <= 0) {
+    patch.summary = '💰 ' + baseSummary;
+    patch.colorId = '5';
+    patch.description = baseDesc + '\n↩ Pago revertido el ' + fechaTxt;
+  } else if (nuevoSaldo <= 0) {
+    patch.summary = '✅ PAGADO — ' + baseSummary;
+    patch.colorId = '10';
+    patch.description = baseDesc + '\n✅ Pagado (ajustado el ' + fechaTxt + ')';
+  } else {
+    patch.summary = '🟡 ' + baseSummary;
+    patch.colorId = '5';
+    patch.description = baseDesc + '\n🟡 Pago parcial · Saldo restante: ' + fmt(nuevoSaldo) + ' (ajustado el ' + fechaTxt + ')';
+  }
+  const patchRes = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
+  return patchRes.ok;
+}
+
+// Quita un movimiento de pago puntual (borra esa fila de Pagos).
+function quitarPagoEspecifico(pagoId) {
+  if (!pagoActual) return;
+  const pago = DB.pagos.find(p => p.id === pagoId);
+  if (!pago) { showToast('Pago no encontrado', 'error'); return; }
+  mostrarConfirm('¿Quitar movimiento?', 'Se quita ' + fmt(Math.abs(pago.monto)) + ' y se recalcula el saldo de la cuota.', () => ejecutarQuitarPagoEspecifico(pagoId));
+}
+async function ejecutarQuitarPagoEspecifico(pagoId) {
+  if (!pagoActual) return;
+  const cuotaId = pagoActual.id;
+  try {
+    showToast('Quitando pago...');
+    await eliminarFilasSheets('Pagos!A:H', 0, pagoId);
+    await recalcularCuotaDesdePagos(cuotaId);
+    invalidateCache();
+    await loadAll(true);
+    showToast('✓ Pago quitado y cuota recalculada');
+    const cuotaAct = DB.cuotas.find(c => c.id === cuotaId);
+    if (cuotaAct) { pagoActual = cuotaAct; document.getElementById('pago-monto').value = Math.ceil(cuotaAct.saldo); calcPagoModal(); renderPagoAjuste(cuotaAct); }
+    nav(document.querySelector('.nav-item.active')?.dataset?.screen || 'dashboard');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// Quita un monto arbitrario registrando un ajuste negativo en Pagos.
+function quitarMontoManual() {
+  if (!pagoActual) return;
+  const monto = parseFloat(document.getElementById('pago-quitar-monto').value) || 0;
+  if (!monto || monto <= 0) { showToast('Ingresá el monto a quitar', 'error'); return; }
+  if (monto > pagoActual.pagado + 0.01) { showToast('No podés quitar más de lo pagado (' + fmt(pagoActual.pagado) + ')', 'error'); return; }
+  mostrarConfirm('¿Quitar monto?', 'Se quita ' + fmt(monto) + ' de lo pagado en esta cuota.', () => ejecutarQuitarMontoManual(monto));
+}
+async function ejecutarQuitarMontoManual(monto) {
+  if (!pagoActual) return;
+  const c = pagoActual;
+  try {
+    showToast('Ajustando pago...');
+    const pagoId = nextId('PAGO-', DB.pagos);
+    const hoy = fmtFechaES(new Date());
+    await sheetsAppend('Pagos!A:H', [[pagoId, c.id, c.prestId, c.clienteId, hoy, (-monto).toFixed(2), 0, 'Ajuste: se quitó ' + fmt(monto)]]);
+    await recalcularCuotaDesdePagos(c.id);
+    invalidateCache();
+    await loadAll(true);
+    showToast('✓ Se quitó ' + fmt(monto) + ' de la cuota');
+    const cuotaAct = DB.cuotas.find(x => x.id === c.id);
+    if (cuotaAct) { pagoActual = cuotaAct; document.getElementById('pago-monto').value = Math.ceil(cuotaAct.saldo); calcPagoModal(); renderPagoAjuste(cuotaAct); }
+    nav(document.querySelector('.nav-item.active')?.dataset?.screen || 'dashboard');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// Resetea la cuota al principio: borra todos sus pagos y la deja Pendiente.
+function resetearCuotaCero() {
+  if (!pagoActual) return;
+  const c = pagoActual;
+  mostrarConfirm('¿Resetear cuota a cero?', 'Se borran TODOS los pagos cargados (' + fmt(c.pagado) + ') de la cuota ' + c.nro + ' y vuelve a Pendiente.', () => ejecutarResetearCuotaCero(c.id));
+}
+async function ejecutarResetearCuotaCero(cuotaId) {
+  const c = DB.cuotas.find(x => x.id === cuotaId) || pagoActual;
+  if (!c) return;
+  try {
+    showToast('Reseteando cuota...');
+    await eliminarFilasSheets('Pagos!A:H', 1, c.id);
+    await recalcularCuotaDesdePagos(c.id);
+    invalidateCache();
+    await loadAll(true);
+    showToast('✓ Cuota reseteada a Pendiente');
+    closePagoModal();
+    nav(document.querySelector('.nav-item.active')?.dataset?.screen || 'dashboard');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 function closePagoModal() { document.getElementById('pagoModal').classList.remove('open'); pagoActual = null; }
 
@@ -2996,6 +3294,24 @@ function parseSalteos(notasStr) {
 function appendSalteoNotas(notasStr, salteo) {
   const nuevasStr = (salteo.cuotasNuevas || [salteo.cuotaNueva]).join('+');
   const entry = 'Salteo:' + salteo.fecha + ':' + salteo.cuotaOriginal + '->' + nuevasStr;
+  if (!notasStr) return entry;
+  return notasStr + ' | ' + entry;
+}
+
+// Marcador de unificación en notas: Unif:YYYY-MM-DD:abs1+abs2->survivor
+// parseUnif devuelve la lista de nros de cuotas ABSORBIDAS (anuladas).
+function parseUnif(notasStr) {
+  if (!notasStr) return [];
+  const re = /Unif:(\d{4}-\d{2}-\d{2}):([\d+]+)->(\d+)/g;
+  let m; const absorbidas = [];
+  while ((m = re.exec(notasStr)) !== null) {
+    m[2].split('+').map(n => parseInt(n)).filter(n => !isNaN(n)).forEach(n => absorbidas.push(n));
+  }
+  return absorbidas;
+}
+
+function appendUnifNotas(notasStr, fecha, absorbidas, survivorNro) {
+  const entry = 'Unif:' + fecha + ':' + absorbidas.join('+') + '->' + survivorNro;
   if (!notasStr) return entry;
   return notasStr + ' | ' + entry;
 }
@@ -4835,6 +5151,105 @@ async function confirmarReprogramar() {
 }
 
 document.getElementById('reprogModal').addEventListener('click', e => { if (e.target === document.getElementById('reprogModal')) closeReprogModal(); });
+
+// ============================================================
+// UNIFICAR CUOTAS PENDIENTES EN UNA SOLA (cuota final)
+// ============================================================
+let unifPrestId = null;
+
+function pendientesUnif(prestId) {
+  return DB.cuotas.filter(c => c.prestId === prestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').sort((a, b) => a.nro - b.nro);
+}
+
+function abrirUnificarModal(prestId) {
+  const p = DB.prestamos.find(x => x.id === prestId);
+  if (!p) return;
+  const pendientes = pendientesUnif(prestId);
+  if (pendientes.length < 2) { showToast('Necesitás al menos 2 cuotas pendientes para unificar', 'error'); return; }
+  unifPrestId = prestId;
+  const sumaSaldos = pendientes.reduce((a, c) => a + c.saldo, 0);
+  document.getElementById('unif-sub').textContent = prestId + ' · ' + p.nombre;
+  document.getElementById('unif-cant').textContent = pendientes.length + ' cuotas';
+  document.getElementById('unif-suma').textContent = fmt(sumaSaldos);
+  document.getElementById('unif-resultado').textContent = fmt(sumaSaldos);
+  // Fecha default: la de la última cuota pendiente
+  const ultima = pendientes[pendientes.length - 1];
+  const fUlt = parseFecha(ultima.vencimiento);
+  document.getElementById('unif-fecha').value = (fUlt && !isNaN(fUlt)) ? fUlt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+  document.getElementById('unificarModal').classList.add('open');
+}
+
+function closeUnificarModal() { document.getElementById('unificarModal').classList.remove('open'); unifPrestId = null; }
+document.getElementById('unificarModal').addEventListener('click', e => { if (e.target === document.getElementById('unificarModal')) closeUnificarModal(); });
+
+async function confirmarUnificar() {
+  if (!unifPrestId) return;
+  const prestId = unifPrestId;
+  const p = DB.prestamos.find(x => x.id === prestId);
+  if (!p) return;
+  const fechaStr = document.getElementById('unif-fecha').value;
+  if (!fechaStr) { showToast('Elegí la fecha de la cuota única', 'error'); return; }
+  const fecha = new Date(fechaStr + 'T12:00:00');
+  if (isNaN(fecha)) { showToast('Fecha inválida', 'error'); return; }
+  const pendientes = pendientesUnif(prestId);
+  if (pendientes.length < 2) { showToast('Necesitás al menos 2 cuotas pendientes', 'error'); return; }
+  const survivor = pendientes[pendientes.length - 1];
+  const absorbidas = pendientes.slice(0, -1);
+  const sumaSaldos = pendientes.reduce((a, c) => a + c.saldo, 0);
+  const nuevoMontoSurv = parseFloat((survivor.pagado + sumaSaldos).toFixed(2));
+  const nuevoSaldoSurv = parseFloat(sumaSaldos.toFixed(2));
+  const estadoSurv = survivor.pagado > 0 ? 'Pago parcial' : 'Pendiente';
+  const fechaES = fmtFechaES(fecha);
+  const fechaISO = fecha.toISOString().split('T')[0];
+  closeUnificarModal();
+  try {
+    showToast('Unificando cuotas...');
+    const cuotasData = await sheetsGet('Cuotas!A:J');
+    const updates = [];
+    // Cuota sobreviviente: nueva fecha, monto y saldo
+    const rowSurv = cuotasData.findIndex(r => r[0] === survivor.id);
+    if (rowSurv >= 0) {
+      updates.push({ range: `Cuotas!E${rowSurv + 1}`, values: [[fechaES]] });
+      updates.push({ range: `Cuotas!F${rowSurv + 1}:I${rowSurv + 1}`, values: [[nuevoMontoSurv.toFixed(2), survivor.pagado.toFixed(2), nuevoSaldoSurv.toFixed(2), estadoSurv]] });
+    }
+    // Cuotas absorbidas: saldo 0, estado Refinanciada (inactivo), sin evento
+    for (const c of absorbidas) {
+      if (c.eventId) { try { await borrarEventoCalendar(c.eventId); } catch(e) { console.warn('Calendar del absorbida', c.id, e); } }
+      const rowIdx = cuotasData.findIndex(r => r[0] === c.id);
+      if (rowIdx >= 0) updates.push({ range: `Cuotas!H${rowIdx + 1}:J${rowIdx + 1}`, values: [['0.00', 'Refinanciada', '']] });
+    }
+    await sheetsBatchUpdate(updates);
+    // Guardar marcador de unificación en las notas del préstamo
+    const datosPrest = await sheetsGet('Préstamos!A1:P');
+    const rowPrest = datosPrest.findIndex(r => r[0] === prestId);
+    if (rowPrest >= 0) {
+      const nuevasNotas = appendUnifNotas(p.notas || '', fechaISO, absorbidas.map(c => c.nro), survivor.nro);
+      await sheetsUpdate(`Préstamos!P${rowPrest + 1}`, [[nuevasNotas]]);
+    }
+    // Actualizar el evento de Calendar de la cuota sobreviviente
+    if (survivor.eventId && CFG.calId) {
+      try {
+        const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
+        const nombreCliente = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.clienteId;
+        const prefix = survivor.pagado > 0 ? '🟡 ' : '💰 ';
+        const body = {
+          summary: prefix + nombreCliente + ' — Cuota unificada | ' + fmt(nuevoSaldoSurv) + ' (' + prestId + ')',
+          description: 'Préstamo: ' + prestId + '\nCliente: ' + nombreCliente + '\nCuota única que unifica ' + pendientes.length + ' cuotas pendientes.\nMonto a cobrar: ' + fmt(nuevoSaldoSurv),
+          start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
+          end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
+          colorId: '5'
+        };
+        const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + survivor.eventId;
+        const r = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        handleCalendarAuthError(r.status);
+      } catch(e) { console.warn('Calendar survivor unif', e); }
+    }
+    invalidateCache();
+    await loadAll(true);
+    showToast('✓ ' + pendientes.length + ' cuotas unificadas en una sola de ' + fmt(nuevoSaldoSurv));
+    renderDetallePrestamo(prestId);
+  } catch(e) { showToast('Error al unificar: ' + e.message, 'error'); }
+}
 
 // ============================================================
 // ELIMINAR CLIENTE
