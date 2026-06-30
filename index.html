@@ -3820,6 +3820,7 @@ async function renderEstadisticas() {
   const hoyMidnight = new Date(); hoyMidnight.setHours(0,0,0,0);
   const cuotasVencPeriodo = DB.cuotas.filter(c => {
     if (c.estado === 'Pagada' || c.estado.startsWith('Pagada con')) return false;
+    if (c.estado === 'Refinanciada' || c.estado === 'Salteada') return false; // no son cobrables
     const d = parseFecha(c.vencimiento);
     if (!d) return false;
     if (d > hoyMidnight) return false; // no venció aún
@@ -3828,8 +3829,8 @@ async function renderEstadisticas() {
   });
   const montoMora = cuotasVencPeriodo.reduce((a,c) => a + c.saldo, 0);
   const totalCuotasPeriodo = esTodo
-    ? DB.cuotas.length
-    : DB.cuotas.filter(c => { const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hasta; }).length;
+    ? DB.cuotas.filter(c => c.estado !== 'Refinanciada' && c.estado !== 'Salteada').length
+    : DB.cuotas.filter(c => { if (c.estado === 'Refinanciada' || c.estado === 'Salteada') return false; const d = parseFecha(c.vencimiento); return d && d >= desde && d <= hasta; }).length;
   const tasaMora = totalCuotasPeriodo > 0 ? (cuotasVencPeriodo.length / totalCuotasPeriodo * 100).toFixed(1) : 0;
 
   const clientesNuevos = esTodo
@@ -4186,18 +4187,19 @@ function renderRendimiento(prestPeriodo, pagosPeriodo, capitalTotal, gbTotal, gn
   document.getElementById('rend-cobro').style.color = tasaCobro >= 80 ? 'var(--green)' : tasaCobro >= 50 ? 'var(--amber)' : 'var(--red)';
   document.getElementById('rend-cobro-meta').textContent = cuotasCobradas.length + ' de ' + cuotasYaVencidas.length + ' cuotas vencidas cobradas';
 
-  // Atraso promedio
-  const pagosConAtraso = pagosPeriodo.filter(p => p.diasAtraso > 0);
-  const promAtraso = pagosPeriodo.length > 0 ? (pagosPeriodo.reduce((a,p) => a + p.diasAtraso, 0) / pagosPeriodo.length) : 0;
+  // Atraso promedio (solo pagos reales positivos; los ajustes/reversas no cuentan)
+  const pagosReales = pagosPeriodo.filter(p => p.monto > 0);
+  const pagosConAtraso = pagosReales.filter(p => p.diasAtraso > 0);
+  const promAtraso = pagosReales.length > 0 ? (pagosReales.reduce((a,p) => a + p.diasAtraso, 0) / pagosReales.length) : 0;
   document.getElementById('rend-atraso').textContent = promAtraso.toFixed(1) + 'd';
-  document.getElementById('rend-atraso-meta').textContent = pagosConAtraso.length + ' de ' + pagosPeriodo.length + ' pagos llegaron tarde';
+  document.getElementById('rend-atraso-meta').textContent = pagosConAtraso.length + ' de ' + pagosReales.length + ' pagos llegaron tarde';
 
   // A tiempo vs con atraso
-  const pagosATiempo = pagosPeriodo.filter(p => p.diasAtraso === 0);
-  const pctATiempo = pagosPeriodo.length > 0 ? (pagosATiempo.length / pagosPeriodo.length * 100) : 0;
-  const pctConAtraso = pagosPeriodo.length > 0 ? (pagosConAtraso.length / pagosPeriodo.length * 100) : 0;
+  const pagosATiempo = pagosReales.filter(p => p.diasAtraso === 0);
+  const pctATiempo = pagosReales.length > 0 ? (pagosATiempo.length / pagosReales.length * 100) : 0;
+  const pctConAtraso = pagosReales.length > 0 ? (pagosConAtraso.length / pagosReales.length * 100) : 0;
   document.getElementById('rend-atiempo').textContent = pctATiempo.toFixed(0) + '%';
-  document.getElementById('rend-atiempo-meta').textContent = pagosATiempo.length + ' de ' + pagosPeriodo.length + ' pagos';
+  document.getElementById('rend-atiempo-meta').textContent = pagosATiempo.length + ' de ' + pagosReales.length + ' pagos';
   document.getElementById('rend-conatraso').textContent = pctConAtraso.toFixed(0) + '%';
   document.getElementById('rend-conatraso-meta').textContent = pagosConAtraso.length + ' pagos tarde';
 
@@ -4252,6 +4254,7 @@ function renderClienteScore(prestPeriodo, pagosPeriodo, hoyMidnight) {
 
   DB.pagos.forEach(pago => {
     if (!clienteData[pago.clienteId]) return;
+    if (pago.monto <= 0) return; // ignorar ajustes/reversas: no son un pago real del cliente
     clienteData[pago.clienteId].pagosCount++;
     clienteData[pago.clienteId].diasAtrasoSum += pago.diasAtraso || 0;
     if (pago.diasAtraso === 0) clienteData[pago.clienteId].pagosATiempo++;
@@ -4883,7 +4886,9 @@ async function confirmarRefinanciar() {
     const refiUpdates = [];
     for (const cu of cuotasPendientesAll) {
       const rowIdx = cuotasData.findIndex(r => r[0] === cu.id);
-      if (rowIdx >= 0) refiUpdates.push({ range: `Cuotas!I${rowIdx + 1}`, values: [['Refinanciada']] });
+      // saldo 0 + estado Refinanciada: el saldo viejo se traslada al nuevo crédito,
+      // así no infla mora ni saldos en cálculos que sumen todas las cuotas.
+      if (rowIdx >= 0) refiUpdates.push({ range: `Cuotas!H${rowIdx + 1}:I${rowIdx + 1}`, values: [['0.00', 'Refinanciada']] });
     }
     for (const prestId of selIds) {
       const rowIdx = prestData.findIndex(r => r[0] === prestId);
