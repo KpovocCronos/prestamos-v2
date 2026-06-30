@@ -2597,6 +2597,7 @@ function initNuevoPrestamo() {
   npClienteSeleccionado = null;
   limpiarClienteNP();
   setModoCliente('existente');
+  setModoNP('interes');
   recalcNP();
 }
 
@@ -5166,6 +5167,8 @@ function abrirUnificarModal(prestId) {
   if (!p) return;
   const pendientes = pendientesUnif(prestId);
   if (pendientes.length < 2) { showToast('Necesitás al menos 2 cuotas pendientes para unificar', 'error'); return; }
+  const conPago = pendientes.filter(c => c.pagado > 0);
+  if (conPago.length) { showToast('Hay cuotas con pago parcial (' + conPago.map(c => '#' + c.nro).join(', ') + '). Reseteá esos pagos a cero antes de unificar (desde el modal de pago).', 'error'); return; }
   unifPrestId = prestId;
   const sumaSaldos = pendientes.reduce((a, c) => a + c.saldo, 0);
   document.getElementById('unif-sub').textContent = prestId + ' · ' + p.nombre;
@@ -5193,6 +5196,7 @@ async function confirmarUnificar() {
   if (isNaN(fecha)) { showToast('Fecha inválida', 'error'); return; }
   const pendientes = pendientesUnif(prestId);
   if (pendientes.length < 2) { showToast('Necesitás al menos 2 cuotas pendientes', 'error'); return; }
+  if (pendientes.some(c => c.pagado > 0)) { showToast('Hay cuotas con pago parcial. Reseteá esos pagos antes de unificar.', 'error'); return; }
   const survivor = pendientes[pendientes.length - 1];
   const absorbidas = pendientes.slice(0, -1);
   const sumaSaldos = pendientes.reduce((a, c) => a + c.saldo, 0);
