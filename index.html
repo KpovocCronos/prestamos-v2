@@ -2973,15 +2973,17 @@ async function recalcularCuotaDesdePagos(cuotaId) {
   const cuota = DB.cuotas.find(c => c.id === cuotaId);
   if (!cuota) throw new Error('Cuota no encontrada');
   const pagosData = await sheetsGet('Pagos!A2:H');
-  const nuevoPagado = pagosData
-    .filter(r => (r[1] || '') === cuotaId)
-    .reduce((a, r) => a + (parseFloat(r[5]) || 0), 0);
+  const pagosCuota = pagosData.filter(r => (r[1] || '') === cuotaId);
+  const nuevoPagado = pagosCuota.reduce((a, r) => a + (parseFloat(r[5]) || 0), 0);
   let nuevoSaldo = Math.max(0, cuota.monto - nuevoPagado);
   if (nuevoSaldo < 1) nuevoSaldo = 0;
   let nuevoEstado;
   if (nuevoPagado <= 0) nuevoEstado = 'Pendiente';
-  else if (nuevoSaldo <= 0) nuevoEstado = 'Pagada';
-  else nuevoEstado = 'Pago parcial';
+  else if (nuevoSaldo <= 0) {
+    // Si la cuota queda saldada, conservar el atraso del último pago real
+    const atrasoMax = pagosCuota.filter(r => (parseFloat(r[5]) || 0) > 0).reduce((m, r) => Math.max(m, parseInt(r[6]) || 0), 0);
+    nuevoEstado = atrasoMax > 0 ? 'Pagada con atraso (' + atrasoMax + 'd)' : 'Pagada';
+  } else nuevoEstado = 'Pago parcial';
   const cuotasData = await sheetsGet('Cuotas!A1:J');
   const rowIdx = cuotasData.findIndex(r => r[0] === cuotaId);
   if (rowIdx >= 0) {
@@ -4586,7 +4588,7 @@ function actualizarPreviewCapital() {
   const nuevoTotal = nuevoCapital * (1 + nuevoInteres / 100);
   // Calcular cuotas pendientes y nuevo saldo por cuota
   const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
-  const totalCuotas = DB.cuotas.filter(c => c.prestId === editPrestId).length;
+  const totalCuotas = DB.cuotas.filter(c => c.prestId === editPrestId && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').length;
   const nuevaCuotaMonto = totalCuotas > 0 ? nuevoTotal / totalCuotas : 0;
   document.getElementById('ep-prev-capital').textContent = fmt(nuevoCapital);
   document.getElementById('ep-prev-total').textContent = fmt(nuevoTotal);
@@ -4639,12 +4641,14 @@ async function guardarEditPrest() {
     if (capitalCambio || interesCambio) {
       const cuotasData = await sheetsGet('Cuotas!A:J');
       const cuotasPend = DB.cuotas.filter(c => c.prestId === editPrestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').sort((a,b) => a.nro - b.nro);
-      const totalCuotasN = DB.cuotas.filter(c => c.prestId === editPrestId).length;
+      // Solo cuotas ACTIVAS (excluye refinanciadas/salteadas/unificadas) para no
+      // repartir el total sobre cuotas anuladas y achicar mal cada cuota.
+      const totalCuotasN = DB.cuotas.filter(c => c.prestId === editPrestId && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').length;
       const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
       const nombreCliente = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.clienteId;
 
-      // Calcular el nuevo monto fijo por cuota: total / cantidad de cuotas del préstamo
-      const nuevoMontoPorCuota = parseFloat((nuevoTotal / totalCuotasN).toFixed(2));
+      // Calcular el nuevo monto fijo por cuota: total / cantidad de cuotas activas
+      const nuevoMontoPorCuota = parseFloat((nuevoTotal / (totalCuotasN || 1)).toFixed(2));
 
       const cuotaUpdates = [];
       for (const c of cuotasPend) {
