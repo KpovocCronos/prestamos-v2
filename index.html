@@ -800,6 +800,40 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
   </div>
 </div>
 
+<!-- MODAL EDITAR MONTO DE CUOTA -->
+<div class="modal-overlay" id="editCuotaModal">
+  <div class="modal">
+    <div class="modal-title">Editar monto de cuota</div>
+    <div class="modal-sub" id="edit-cuota-sub">—</div>
+    <div style="background:var(--amberbg);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--amber);font-weight:600;margin-bottom:4px">✏ Cambiar el monto de esta cuota</div>
+      <div style="font-size:12px;color:var(--muted)">Solo cambia <b>esta cuota</b>: las demás quedan igual. El total y las ganancias del préstamo se recalculan solos y el evento de Calendar se actualiza con el monto nuevo.</div>
+    </div>
+    <div class="calc-box" style="margin-bottom:16px">
+      <div class="calc-row"><span class="calc-label">Cuota</span><span class="calc-val" id="ec-cuota-info">—</span></div>
+      <div class="calc-row"><span class="calc-label">Vencimiento</span><span class="calc-val" id="ec-venc">—</span></div>
+      <div class="calc-row"><span class="calc-label">Monto actual</span><span class="calc-val" id="ec-monto-actual">—</span></div>
+      <div class="calc-row"><span class="calc-label">Pagado hasta ahora</span><span class="calc-val" id="ec-pagado">—</span></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-field">
+        <label class="form-label">Nuevo monto ($)</label>
+        <input class="form-input" type="number" id="ec-monto" min="0" oninput="actualizarPreviewEditCuota()">
+        <div class="form-hint" id="ec-hint"></div>
+      </div>
+    </div>
+    <div class="calc-box" id="ec-preview" style="display:none;margin-bottom:4px">
+      <div class="calc-row"><span class="calc-label">Nuevo saldo de la cuota</span><span class="calc-val" id="ec-prev-saldo">—</span></div>
+      <div class="calc-row"><span class="calc-label">Nuevo total del préstamo</span><span class="calc-val" id="ec-prev-total">—</span></div>
+      <div class="calc-row"><span class="calc-label">Nueva ganancia neta</span><span class="calc-val text-green" id="ec-prev-gan">—</span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeEditCuotaModal()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-edit-cuota" onclick="guardarEditCuota()">Guardar monto</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CUOTA EXTRA -->
 <div class="modal-overlay" id="cuotaExtraModal">
   <div class="modal">
@@ -2534,7 +2568,10 @@ function renderDetallePrestamo(prestId) {
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
               <div class="cuota-monto" style="color:${pagada?'var(--green)':vencida?'var(--red)':'var(--accent2)'}">${fmt(c.saldo)}</div>
               <div class="cuota-saldo">${estadoPill(c.estado)}</div>
-              ${sePuedeSaltear ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px;margin-top:2px" onclick="event.stopPropagation();abrirSalteoModal('${c.id}')" title="Saltear esta cuota">🚫 Saltear</button>` : ''}
+              ${sePuedeSaltear ? `<div style="display:flex;gap:4px;margin-top:2px">
+                <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();abrirEditCuotaModal('${c.id}')" title="Cambiar el monto de esta cuota">✏ Monto</button>
+                <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();abrirSalteoModal('${c.id}')" title="Saltear esta cuota">🚫 Saltear</button>
+              </div>` : ''}
             </div>
           </div>`;
         }).join('')}
@@ -3494,6 +3531,157 @@ async function confirmarSalteo() {
 
 document.getElementById('salteoModal').addEventListener('click', e => {
   if (e.target === document.getElementById('salteoModal')) closeSalteoModal();
+});
+
+// ============================================================
+// EDITAR MONTO DE UNA CUOTA
+// Cambia el monto de una sola cuota (pendiente o con pago parcial,
+// incluidas las generadas por salteo) y recalcula total/ganancias
+// del préstamo + el evento de Calendar de esa cuota.
+// ============================================================
+let editCuotaId = null;
+
+function abrirEditCuotaModal(cuotaId) {
+  const cuota = DB.cuotas.find(c => c.id === cuotaId);
+  if (!cuota) return;
+  if (cuota.estado.startsWith('Pagada') || cuota.estado === 'Salteada' || cuota.estado === 'Refinanciada') {
+    showToast('Solo se puede editar el monto de cuotas pendientes o con pago parcial', 'error');
+    return;
+  }
+  const p = DB.prestamos.find(x => x.id === cuota.prestId);
+  if (!p) return;
+  editCuotaId = cuotaId;
+  const activas = DB.cuotas.filter(c => c.prestId === cuota.prestId && c.estado !== 'Salteada' && c.estado !== 'Refinanciada').sort((a, b) => a.nro - b.nro);
+  const pos = activas.findIndex(c => c.id === cuotaId) + 1;
+  document.getElementById('edit-cuota-sub').textContent = cuota.prestId + ' · ' + p.nombre;
+  document.getElementById('ec-cuota-info').textContent = 'Cuota ' + pos + ' de ' + activas.length + ' (' + cuota.estado + ')';
+  document.getElementById('ec-venc').textContent = fmtFecha(parseFecha(cuota.vencimiento)) || cuota.vencimiento;
+  document.getElementById('ec-monto-actual').textContent = fmt(cuota.monto);
+  document.getElementById('ec-pagado').textContent = fmt(cuota.pagado);
+  document.getElementById('ec-monto').value = Math.round(cuota.monto * 100) / 100;
+  document.getElementById('ec-hint').textContent = '';
+  document.getElementById('ec-preview').style.display = 'none';
+  document.getElementById('editCuotaModal').classList.add('open');
+}
+
+function actualizarPreviewEditCuota() {
+  if (!editCuotaId) return;
+  const cuota = DB.cuotas.find(c => c.id === editCuotaId);
+  if (!cuota) return;
+  const p = DB.prestamos.find(x => x.id === cuota.prestId);
+  if (!p) return;
+  const nuevoMonto = parseFloat(document.getElementById('ec-monto').value) || 0;
+  const hint = document.getElementById('ec-hint');
+  const preview = document.getElementById('ec-preview');
+  if (!nuevoMonto || nuevoMonto === cuota.monto) {
+    hint.textContent = '';
+    preview.style.display = 'none';
+    return;
+  }
+  if (cuota.pagado > 0 && nuevoMonto <= cuota.pagado) {
+    hint.textContent = '⚠ Tiene que ser mayor a lo ya pagado (' + fmt(cuota.pagado) + ')';
+    hint.style.color = 'var(--red)';
+    preview.style.display = 'none';
+    return;
+  }
+  const diff = nuevoMonto - cuota.monto;
+  hint.textContent = (diff > 0 ? '▲ +' : '▼ ') + fmt(diff) + ' respecto al monto actual';
+  hint.style.color = diff > 0 ? 'var(--amber)' : 'var(--red)';
+  const nuevoTotal = p.total + diff;
+  const nuevaGB = nuevoTotal - p.capital;
+  const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
+  const nuevaGN = nuevaGB - (esTercero ? nuevaGB * 0.2 : 0);
+  document.getElementById('ec-prev-saldo').textContent = fmt(Math.max(0, nuevoMonto - cuota.pagado));
+  document.getElementById('ec-prev-total').textContent = fmt(nuevoTotal);
+  document.getElementById('ec-prev-gan').textContent = fmt(nuevaGN);
+  preview.style.display = 'block';
+}
+
+function closeEditCuotaModal() { document.getElementById('editCuotaModal').classList.remove('open'); editCuotaId = null; }
+
+async function guardarEditCuota() {
+  if (!editCuotaId) return;
+  const cuota = DB.cuotas.find(c => c.id === editCuotaId);
+  if (!cuota) return;
+  const p = DB.prestamos.find(x => x.id === cuota.prestId);
+  if (!p) return;
+  const nuevoMonto = parseFloat(document.getElementById('ec-monto').value) || 0;
+  if (nuevoMonto <= 0) { showToast('El monto debe ser mayor a 0', 'error'); return; }
+  if (cuota.pagado > 0 && nuevoMonto <= cuota.pagado) {
+    showToast('El nuevo monto tiene que ser mayor a lo ya pagado (' + fmt(cuota.pagado) + '). Si querés darla por saldada, registrá el pago desde la cuota.', 'error');
+    return;
+  }
+  if (nuevoMonto === cuota.monto) { closeEditCuotaModal(); return; }
+
+  const btn = document.getElementById('btn-edit-cuota');
+  if (btn.disabled) return;
+  btn.disabled = true; const btnLabel = btn.textContent; btn.textContent = 'Guardando...';
+  try {
+    const montoViejo = cuota.monto;
+    const nuevoSaldo = parseFloat(Math.max(0, nuevoMonto - cuota.pagado).toFixed(2));
+    const nuevoTotal = parseFloat((p.total + nuevoMonto - montoViejo).toFixed(2));
+    const nuevaGB = nuevoTotal - p.capital;
+    const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
+    const nuevaCom = esTercero ? nuevaGB * 0.2 : 0;
+    const nuevaGN = nuevaGB - nuevaCom;
+
+    // 1. Cuota en Sheets: F=monto, H=saldo (G=pagado no cambia)
+    const cuotasData = await sheetsGet('Cuotas!A1:J');
+    const rowIdxCuota = cuotasData.findIndex(r => r[0] === cuota.id);
+    if (rowIdxCuota < 0) throw new Error('Cuota no encontrada en Sheets');
+    const updates = [
+      { range: `Cuotas!F${rowIdxCuota + 1}`, values: [[nuevoMonto.toFixed(2)]] },
+      { range: `Cuotas!H${rowIdxCuota + 1}`, values: [[nuevoSaldo.toFixed(2)]] },
+    ];
+
+    // 2. Préstamo en Sheets: G=total, L:N=ganancias (el total del préstamo
+    // es la suma de sus cuotas, igual que hace el salteo al agregar cuotas)
+    const prestData = await sheetsGet('Préstamos!A1:P');
+    const rowIdxPrest = prestData.findIndex(r => r[0] === cuota.prestId);
+    if (rowIdxPrest >= 0) {
+      updates.push({ range: `Préstamos!G${rowIdxPrest + 1}`, values: [[nuevoTotal.toFixed(2)]] });
+      updates.push({ range: `Préstamos!L${rowIdxPrest + 1}:N${rowIdxPrest + 1}`, values: [[nuevaGB.toFixed(2), nuevaCom.toFixed(2), nuevaGN.toFixed(2)]] });
+    }
+    await sheetsBatchUpdate(updates);
+
+    // 3. Calendar: actualizar el evento de esta cuota con el monto nuevo
+    if (cuota.eventId && CFG.calId) {
+      btn.textContent = 'Actualizando Calendar...';
+      const activas = DB.cuotas.filter(c => c.prestId === cuota.prestId && c.estado !== 'Salteada' && c.estado !== 'Refinanciada').sort((a, b) => a.nro - b.nro);
+      const pos = activas.findIndex(c => c.id === cuota.id) + 1;
+      const huboSalteo = DB.cuotas.some(c => c.prestId === cuota.prestId && c.estado === 'Salteada');
+      const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + cuota.eventId;
+      try {
+        const getRes = await fetch(url, { headers: { Authorization: 'Bearer ' + TOKEN } });
+        if (handleCalendarAuthError(getRes.status)) throw Object.assign(new Error('Calendar auth ' + getRes.status), { _noRetry: true });
+        if (getRes.ok) {
+          const ev = await getRes.json();
+          const prefix = cuota.estado === 'Pago parcial' ? '🟡 ' : '💰 ';
+          const summary = prefix + p.nombre + ' — Cuota ' + pos + '/' + activas.length + ' | ' + fmt(nuevoMonto) + ' (' + cuota.prestId + (huboSalteo ? ' · refinanciado' : '') + ')';
+          const desc = (ev.description || '') + '\n✏ Monto modificado: ' + fmt(montoViejo) + ' → ' + fmt(nuevoMonto);
+          const patchRes = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: summary, description: desc }) });
+          if (handleCalendarAuthError(patchRes.status)) throw Object.assign(new Error('Calendar auth ' + patchRes.status), { _noRetry: true });
+        }
+      } catch(calErr) {
+        if (calErr._noRetry) throw calErr;
+        console.warn('Calendar error editando monto cuota', cuota.id, calErr);
+      }
+    }
+
+    invalidateCache();
+    closeEditCuotaModal();
+    await loadAll(true);
+    showToast('✓ Monto de la cuota actualizado: ' + fmt(montoViejo) + ' → ' + fmt(nuevoMonto));
+    renderDetallePrestamo(cuota.prestId);
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = btnLabel;
+  }
+}
+
+document.getElementById('editCuotaModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('editCuotaModal')) closeEditCuotaModal();
 });
 
 // ============================================================
