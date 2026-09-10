@@ -2231,6 +2231,7 @@ async function renderDashboard() {
         <div style="display:flex;align-items:center;gap:16px">
           ${proxLabel}
           ${!todasPagas ? '<span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--amber)">'+fmt(saldoTotal)+'</span>' : ''}
+          ${hayVencidas ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();pedirEnviarCobranza('${clienteId}')" title="Este no paga: sacalo del dashboard y mandalo a Cobranzas">🚨 A cobranza</button>` : ''}
           <span id="arrow-${idx}" style="color:var(--muted);transition:transform .2s;display:inline-block">▾</span>
         </div>`;
 
