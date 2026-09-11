@@ -833,6 +833,40 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
   </div>
 </div>
 
+<!-- MODAL EDITAR MONTO DE CUOTA -->
+<div class="modal-overlay" id="editCuotaModal">
+  <div class="modal">
+    <div class="modal-title">Editar monto de cuota</div>
+    <div class="modal-sub" id="edit-cuota-sub">—</div>
+    <div style="background:var(--amberbg);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--amber);font-weight:600;margin-bottom:4px">✏ Cambiar el monto de esta cuota</div>
+      <div style="font-size:12px;color:var(--muted)">Solo cambia <b>esta cuota</b>: las demás quedan igual. El total y las ganancias del préstamo se recalculan solos y el evento de Calendar se actualiza con el monto nuevo.</div>
+    </div>
+    <div class="calc-box" style="margin-bottom:16px">
+      <div class="calc-row"><span class="calc-label">Cuota</span><span class="calc-val" id="ec-cuota-info">—</span></div>
+      <div class="calc-row"><span class="calc-label">Vencimiento</span><span class="calc-val" id="ec-venc">—</span></div>
+      <div class="calc-row"><span class="calc-label">Monto actual</span><span class="calc-val" id="ec-monto-actual">—</span></div>
+      <div class="calc-row"><span class="calc-label">Pagado hasta ahora</span><span class="calc-val" id="ec-pagado">—</span></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-field">
+        <label class="form-label">Nuevo monto ($)</label>
+        <input class="form-input" type="number" id="ec-monto" min="0" oninput="actualizarPreviewEditCuota()">
+        <div class="form-hint" id="ec-hint"></div>
+      </div>
+    </div>
+    <div class="calc-box" id="ec-preview" style="display:none;margin-bottom:4px">
+      <div class="calc-row"><span class="calc-label">Nuevo saldo de la cuota</span><span class="calc-val" id="ec-prev-saldo">—</span></div>
+      <div class="calc-row"><span class="calc-label">Nuevo total del préstamo</span><span class="calc-val" id="ec-prev-total">—</span></div>
+      <div class="calc-row"><span class="calc-label">Nueva ganancia neta</span><span class="calc-val text-green" id="ec-prev-gan">—</span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeEditCuotaModal()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-edit-cuota" onclick="guardarEditCuota()">Guardar monto</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CUOTA EXTRA -->
 <div class="modal-overlay" id="cuotaExtraModal">
   <div class="modal">
@@ -1012,6 +1046,9 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
                   <option value="">Todos los tipos</option>
                   <option value="propio">Propios</option>
                   <option value="tercero">De tercero</option>
+                </select>
+                <select class="form-select" id="cartera-tercero" style="width:auto;padding:6px 10px;font-size:12px;display:none" onchange="aplicarFiltrosCartera()" title="Filtrar por tercero (cada opción muestra cuántos créditos generó)">
+                  <option value="">Todos los terceros</option>
                 </select>
                 <input class="form-input" id="cartera-buscar" style="width:180px;padding:6px 12px;font-size:12px" placeholder="🔍 Buscar..." oninput="aplicarFiltrosCartera()">
               </div>
@@ -2074,7 +2111,7 @@ async function nav(screen, data, opts) {
   if (screen === 'cobranzas')        await renderCobranzas();
   if (screen === 'detalle-cliente')  renderDetalleCliente(data);
   if (screen === 'detalle-prestamo') renderDetallePrestamo(data);
-  if (screen === 'nuevo-prestamo')   initNuevoPrestamo();
+  if (screen === 'nuevo-prestamo')   initNuevoPrestamo(data);
   if (screen === 'calculadora')      calcRenderOpciones();
 }
 
@@ -2407,7 +2444,7 @@ function renderDetalleCliente(clienteId) {
         ${vetado ? `<button class="btn btn-ghost btn-sm" onclick="pedirQuitarVeto('${c.id}')">✓ Quitar veto</button>` : `<button class="btn btn-ghost btn-sm" onclick="pedirVetarCliente('${c.id}')" title="Marca al cliente para no prestarle nunca más (se conserva su historial)">⛔ Vetar</button>`}
         <button class="btn btn-ghost btn-sm" onclick="abrirEditClienteModal('${c.id}')">✏ Editar cliente</button>
         <button class="btn btn-danger btn-sm" onclick="pedirEliminarCliente('${c.id}')">🗑 Eliminar cliente</button>
-        <button class="btn btn-primary btn-sm" onclick="nav('nuevo-prestamo')">+ Nuevo préstamo</button>
+        <button class="btn btn-primary btn-sm" onclick="nav('nuevo-prestamo','${c.id}')">+ Nuevo préstamo</button>
       </div>
     </div>
     <div class="detail-grid">
@@ -2437,7 +2474,7 @@ function renderDetalleCliente(clienteId) {
             <td class="td-mono">${p.id}</td>
             <td class="td-mono">${fmt(p.capital)}</td>
             <td class="td-mono">${fmt(p.total)}</td>
-            <td>${p.tipo === 'tercero' || p.tipo === 'De tercero' ? '<span class="pill pill-amber">Tercero</span>' : '<span class="pill pill-gray">Propio</span>'}</td>
+            <td>${p.tipo === 'tercero' || p.tipo === 'De tercero' ? '<span class="pill pill-amber">Tercero</span><div class="td-sub" style="margin-top:2px">' + escapeHtml(nombreTercero(p)) + '</div>' : '<span class="pill pill-gray">Propio</span>'}</td>
             <td class="td-mono">${p.cuotas} cuotas</td>
             <td>${estadoPill2(calcEstadoPrestamo(p.id))}</td>
             <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();nav('detalle-prestamo','${p.id}')">Ver →</button></td>
@@ -2456,9 +2493,31 @@ async function renderPrestamos() {
   document.getElementById('prestamos-loading').style.display = 'flex';
   document.getElementById('prestamos-content').style.display = 'none';
   await loadAll();
+  poblarFiltroTerceros();
   aplicarFiltrosCartera();
   document.getElementById('prestamos-loading').style.display = 'none';
   document.getElementById('prestamos-content').style.display = 'block';
+}
+
+// Nombre de agrupación de un préstamo de tercero (los sin nombre van juntos)
+function nombreTercero(p) { return (p.terceroNombre || '').trim() || '(sin nombre)'; }
+
+// Llena el select de terceros con cada nombre y cuántos créditos generó.
+// Se oculta si no hay ningún crédito de tercero.
+function poblarFiltroTerceros() {
+  const sel = document.getElementById('cartera-tercero');
+  if (!sel) return;
+  const seleccionado = sel.value;
+  const counts = {};
+  DB.prestamos.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero').forEach(p => {
+    const n = nombreTercero(p);
+    counts[n] = (counts[n] || 0) + 1;
+  });
+  const nombres = Object.keys(counts).sort((a, b) => a.localeCompare(b));
+  sel.innerHTML = '<option value="">Todos los terceros</option>'
+    + nombres.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)} (${counts[n]} crédito${counts[n] !== 1 ? 's' : ''})</option>`).join('');
+  if (nombres.includes(seleccionado)) sel.value = seleccionado;
+  sel.style.display = nombres.length ? '' : 'none';
 }
 
 function setFiltroCarteraEstado(estado, btn) {
@@ -2472,13 +2531,15 @@ function setFiltroCarteraEstado(estado, btn) {
 function aplicarFiltrosCartera() {
   const q = (document.getElementById('cartera-buscar')?.value || '').toLowerCase().trim();
   const tipoF = document.getElementById('cartera-tipo')?.value || '';
+  const terceroF = document.getElementById('cartera-tercero')?.value || '';
   let lista = DB.prestamos.slice();
   if (q) lista = lista.filter(p => {
     const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
-    return (p.id + ' ' + p.nombre + ' ' + p.clienteId + ' ' + (cl.apellido || '') + ' ' + (cl.nombre || '')).toLowerCase().includes(q);
+    return (p.id + ' ' + p.nombre + ' ' + p.clienteId + ' ' + (cl.apellido || '') + ' ' + (cl.nombre || '') + ' ' + (p.terceroNombre || '')).toLowerCase().includes(q);
   });
   if (tipoF === 'tercero') lista = lista.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero');
   else if (tipoF === 'propio') lista = lista.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
+  if (terceroF) lista = lista.filter(p => (p.tipo === 'tercero' || p.tipo === 'De tercero') && nombreTercero(p) === terceroF);
   if (carteraFiltroEstado) lista = lista.filter(p => calcEstadoPrestamo(p.id) === carteraFiltroEstado);
   renderTablaPrestamos(lista);
 }
@@ -2505,14 +2566,16 @@ function renderTablaPrestamos(lista) {
       <td class="td-mono">${fmt(p.capital)}</td>
       <td class="td-mono">${fmt(p.total)}</td>
       <td class="td-mono ${saldo > 0 ? 'text-amber' : 'text-green'}">${fmt(saldo)}</td>
-      <td>${p.tipo === 'tercero' || p.tipo === 'De tercero' ? '<span class="pill pill-amber">Tercero</span>' : '<span class="pill pill-gray">Propio</span>'}</td>
+      <td>${p.tipo === 'tercero' || p.tipo === 'De tercero' ? '<span class="pill pill-amber">Tercero</span><div class="td-sub" style="margin-top:2px">' + escapeHtml(nombreTercero(p)) + '</div>' : '<span class="pill pill-gray">Propio</span>'}</td>
       <td class="td-mono">${pendientes}/${p.cuotas} pend.</td>
       <td>${estadoPill2(calcEstadoPrestamo(p.id))}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();nav('detalle-prestamo','${p.id}')">Ver →</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">Sin créditos que coincidan con el filtro</td></tr>';
   const resumen = document.getElementById('cartera-resumen');
-  if (resumen) resumen.innerHTML = `<b>${lista.length}</b> crédito${lista.length !== 1 ? 's' : ''} · Capital: <b class="text-mono">${fmt(totCapital)}</b> · A devolver: <b class="text-mono">${fmt(totTotal)}</b> · Saldo por cobrar: <b class="text-mono text-amber">${fmt(totSaldo)}</b>`;
+  const terceroF = document.getElementById('cartera-tercero')?.value || '';
+  const comisionTxt = terceroF ? ` · Comisión de ${escapeHtml(terceroF)}: <b class="text-mono text-amber">${fmt(lista.reduce((a, p) => a + (p.comision || 0), 0))}</b>` : '';
+  if (resumen) resumen.innerHTML = `<b>${lista.length}</b> crédito${lista.length !== 1 ? 's' : ''} · Capital: <b class="text-mono">${fmt(totCapital)}</b> · A devolver: <b class="text-mono">${fmt(totTotal)}</b> · Saldo por cobrar: <b class="text-mono text-amber">${fmt(totSaldo)}</b>${comisionTxt}`;
 }
 
 // Compatibilidad: el buscador viejo (si quedara) sigue funcionando.
@@ -2634,7 +2697,10 @@ function renderDetallePrestamo(prestId) {
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
               <div class="cuota-monto" style="color:${pagada?'var(--green)':vencida?'var(--red)':'var(--accent2)'}">${fmt(c.saldo)}</div>
               <div class="cuota-saldo">${estadoPill(c.estado)}</div>
-              ${sePuedeSaltear ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px;margin-top:2px" onclick="event.stopPropagation();abrirSalteoModal('${c.id}')" title="Saltear esta cuota">🚫 Saltear</button>` : ''}
+              ${sePuedeSaltear ? `<div style="display:flex;gap:4px;margin-top:2px">
+                <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();abrirEditCuotaModal('${c.id}')" title="Cambiar el monto de esta cuota">✏ Monto</button>
+                <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();abrirSalteoModal('${c.id}')" title="Saltear esta cuota">🚫 Saltear</button>
+              </div>` : ''}
             </div>
           </div>`;
         }).join('')}
@@ -2689,7 +2755,9 @@ async function renderVencimientos() {
 // ============================================================
 // NUEVO PRÉSTAMO
 // ============================================================
-function initNuevoPrestamo() {
+// clienteId opcional: al venir desde la ficha de un cliente, queda
+// preseleccionado y no hay que volver a buscarlo en el buscador.
+function initNuevoPrestamo(clienteId) {
   const hoy = new Date().toISOString().split('T')[0];
   document.getElementById('np-fecha').value = hoy;
   document.getElementById('np-fecha-primera').value = '';
@@ -2699,6 +2767,7 @@ function initNuevoPrestamo() {
   setModoCliente('existente');
   setModoNP('interes');
   recalcNP();
+  if (clienteId && DB.clientes.some(c => c.id === clienteId)) seleccionarClienteNP(clienteId);
 }
 
 function setModoCliente(modo) {
@@ -3379,10 +3448,11 @@ async function confirmarCuotaExtra() {
     }
 
     invalidateCache();
+    const pid = cuotaExtraPrestId; // closeCuotaExtraModal() lo anula
     closeCuotaExtraModal();
     showToast('✓ Cuota extra #' + nuevoNro + ' agregada' + (eventId ? ' con evento Calendar' : ''));
     await loadAll(true);
-    renderDetallePrestamo(cuotaExtraPrestId);
+    renderDetallePrestamo(pid);
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
   } finally {
@@ -3611,6 +3681,157 @@ async function confirmarSalteo() {
 
 document.getElementById('salteoModal').addEventListener('click', e => {
   if (e.target === document.getElementById('salteoModal')) closeSalteoModal();
+});
+
+// ============================================================
+// EDITAR MONTO DE UNA CUOTA
+// Cambia el monto de una sola cuota (pendiente o con pago parcial,
+// incluidas las generadas por salteo) y recalcula total/ganancias
+// del préstamo + el evento de Calendar de esa cuota.
+// ============================================================
+let editCuotaId = null;
+
+function abrirEditCuotaModal(cuotaId) {
+  const cuota = DB.cuotas.find(c => c.id === cuotaId);
+  if (!cuota) return;
+  if (cuota.estado.startsWith('Pagada') || cuota.estado === 'Salteada' || cuota.estado === 'Refinanciada') {
+    showToast('Solo se puede editar el monto de cuotas pendientes o con pago parcial', 'error');
+    return;
+  }
+  const p = DB.prestamos.find(x => x.id === cuota.prestId);
+  if (!p) return;
+  editCuotaId = cuotaId;
+  const activas = DB.cuotas.filter(c => c.prestId === cuota.prestId && c.estado !== 'Salteada' && c.estado !== 'Refinanciada').sort((a, b) => a.nro - b.nro);
+  const pos = activas.findIndex(c => c.id === cuotaId) + 1;
+  document.getElementById('edit-cuota-sub').textContent = cuota.prestId + ' · ' + p.nombre;
+  document.getElementById('ec-cuota-info').textContent = 'Cuota ' + pos + ' de ' + activas.length + ' (' + cuota.estado + ')';
+  document.getElementById('ec-venc').textContent = fmtFecha(parseFecha(cuota.vencimiento)) || cuota.vencimiento;
+  document.getElementById('ec-monto-actual').textContent = fmt(cuota.monto);
+  document.getElementById('ec-pagado').textContent = fmt(cuota.pagado);
+  document.getElementById('ec-monto').value = Math.round(cuota.monto * 100) / 100;
+  document.getElementById('ec-hint').textContent = '';
+  document.getElementById('ec-preview').style.display = 'none';
+  document.getElementById('editCuotaModal').classList.add('open');
+}
+
+function actualizarPreviewEditCuota() {
+  if (!editCuotaId) return;
+  const cuota = DB.cuotas.find(c => c.id === editCuotaId);
+  if (!cuota) return;
+  const p = DB.prestamos.find(x => x.id === cuota.prestId);
+  if (!p) return;
+  const nuevoMonto = parseFloat(document.getElementById('ec-monto').value) || 0;
+  const hint = document.getElementById('ec-hint');
+  const preview = document.getElementById('ec-preview');
+  if (!nuevoMonto || nuevoMonto === cuota.monto) {
+    hint.textContent = '';
+    preview.style.display = 'none';
+    return;
+  }
+  if (cuota.pagado > 0 && nuevoMonto <= cuota.pagado) {
+    hint.textContent = '⚠ Tiene que ser mayor a lo ya pagado (' + fmt(cuota.pagado) + ')';
+    hint.style.color = 'var(--red)';
+    preview.style.display = 'none';
+    return;
+  }
+  const diff = nuevoMonto - cuota.monto;
+  hint.textContent = (diff > 0 ? '▲ +' : '▼ ') + fmt(diff) + ' respecto al monto actual';
+  hint.style.color = diff > 0 ? 'var(--amber)' : 'var(--red)';
+  const nuevoTotal = p.total + diff;
+  const nuevaGB = nuevoTotal - p.capital;
+  const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
+  const nuevaGN = nuevaGB - (esTercero ? nuevaGB * 0.2 : 0);
+  document.getElementById('ec-prev-saldo').textContent = fmt(Math.max(0, nuevoMonto - cuota.pagado));
+  document.getElementById('ec-prev-total').textContent = fmt(nuevoTotal);
+  document.getElementById('ec-prev-gan').textContent = fmt(nuevaGN);
+  preview.style.display = 'block';
+}
+
+function closeEditCuotaModal() { document.getElementById('editCuotaModal').classList.remove('open'); editCuotaId = null; }
+
+async function guardarEditCuota() {
+  if (!editCuotaId) return;
+  const cuota = DB.cuotas.find(c => c.id === editCuotaId);
+  if (!cuota) return;
+  const p = DB.prestamos.find(x => x.id === cuota.prestId);
+  if (!p) return;
+  const nuevoMonto = parseFloat(document.getElementById('ec-monto').value) || 0;
+  if (nuevoMonto <= 0) { showToast('El monto debe ser mayor a 0', 'error'); return; }
+  if (cuota.pagado > 0 && nuevoMonto <= cuota.pagado) {
+    showToast('El nuevo monto tiene que ser mayor a lo ya pagado (' + fmt(cuota.pagado) + '). Si querés darla por saldada, registrá el pago desde la cuota.', 'error');
+    return;
+  }
+  if (nuevoMonto === cuota.monto) { closeEditCuotaModal(); return; }
+
+  const btn = document.getElementById('btn-edit-cuota');
+  if (btn.disabled) return;
+  btn.disabled = true; const btnLabel = btn.textContent; btn.textContent = 'Guardando...';
+  try {
+    const montoViejo = cuota.monto;
+    const nuevoSaldo = parseFloat(Math.max(0, nuevoMonto - cuota.pagado).toFixed(2));
+    const nuevoTotal = parseFloat((p.total + nuevoMonto - montoViejo).toFixed(2));
+    const nuevaGB = nuevoTotal - p.capital;
+    const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
+    const nuevaCom = esTercero ? nuevaGB * 0.2 : 0;
+    const nuevaGN = nuevaGB - nuevaCom;
+
+    // 1. Cuota en Sheets: F=monto, H=saldo (G=pagado no cambia)
+    const cuotasData = await sheetsGet('Cuotas!A1:J');
+    const rowIdxCuota = cuotasData.findIndex(r => r[0] === cuota.id);
+    if (rowIdxCuota < 0) throw new Error('Cuota no encontrada en Sheets');
+    const updates = [
+      { range: `Cuotas!F${rowIdxCuota + 1}`, values: [[nuevoMonto.toFixed(2)]] },
+      { range: `Cuotas!H${rowIdxCuota + 1}`, values: [[nuevoSaldo.toFixed(2)]] },
+    ];
+
+    // 2. Préstamo en Sheets: G=total, L:N=ganancias (el total del préstamo
+    // es la suma de sus cuotas, igual que hace el salteo al agregar cuotas)
+    const prestData = await sheetsGet('Préstamos!A1:P');
+    const rowIdxPrest = prestData.findIndex(r => r[0] === cuota.prestId);
+    if (rowIdxPrest >= 0) {
+      updates.push({ range: `Préstamos!G${rowIdxPrest + 1}`, values: [[nuevoTotal.toFixed(2)]] });
+      updates.push({ range: `Préstamos!L${rowIdxPrest + 1}:N${rowIdxPrest + 1}`, values: [[nuevaGB.toFixed(2), nuevaCom.toFixed(2), nuevaGN.toFixed(2)]] });
+    }
+    await sheetsBatchUpdate(updates);
+
+    // 3. Calendar: actualizar el evento de esta cuota con el monto nuevo
+    if (cuota.eventId && CFG.calId) {
+      btn.textContent = 'Actualizando Calendar...';
+      const activas = DB.cuotas.filter(c => c.prestId === cuota.prestId && c.estado !== 'Salteada' && c.estado !== 'Refinanciada').sort((a, b) => a.nro - b.nro);
+      const pos = activas.findIndex(c => c.id === cuota.id) + 1;
+      const huboSalteo = DB.cuotas.some(c => c.prestId === cuota.prestId && c.estado === 'Salteada');
+      const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + cuota.eventId;
+      try {
+        const getRes = await fetch(url, { headers: { Authorization: 'Bearer ' + TOKEN } });
+        if (handleCalendarAuthError(getRes.status)) throw Object.assign(new Error('Calendar auth ' + getRes.status), { _noRetry: true });
+        if (getRes.ok) {
+          const ev = await getRes.json();
+          const prefix = cuota.estado === 'Pago parcial' ? '🟡 ' : '💰 ';
+          const summary = prefix + p.nombre + ' — Cuota ' + pos + '/' + activas.length + ' | ' + fmt(nuevoMonto) + ' (' + cuota.prestId + (huboSalteo ? ' · refinanciado' : '') + ')';
+          const desc = (ev.description || '') + '\n✏ Monto modificado: ' + fmt(montoViejo) + ' → ' + fmt(nuevoMonto);
+          const patchRes = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: summary, description: desc }) });
+          if (handleCalendarAuthError(patchRes.status)) throw Object.assign(new Error('Calendar auth ' + patchRes.status), { _noRetry: true });
+        }
+      } catch(calErr) {
+        if (calErr._noRetry) throw calErr;
+        console.warn('Calendar error editando monto cuota', cuota.id, calErr);
+      }
+    }
+
+    invalidateCache();
+    closeEditCuotaModal();
+    await loadAll(true);
+    showToast('✓ Monto de la cuota actualizado: ' + fmt(montoViejo) + ' → ' + fmt(nuevoMonto));
+    renderDetallePrestamo(cuota.prestId);
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = btnLabel;
+  }
+}
+
+document.getElementById('editCuotaModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('editCuotaModal')) closeEditCuotaModal();
 });
 
 // ============================================================
@@ -4744,8 +4965,11 @@ async function guardarEditPrest() {
     const interesCambio = nuevoInteres !== _epInteresOriginal;
     const nuevoTotal = nuevoCapital * (1 + nuevoInteres / 100);
     const ganBruta = nuevoTotal - nuevoCapital;
-    const comision = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? ganBruta * 0.2 : 0;
+    // La comisión se calcula con el tipo NUEVO elegido en el form (no el
+    // viejo): si pasa de propio a tercero arranca a comisionar y viceversa.
+    const comision = tipo === 'tercero' ? ganBruta * 0.2 : 0;
     const ganNeta = ganBruta - comision;
+    const terceroFinal = tipo === 'tercero' ? tercero : '';
 
     // 1. Actualizar Préstamos en Sheets
     const datos = await sheetsGet('Préstamos!A1:P');
@@ -4756,7 +4980,7 @@ async function guardarEditPrest() {
     // Columnas: E=capital, F=interes, G=total, I=tipo, J=terceroId, K=terceroNombre, L=ganBruta, M=comision, N=ganNeta, P=notas
     await sheetsBatchUpdate([
       { range: `Préstamos!E${sheetRow}:G${sheetRow}`, values: [[nuevoCapital, nuevoInteres + '%', nuevoTotal.toFixed(2)]] },
-      { range: `Préstamos!I${sheetRow}:K${sheetRow}`, values: [[tipoStr, '', tercero]] },
+      { range: `Préstamos!I${sheetRow}:K${sheetRow}`, values: [[tipoStr, '', terceroFinal]] },
       { range: `Préstamos!L${sheetRow}:N${sheetRow}`, values: [[ganBruta.toFixed(2), comision.toFixed(2), ganNeta.toFixed(2)]] },
       { range: `Préstamos!P${sheetRow}`, values: [[notas]] },
     ]);
@@ -4816,10 +5040,13 @@ async function guardarEditPrest() {
     }
 
     invalidateCache();
+    // Guardar el id antes de cerrar el modal: closeEditPrestModal() lo anula
+    // y el render de abajo quedaba sin efecto (la vista no se refrescaba).
+    const pid = editPrestId;
     closeEditPrestModal();
     showToast((capitalCambio || interesCambio) ? '✓ Préstamo actualizado y Calendar sincronizado' : '✓ Préstamo actualizado');
     await loadAll(true);
-    renderDetallePrestamo(editPrestId);
+    renderDetallePrestamo(pid);
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
   } finally {
@@ -5172,12 +5399,13 @@ async function guardarEditCliente() {
       }
     }
     invalidateCache();
+    const cid = editClienteId; // closeEditClienteModal() lo anula
     closeEditClienteModal();
     showToast('Cliente actualizado');
     await loadAll(true);
     // El evento MOROSOS lista nombres y teléfonos: si cambiaron, se refresca.
     try { await actualizarEventoMorosos(); } catch(e) { console.warn('Evento morosos:', e); }
-    renderDetalleCliente(editClienteId);
+    renderDetalleCliente(cid);
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
   } finally {
@@ -5238,7 +5466,10 @@ async function confirmarReprogramar() {
   if (!fechaStr) { showToast('Elegí una fecha', 'error'); return; }
   const base = new Date(fechaStr + 'T12:00:00');
   if (isNaN(base)) { showToast('Fecha inválida', 'error'); return; }
-  const cuotasPend = DB.cuotas.filter(c => c.prestId === reprogPrestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').sort((a,b) => a.nro - b.nro);
+  // Guardar el id antes de cerrar el modal: closeReprogModal() lo anula y el
+  // resto de la función lo necesita (títulos de Calendar y re-render final).
+  const prestId = reprogPrestId;
+  const cuotasPend = DB.cuotas.filter(c => c.prestId === prestId && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada').sort((a,b) => a.nro - b.nro);
   if (cuotasPend.length === 0) { showToast('No hay cuotas pendientes', 'error'); return; }
   closeReprogModal();
   showToast('Reprogramando cuotas...');
@@ -5255,15 +5486,15 @@ async function confirmarReprogramar() {
       if (CFG.calId) {
         try {
           showToast(`Creando evento Calendar cuota ${c.nro}/${cuotasPend.length}...`);
-          const p = DB.prestamos.find(x => x.id === reprogPrestId) || {};
+          const p = DB.prestamos.find(x => x.id === prestId) || {};
           const cl = DB.clientes.find(x => x.id === c.clienteId) || {};
           const nombreCliente = cl.apellido ? cl.apellido + ', ' + cl.nombre : c.clienteId;
-          const todasLasCuotas = DB.cuotas.filter(x => x.prestId === reprogPrestId);
+          const todasLasCuotas = DB.cuotas.filter(x => x.prestId === prestId);
           const totalCuotas = todasLasCuotas.length || p.cuotas || cuotasPend.length;
           const montoCuota = c.monto || c.saldo || 0;
           const eventoBody = {
-            summary: '💰 ' + nombreCliente + ' — Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(montoCuota) + ' (' + reprogPrestId + ')',
-            description: 'Préstamo: ' + reprogPrestId + '\nCliente: ' + nombreCliente + ' (' + c.clienteId + ')\nMonto cuota: ' + fmt(montoCuota) + '\nTipo: ' + (p.tipo || 'propio') + '\n⚠ Reprogramada',
+            summary: '💰 ' + nombreCliente + ' — Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(montoCuota) + ' (' + prestId + ')',
+            description: 'Préstamo: ' + prestId + '\nCliente: ' + nombreCliente + ' (' + c.clienteId + ')\nMonto cuota: ' + fmt(montoCuota) + '\nTipo: ' + (p.tipo || 'propio') + '\n⚠ Reprogramada',
             start: { dateTime: nuevaFechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
             end:   { dateTime: nuevaFechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
             colorId: '5',
@@ -5289,7 +5520,7 @@ async function confirmarReprogramar() {
     invalidateCache();
     await loadAll(true);
     showToast('✓ ' + cuotasPend.length + ' cuotas reprogramadas y Calendar actualizado');
-    renderDetallePrestamo(reprogPrestId);
+    renderDetallePrestamo(prestId);
   } catch(e) { showToast('Error al reprogramar: ' + e.message, 'error'); }
 }
 
