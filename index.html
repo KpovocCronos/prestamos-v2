@@ -759,6 +759,39 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
   </div>
 </div>
 
+<!-- COBRO MODAL (cobranzas: pago libre en cascada) -->
+<div class="modal-overlay" id="cobroModal">
+  <div class="modal">
+    <div class="modal-title">Registrar cobro</div>
+    <div class="modal-sub" id="cobro-sub">—</div>
+    <div class="calc-box" style="margin-bottom:14px">
+      <div class="calc-row"><span class="calc-label">Deuda total</span><span class="calc-val text-red" id="cobro-deuda">—</span></div>
+      <div class="calc-row"><span class="calc-label">Este cobro</span><span class="calc-val" id="cobro-este">—</span></div>
+      <div class="calc-row"><span class="calc-label">Deuda restante</span><span class="calc-val" id="cobro-resto">—</span></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-field">
+        <label class="form-label">Fecha del cobro</label>
+        <input class="form-input" type="date" id="cobro-fecha" onchange="calcCobroPreview()">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Monto cobrado ($)</label>
+        <input class="form-input" type="number" id="cobro-monto" min="0" oninput="calcCobroPreview()">
+      </div>
+      <div class="form-field full">
+        <label class="form-label">Notas</label>
+        <input class="form-input" id="cobro-notas" placeholder="Opcional...">
+      </div>
+    </div>
+    <div class="form-hint" style="margin-top:10px">El monto se reparte automáticamente entre las cuotas adeudadas, de la más vieja a la más nueva.</div>
+    <div id="cobro-preview" style="margin-top:10px;max-height:200px;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeCobroModal()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-cobro" onclick="confirmarCobro()">Confirmar cobro</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL SALTEAR CUOTA -->
 <div class="modal-overlay" id="salteoModal">
   <div class="modal">
@@ -865,6 +898,10 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
           <span class="nav-icon">◷</span> Vencimientos
           <span class="nav-badge" id="badge-venc">0</span>
         </div>
+        <div class="nav-item" data-screen="cobranzas" onclick="nav('cobranzas')">
+          <span class="nav-icon">🚨</span> Cobranzas
+          <span class="nav-badge" id="badge-cobranzas" style="display:none">0</span>
+        </div>
       </div>
       <div class="nav-section">
         <div class="nav-section-label">Acciones</div>
@@ -927,6 +964,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
               <div class="stat-meta" id="stat-clientes-meta">0 de tercero</div>
             </div>
           </div>
+          <div id="dash-cobranza-banner" style="display:none;align-items:center;justify-content:space-between;gap:12px;background:var(--redbg);border:1px solid rgba(248,113,113,.25);border-radius:12px;padding:12px 18px;margin-bottom:20px;cursor:pointer" onclick="nav('cobranzas')"></div>
           <div class="table-wrap">
             <div class="card-header">
               <span class="card-title">Vencimientos por cliente</span>
@@ -982,6 +1020,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
               <button type="button" class="freq-btn active" data-estado="" onclick="setFiltroCarteraEstado('',this)">Todos</button>
               <button type="button" class="freq-btn" data-estado="Activo" onclick="setFiltroCarteraEstado('Activo',this)">Al día</button>
               <button type="button" class="freq-btn" data-estado="En mora" onclick="setFiltroCarteraEstado('En mora',this)">En mora</button>
+              <button type="button" class="freq-btn" data-estado="En cobranza" onclick="setFiltroCarteraEstado('En cobranza',this)">En cobranza</button>
               <button type="button" class="freq-btn" data-estado="Finalizado" onclick="setFiltroCarteraEstado('Finalizado',this)">Finalizados</button>
               <button type="button" class="freq-btn" data-estado="Refinanciado" onclick="setFiltroCarteraEstado('Refinanciado',this)">Refinanciados</button>
             </div>
@@ -1015,6 +1054,12 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
             </table>
           </div>
         </div>
+      </div>
+
+      <!-- COBRANZAS -->
+      <div class="screen" id="screen-cobranzas">
+        <div id="cobranzas-loading" class="loading"><div class="spinner"></div> Cargando cobranzas...</div>
+        <div id="cobranzas-content" style="display:none"></div>
       </div>
 
       <!-- NUEVO PRESTAMO -->
@@ -2002,7 +2047,7 @@ function nextId(prefix, collection, padding) {
 // ============================================================
 // NAVIGATION
 // ============================================================
-const TITLES = { dashboard:'Dashboard', estadisticas:'Estadísticas', clientes:'Clientes', 'detalle-cliente':'Detalle cliente', prestamos:'Préstamos', 'detalle-prestamo':'Detalle préstamo', vencimientos:'Vencimientos', 'nuevo-prestamo':'Nuevo préstamo', 'nuevo-cliente':'Nuevo cliente', calculadora:'Calculadora de préstamos' };
+const TITLES = { dashboard:'Dashboard', estadisticas:'Estadísticas', clientes:'Clientes', 'detalle-cliente':'Detalle cliente', prestamos:'Préstamos', 'detalle-prestamo':'Detalle préstamo', vencimientos:'Vencimientos', cobranzas:'Cobranzas — morosos', 'nuevo-prestamo':'Nuevo préstamo', 'nuevo-cliente':'Nuevo cliente', calculadora:'Calculadora de préstamos' };
 
 let navStack = [];
 let _navCurrentData = null;
@@ -2026,6 +2071,7 @@ async function nav(screen, data, opts) {
   if (screen === 'clientes')         await renderClientes();
   if (screen === 'prestamos')        await renderPrestamos();
   if (screen === 'vencimientos')     await renderVencimientos();
+  if (screen === 'cobranzas')        await renderCobranzas();
   if (screen === 'detalle-cliente')  renderDetalleCliente(data);
   if (screen === 'detalle-prestamo') renderDetallePrestamo(data);
   if (screen === 'nuevo-prestamo')   initNuevoPrestamo();
@@ -2044,6 +2090,9 @@ function navBack(fallback) {
 function calcEstadoPrestamo(prestId) {
   const p = DB.prestamos.find(x => x.id === prestId);
   if (p && p.estado === 'Refinanciado') return 'Refinanciado';
+  // "En cobranza" es un estado fijo (como Refinanciado): no se pisa con el
+  // cálculo dinámico. Si el moroso terminó de pagar, pasa a Finalizado.
+  if (p && p.estado === 'En cobranza') return saldoPrestamo(prestId) <= 0.01 ? 'Finalizado' : 'En cobranza';
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const cuotas = DB.cuotas.filter(c => c.prestId === prestId);
   if (!cuotas.length) return 'Activo';
@@ -2062,13 +2111,18 @@ function calcEstadoPrestamo(prestId) {
 function calcEstadoCliente(clienteId) {
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const prestamos = DB.prestamos.filter(p => p.clienteId === clienteId);
-  if (!prestamos.length) return 'Sin préstamos';
+  if (prestamos.some(p => p.estado === 'En cobranza' && saldoPrestamo(p.id) > 0.01)) return 'En cobranza';
+  const cl = DB.clientes.find(x => x.id === clienteId);
+  const vetado = !!(cl && (cl.activo || '') === 'Vetado');
+  if (!prestamos.length) return vetado ? 'Vetado' : 'Sin préstamos';
   const cuotas = DB.cuotas.filter(c => c.clienteId === clienteId);
-  if (!cuotas.length) return 'Sin préstamos';
+  if (!cuotas.length) return vetado ? 'Vetado' : 'Sin préstamos';
   // Exclude refinanciada cuotas from saldo calc
   const cuotasActivas = cuotas.filter(c => c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
   const saldoTotal = cuotasActivas.reduce((a,c) => a + (parseFloat(c.saldo)||0), 0);
-  if (saldoTotal <= 0.01) return 'Crédito finalizado';
+  // El veto pesa solo cuando ya no hay deuda viva: si todavía debe, importa
+  // más su situación financiera (en mora / activo) que la marca de vetado.
+  if (saldoTotal <= 0.01) return vetado ? 'Vetado' : 'Crédito finalizado';
   const hayVencidas = cuotasActivas.some(c => {
     if (c.estado === 'Pagada' || c.estado.startsWith('Pagada con')) return false;
     const d = parseFecha(c.vencimiento);
@@ -2083,6 +2137,8 @@ function estadoPill2(estado) {
   if (estado === 'En mora') return '<span class="pill pill-red">En mora</span>';
   if (estado === 'Activo') return '<span class="pill pill-purple">Activo</span>';
   if (estado === 'Refinanciado') return '<span class="pill pill-amber">🔄 Refinanciado</span>';
+  if (estado === 'En cobranza') return '<span class="pill pill-red">🚨 En cobranza</span>';
+  if (estado === 'Vetado') return '<span class="pill pill-gray" style="color:var(--red)">⛔ Vetado</span>';
   if (estado === 'Sin préstamos') return '<span class="pill pill-gray">Sin préstamos</span>';
   return '<span class="pill pill-gray">' + estado + '</span>';
 }
@@ -2098,7 +2154,9 @@ async function renderDashboard() {
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const mesActual = hoy.getMonth();
   const anioActual = hoy.getFullYear();
-  const cuotasPend = DB.cuotas.filter(c => c.saldo > 0 && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
+  // Los préstamos "En cobranza" (morosos) quedan fuera de todas las métricas
+  // y listados del dashboard: viven en la pantalla Cobranzas.
+  const cuotasPend = DB.cuotas.filter(c => c.saldo > 0 && c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada' && !prestEnCobranza(c.prestId));
   const prestConSaldo = new Set(cuotasPend.map(c => c.prestId));
   const capitalTotal = DB.prestamos.filter(p => prestConSaldo.has(p.id)).reduce((a,p) => a + p.capital, 0);
   const cantPrestActivos = prestConSaldo.size;
@@ -2125,7 +2183,7 @@ async function renderDashboard() {
   document.getElementById('stat-clientes-meta').textContent = tercerosActivos + ' de tercero activos';
 
   const cuotasConFecha = DB.cuotas
-    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada')
+    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada' && !prestEnCobranza(c.prestId))
     .map(c => ({...c, _fecha: parseFecha(c.vencimiento)}))
     .filter(c => c._fecha)
     .sort((a,b) => a._fecha - b._fecha);
@@ -2135,7 +2193,9 @@ async function renderDashboard() {
   for (const c of cuotasConFecha) {
     if (!vistos.has(c.clienteId)) { vistos.add(c.clienteId); clientesConPrest.push(c.clienteId); }
   }
-  DB.clientes.forEach(cl => { if (!vistos.has(cl.id) && DB.prestamos.some(p => p.clienteId === cl.id)) clientesConPrest.push(cl.id); });
+  // Un cliente cuyos préstamos están todos en cobranza no debe aparecer acá
+  // (sus cuotas se filtraron arriba y figuraría mal como "Todo pago").
+  DB.clientes.forEach(cl => { if (!vistos.has(cl.id) && DB.prestamos.some(p => p.clienteId === cl.id && p.estado !== 'En cobranza')) clientesConPrest.push(cl.id); });
 
   const contenedor = document.getElementById('dash-acordeon');
   contenedor.innerHTML = '';
@@ -2171,6 +2231,7 @@ async function renderDashboard() {
         <div style="display:flex;align-items:center;gap:16px">
           ${proxLabel}
           ${!todasPagas ? '<span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--amber)">'+fmt(saldoTotal)+'</span>' : ''}
+          ${hayVencidas ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();pedirEnviarCobranza('${clienteId}')" title="Este no paga: sacalo del dashboard y mandalo a Cobranzas">🚨 A cobranza</button>` : ''}
           <span id="arrow-${idx}" style="color:var(--muted);transition:transform .2s;display:inline-block">▾</span>
         </div>`;
 
@@ -2228,6 +2289,28 @@ async function renderDashboard() {
       }
     });
   }
+
+  // Banner "En cobranza": los morosos salen de las métricas pero el número
+  // sigue a la vista, con acceso directo a la pantalla Cobranzas.
+  const morosos = getListaMorosos();
+  const banner = document.getElementById('dash-cobranza-banner');
+  if (morosos.length) {
+    const deudaMorosos = morosos.reduce((a,m) => a + m.deuda, 0);
+    banner.style.display = 'flex';
+    banner.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">🚨</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--red)">En cobranza: ${fmt(deudaMorosos)}</div>
+          <div style="font-size:11px;color:var(--muted)">${morosos.length} cliente${morosos.length!==1?'s':''} moroso${morosos.length!==1?'s':''} — fuera de las métricas del dashboard</div>
+        </div>
+      </div>
+      <span style="font-size:12px;color:var(--red);font-weight:600;white-space:nowrap">Ver cobranzas →</span>`;
+  } else {
+    banner.style.display = 'none';
+    banner.innerHTML = '';
+  }
+  actualizarBadgeCobranzas();
 
   document.getElementById('dash-loading').style.display = 'none';
   document.getElementById('dash-content').style.display = 'block';
@@ -2303,19 +2386,25 @@ function renderDetalleCliente(clienteId) {
   const saldo = cuotas.reduce((a,cu) => a+cu.saldo, 0);
   const pagosCliente = DB.pagos.filter(p => p.clienteId === clienteId);
   const diasMora = pagosCliente.reduce((a,p) => a+(p.diasAtraso||0), 0);
+  const enCobranza = ps.some(p => p.estado === 'En cobranza' && saldoPrestamo(p.id) > 0.01);
+  const vetado = (c.activo || '') === 'Vetado';
+  const puedeCobranza = !enCobranza && ps.some(p => p.estado !== 'Refinanciado' && p.estado !== 'En cobranza' && saldoPrestamo(p.id) > 0.01);
 
   document.getElementById('dc-content').innerHTML = `
     <div class="flex-between" style="margin-bottom:20px">
       <div class="flex-row">
         <button class="btn btn-ghost btn-sm" onclick="navBack('clientes')">← Volver</button>
         <div>
-          <div style="font-size:20px;font-weight:700">${escapeHtml(c.apellido)}, ${escapeHtml(c.nombre)}</div>
+          <div style="font-size:20px;font-weight:700">${escapeHtml(c.apellido)}, ${escapeHtml(c.nombre)} ${enCobranza?'<span class="pill pill-red" style="vertical-align:middle">🚨 En cobranza</span>':''} ${vetado?'<span class="pill pill-gray" style="vertical-align:middle;color:var(--red)">⛔ Vetado</span>':''}</div>
           <div class="text-muted" style="font-size:12px">${c.id} · @${escapeHtml(c.alias)} · DNI: ****${c.dni}</div>
         </div>
       </div>
       <div class="flex-row">
         <button class="btn btn-ghost btn-sm" onclick="abrirPlanCuotas('${c.id}')" style="border-color:rgba(124,111,255,.3);color:var(--accent2)">📊 Plan de cuotas</button>
         <button class="btn btn-amber btn-sm" onclick="abrirRefinanciarModal('${c.id}')" id="btn-refi-${c.id}">🔄 Refinanciar</button>
+        ${puedeCobranza ? `<button class="btn btn-danger btn-sm" onclick="pedirEnviarCobranza('${c.id}')" title="Marca al cliente como moroso: sale del dashboard y pasa a la pantalla Cobranzas">🚨 A cobranza</button>` : ''}
+        ${enCobranza ? `<button class="btn btn-amber btn-sm" onclick="pedirSacarCobranza('${c.id}')" title="Vuelve al cliente al circuito normal del dashboard">↩ Sacar de cobranza</button>` : ''}
+        ${vetado ? `<button class="btn btn-ghost btn-sm" onclick="pedirQuitarVeto('${c.id}')">✓ Quitar veto</button>` : `<button class="btn btn-ghost btn-sm" onclick="pedirVetarCliente('${c.id}')" title="Marca al cliente para no prestarle nunca más (se conserva su historial)">⛔ Vetar</button>`}
         <button class="btn btn-ghost btn-sm" onclick="abrirEditClienteModal('${c.id}')">✏ Editar cliente</button>
         <button class="btn btn-danger btn-sm" onclick="pedirEliminarCliente('${c.id}')">🗑 Eliminar cliente</button>
         <button class="btn btn-primary btn-sm" onclick="nav('nuevo-prestamo')">+ Nuevo préstamo</button>
@@ -2449,6 +2538,7 @@ function renderDetallePrestamo(prestId) {
   });
   const unifAbsorbidas = parseUnif(p.notas); // nros de cuotas absorbidas por una unificación
   const fmtSalteoFecha = iso => { const d = new Date(iso + 'T12:00:00'); return isNaN(d) ? iso : fmtFecha(d); };
+  const enCobranzaP = p.estado === 'En cobranza' && saldoPrestamo(p.id) > 0.01;
 
   document.getElementById('dp-content').innerHTML = `
     <div class="flex-between" style="margin-bottom:20px">
@@ -2460,11 +2550,21 @@ function renderDetallePrestamo(prestId) {
         </div>
       </div>
       <div class="flex-row">
+        ${enCobranzaP
+          // En cobranza: solo cobrar o revertir. Las herramientas del ciclo
+          // normal (cuota extra, reprogramar, unificar, sincronizar Calendar)
+          // quedan ocultas porque volverían a crear eventos que se borraron
+          // al marcarlo moroso. Para usarlas, sacalo de cobranza primero.
+          ? `<span class="pill pill-red" style="font-size:11px;padding:5px 12px">🚨 En cobranza</span>
+        <button class="btn btn-primary btn-sm" onclick="abrirCobroModal('${p.clienteId}')">💵 Registrar cobro</button>
+        <button class="btn btn-ghost btn-sm" onclick="nav('cobranzas')">Ver cobranzas →</button>
+        <button class="btn btn-amber btn-sm" onclick="pedirSacarCobranzaPrest('${p.id}')" title="Vuelve este préstamo al circuito normal del dashboard">↩ Sacar de cobranza</button>`
+          : `${p.estado !== 'Refinanciado' && saldoPrestamo(p.id) > 0.01 ? `<button class="btn btn-danger btn-sm" onclick="pedirEnviarCobranzaPrest('${p.id}')" title="Marca este préstamo como moroso: sale del dashboard y pasa a Cobranzas">🚨 A cobranza</button>` : ''}
         ${p.estado !== 'Refinanciado' ? `<button class="btn btn-amber btn-sm" onclick="abrirCuotaExtraModal('${p.id}')">⊕ Agregar cuota extra</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirReprogModal('${p.id}')">📅 Reprogramar fechas</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirUnificarModal('${p.id}')" title="Junta las cuotas pendientes en una sola al final">🔗 Unificar cuotas</button>
         <button class="btn btn-ghost btn-sm" onclick="sincronizarCalendarPrestamo('${p.id}')" title="Reescribe los títulos de los eventos pendientes con la numeración actual">🔃 Sincronizar Calendar</button>
-        <button class="btn btn-ghost btn-sm" onclick="abrirEditPrestModal('${p.id}')">✏ Editar</button>` : `<span class="pill pill-amber" style="font-size:12px;padding:6px 14px">🔄 Préstamo refinanciado — solo lectura</span>`}
+        <button class="btn btn-ghost btn-sm" onclick="abrirEditPrestModal('${p.id}')">✏ Editar</button>` : `<span class="pill pill-amber" style="font-size:12px;padding:6px 14px">🔄 Préstamo refinanciado — solo lectura</span>`}`}
         <button class="btn btn-danger btn-sm" onclick="pedirEliminarPrestamo('${p.id}')">🗑 Eliminar</button>
       </div>
     </div>
@@ -2562,7 +2662,7 @@ async function renderVencimientos() {
   await loadAll();
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const pendientes = DB.cuotas
-    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada')
+    .filter(c => c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada' && !prestEnCobranza(c.prestId))
     .map(c => ({ ...c, _fecha: parseFecha(c.vencimiento) }))
     .sort((a,b) => (a._fecha || 0) - (b._fecha || 0));
   const tbody = document.getElementById('venc-table');
@@ -2623,13 +2723,14 @@ function renderDropdownNP(lista) {
   const dd = document.getElementById('np-dropdown');
   dd.innerHTML = lista.length ? lista.map(c => {
     const nPrest = DB.prestamos.filter(p => p.clienteId === c.id).length;
-    return `<div class="client-option" onclick="seleccionarClienteNP('${c.id}')">
+    const vetadoNP = (c.activo || '') === 'Vetado';
+    return `<div class="client-option" onclick="seleccionarClienteNP('${c.id}')" ${vetadoNP ? 'style="opacity:.55"' : ''}>
       <div class="client-av">${(c.apellido[0]||'?')+(c.nombre[0]||'?')}</div>
       <div>
         <div class="client-info-name">${escapeHtml(c.apellido)}, ${escapeHtml(c.nombre)}</div>
         <div class="client-info-meta">${c.id} · ****${c.dni} · @${escapeHtml(c.alias)}</div>
       </div>
-      ${nPrest > 0 ? `<span class="pill pill-purple" style="margin-left:auto">${nPrest} prest.</span>` : ''}
+      ${vetadoNP ? '<span class="pill pill-gray" style="margin-left:auto;color:var(--red)">⛔ Vetado</span>' : nPrest > 0 ? `<span class="pill pill-purple" style="margin-left:auto">${nPrest} prest.</span>` : ''}
     </div>`;
   }).join('') :
     '<div class="client-empty">No se encontró ningún cliente</div>';
@@ -2648,11 +2749,21 @@ function seleccionarClienteNP(id) {
   document.getElementById('np-sel-av').textContent = (c.apellido[0]||'?')+(c.nombre[0]||'?');
   document.getElementById('np-sel-name').textContent = c.apellido + ', ' + c.nombre;
   document.getElementById('np-sel-meta').textContent = c.id + ' · DNI: ****' + c.dni + ' · ' + c.tel;
-  document.getElementById('np-sel-hist').textContent = ps.length > 0 ?
-    '📋 ' + ps.length + ' préstamo' + (ps.length>1?'s':'') + ' anterior' + (ps.length>1?'es':'') :
-    'Sin préstamos anteriores';
+  const hist = document.getElementById('np-sel-hist');
+  const vetado = (c.activo || '') === 'Vetado';
+  if (vetado) {
+    hist.textContent = '⛔ CLIENTE VETADO — no se le presta más';
+    hist.style.color = 'var(--red)';
+  } else {
+    hist.style.color = '';
+    hist.textContent = ps.length > 0 ?
+      '📋 ' + ps.length + ' préstamo' + (ps.length>1?'s':'') + ' anterior' + (ps.length>1?'es':'') :
+      'Sin préstamos anteriores';
+  }
   const bloque = document.getElementById('bloque-prestamo-form');
-  bloque.style.opacity = '1'; bloque.style.pointerEvents = 'auto';
+  // Cliente vetado: el formulario queda bloqueado, no se le puede crear crédito.
+  if (vetado) { bloque.style.opacity = '.35'; bloque.style.pointerEvents = 'none'; showToast('⛔ Cliente vetado: no se le puede crear un préstamo', 'error'); }
+  else { bloque.style.opacity = '1'; bloque.style.pointerEvents = 'auto'; }
 }
 
 function limpiarClienteNP() {
@@ -2820,6 +2931,7 @@ async function crearPrestamo() {
     nuevoClienteRow = [clienteId, apellido, nombre, alias, dni, tel, tel2, '', '', hoy, 'Sí', ''];
   } else {
     if (!npClienteSeleccionado) { showToast('Seleccioná un cliente', 'error'); return; }
+    if ((npClienteSeleccionado.activo || '') === 'Vetado') { showToast('⛔ Cliente vetado: no se le puede crear un préstamo. Quitale el veto desde su ficha si cambió la situación.', 'error'); return; }
     clienteId = npClienteSeleccionado.id;
     clienteNombre = npClienteSeleccionado.apellido + ', ' + npClienteSeleccionado.nombre;
   }
@@ -3032,6 +3144,7 @@ function quitarPagoEspecifico(pagoId) {
 async function ejecutarQuitarPagoEspecifico(pagoId) {
   if (!pagoActual) return;
   const cuotaId = pagoActual.id;
+  const prestIdCuota = pagoActual.prestId;
   try {
     showToast('Quitando pago...');
     await eliminarFilasSheets('Pagos!A:H', 0, pagoId);
@@ -3039,6 +3152,7 @@ async function ejecutarQuitarPagoEspecifico(pagoId) {
     invalidateCache();
     await loadAll(true);
     showToast('✓ Pago quitado y cuota recalculada');
+    await refrescarMorososSiCorresponde(prestIdCuota);
     const cuotaAct = DB.cuotas.find(c => c.id === cuotaId);
     if (cuotaAct) { pagoActual = cuotaAct; document.getElementById('pago-monto').value = Math.ceil(cuotaAct.saldo); calcPagoModal(); renderPagoAjuste(cuotaAct); }
     nav(document.querySelector('.nav-item.active')?.dataset?.screen || 'dashboard');
@@ -3065,6 +3179,7 @@ async function ejecutarQuitarMontoManual(monto) {
     invalidateCache();
     await loadAll(true);
     showToast('✓ Se quitó ' + fmt(monto) + ' de la cuota');
+    await refrescarMorososSiCorresponde(c.prestId);
     const cuotaAct = DB.cuotas.find(x => x.id === c.id);
     if (cuotaAct) { pagoActual = cuotaAct; document.getElementById('pago-monto').value = Math.ceil(cuotaAct.saldo); calcPagoModal(); renderPagoAjuste(cuotaAct); }
     nav(document.querySelector('.nav-item.active')?.dataset?.screen || 'dashboard');
@@ -3087,6 +3202,7 @@ async function ejecutarResetearCuotaCero(cuotaId) {
     invalidateCache();
     await loadAll(true);
     showToast('✓ Cuota reseteada a Pendiente');
+    await refrescarMorososSiCorresponde(c.prestId);
     closePagoModal();
     nav(document.querySelector('.nav-item.active')?.dataset?.screen || 'dashboard');
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
@@ -3144,6 +3260,7 @@ async function confirmarPago() {
     closePagoModal();
     showToast('✓ Pago registrado' + (diasAtraso > 0 ? ' · ' + diasAtraso + ' días de atraso' : '') + (calOk ? ' · Calendar actualizado ✓' : ''));
     await loadAll();
+    await refrescarMorososSiCorresponde(c.prestId);
     nav(document.querySelector('.nav-item.active')?.dataset?.screen || 'dashboard');
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
@@ -3851,8 +3968,13 @@ async function renderEstadisticas() {
     document.getElementById('est-com-meta').textContent = terceroCount + ' préstamos de tercero';
     document.getElementById('est-gn').textContent = fmt(gnTotal);
     document.getElementById('est-gn-meta').textContent = gbTotal > 0 ? 'margen neto: ' + (gnTotal / gbTotal * 100).toFixed(1) + '%' : '—';
+    // La mora del período incluye a los morosos (el capital en riesgo es real y
+    // tiene que verse acá), pero se aclara cuánto de esa plata ya está en
+    // gestión de cobro para no confundir atraso recuperable con deuda dudosa.
+    const moraEnCobranza = cuotasVencPeriodo.filter(c => prestEnCobranza(c.prestId)).reduce((a,c) => a + c.saldo, 0);
     document.getElementById('est-mora').textContent = fmt(montoMora);
-    document.getElementById('est-mora-meta').textContent = cuotasVencPeriodo.length + ' cuotas vencidas sin pagar';
+    document.getElementById('est-mora-meta').textContent = cuotasVencPeriodo.length + ' cuotas vencidas sin pagar'
+      + (moraEnCobranza > 0.01 ? ' · ' + fmt(moraEnCobranza) + ' en cobranza' : '');
     document.getElementById('est-tasa-mora').textContent = tasaMora + '%';
     document.getElementById('est-cli-nuevos').textContent = clientesNuevos.length;
     document.getElementById('est-cli-nuevos-meta').textContent = clientesNuevos.length ? clientesNuevos.map(c => c.apellido).join(', ') : 'en el período';
@@ -4497,6 +4619,8 @@ async function eliminarPrestamo(prestId) {
     await eliminarFilasSheets('Préstamos!A:P', 0, prestId);
     invalidateCache();
     await loadAll(true);
+    try { await actualizarEventoMorosos(); } catch(e) { console.warn('Evento morosos:', e); }
+    actualizarBadgeCobranzas();
     showToast('✓ Préstamo eliminado' + (todasPagas ? ' (Calendar conservado)' : ' y eventos Calendar borrados'));
     nav('prestamos');
   } catch(e) {
@@ -4716,20 +4840,27 @@ function abrirRefinanciarModal(clienteId) {
   refiClienteId = clienteId;
   refiSeleccionados = new Set();
 
-  // Buscar préstamos con saldo pendiente
+  // Buscar préstamos con saldo pendiente.
+  // Los que están "En cobranza" quedan afuera a propósito: refinanciarlos
+  // generaría un crédito nuevo Activo y el moroso volvería al dashboard sin
+  // que se note. Si querés refinanciarlo, primero sacalo de cobranza.
   const prestamos = DB.prestamos.filter(p => p.clienteId === clienteId);
   const prestConSaldo = prestamos.filter(p => {
     const cuotas = DB.cuotas.filter(cu => cu.prestId === p.id);
     const saldo = cuotas.reduce((a, cu) => a + cu.saldo, 0);
-    return saldo > 0.01 && p.estado !== 'Refinanciado';
+    return saldo > 0.01 && p.estado !== 'Refinanciado' && p.estado !== 'En cobranza';
   });
+  const enCobranzaCount = prestamos.filter(p => p.estado === 'En cobranza' && saldoPrestamo(p.id) > 0.01).length;
 
   if (prestConSaldo.length < 1) {
-    showToast('Este cliente no tiene créditos con saldo pendiente para refinanciar', 'error');
+    showToast(enCobranzaCount
+      ? 'Sus créditos están en cobranza. Sacalos de cobranza si querés refinanciarlos.'
+      : 'Este cliente no tiene créditos con saldo pendiente para refinanciar', 'error');
     return;
   }
 
-  document.getElementById('refi-sub').textContent = c.apellido + ', ' + c.nombre + ' · ' + prestConSaldo.length + ' crédito' + (prestConSaldo.length > 1 ? 's' : '') + ' con saldo';
+  document.getElementById('refi-sub').textContent = c.apellido + ', ' + c.nombre + ' · ' + prestConSaldo.length + ' crédito' + (prestConSaldo.length > 1 ? 's' : '') + ' con saldo'
+    + (enCobranzaCount ? ' · ' + enCobranzaCount + ' en cobranza (excluido' + (enCobranzaCount > 1 ? 's' : '') + ')' : '');
 
   // Render lista de préstamos con checkboxes
   const hoy = new Date(); hoy.setHours(0,0,0,0);
@@ -5044,6 +5175,8 @@ async function guardarEditCliente() {
     closeEditClienteModal();
     showToast('Cliente actualizado');
     await loadAll(true);
+    // El evento MOROSOS lista nombres y teléfonos: si cambiaron, se refresca.
+    try { await actualizarEventoMorosos(); } catch(e) { console.warn('Evento morosos:', e); }
     renderDetalleCliente(editClienteId);
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
@@ -5296,6 +5429,8 @@ async function eliminarCliente(clienteId) {
     await eliminarFilasSheets('Clientes!A:L', 0, clienteId);
     invalidateCache();
     await loadAll(true);
+    try { await actualizarEventoMorosos(); } catch(e) { console.warn('Evento morosos:', e); }
+    actualizarBadgeCobranzas();
     showToast('✓ Cliente eliminado');
     nav('clientes');
   } catch(e) { showToast('Error al eliminar: ' + e.message, 'error'); }
@@ -5304,6 +5439,494 @@ async function eliminarCliente(clienteId) {
 // ============================================================
 // INIT
 // ============================================================
+// ============================================================
+// COBRANZAS (MOROSOS)
+// Préstamos con estado fijo "En cobranza": salen del dashboard,
+// vencimientos y métricas, y se gestionan desde la pantalla
+// Cobranzas con cobros libres en cascada. Un único evento semanal
+// recurrente en Calendar ("MOROSOS") lista a todos y se actualiza
+// con cada cambio. Al saldar la deuda se ofrece vetar al cliente.
+// ============================================================
+
+function prestEnCobranza(prestId) {
+  const p = DB.prestamos.find(x => x.id === prestId);
+  return !!(p && p.estado === 'En cobranza');
+}
+
+// Redibuja la pantalla en la que está el usuario (incluidas las de detalle,
+// que no tienen entrada en el sidebar) sin ensuciar el historial de navegación.
+function refrescarPantallaActual() {
+  const actual = document.querySelector('.screen.active')?.id?.replace('screen-', '');
+  if (!actual) { nav('dashboard'); return; }
+  nav(actual, _navCurrentData, { back: true });
+}
+
+// Tras un pago/ajuste hecho por fuera de la pantalla Cobranzas (ej. desde el
+// detalle del préstamo), refresca el evento semanal MOROSOS si corresponde.
+async function refrescarMorososSiCorresponde(prestId) {
+  if (!prestEnCobranza(prestId)) { actualizarBadgeCobranzas(); return; }
+  try { await actualizarEventoMorosos(); } catch(e) { console.warn('Evento morosos:', e); }
+  actualizarBadgeCobranzas();
+}
+
+// Cuotas que todavía se le pueden cobrar a un cliente moroso,
+// ordenadas de la más vieja a la más nueva (para el cobro en cascada).
+function cuotasCobrablesCliente(clienteId) {
+  const prestIds = DB.prestamos.filter(p => p.clienteId === clienteId && p.estado === 'En cobranza').map(p => p.id);
+  return DB.cuotas
+    .filter(c => prestIds.includes(c.prestId) && c.saldo > 0.01 && !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada')
+    .map(c => ({ ...c, _fecha: parseFecha(c.vencimiento) }))
+    .sort((a,b) => ((a._fecha||0) - (b._fecha||0)) || (a.nro - b.nro));
+}
+
+// Lista de clientes morosos con deuda viva: base del badge, el banner
+// del dashboard, la pantalla Cobranzas y el evento de Calendar.
+function getListaMorosos() {
+  const porCliente = {};
+  for (const p of DB.prestamos) {
+    if (p.estado !== 'En cobranza') continue;
+    if (!porCliente[p.clienteId]) porCliente[p.clienteId] = [];
+    porCliente[p.clienteId].push(p);
+  }
+  const lista = [];
+  for (const clienteId of Object.keys(porCliente)) {
+    const cuotas = cuotasCobrablesCliente(clienteId);
+    const deuda = cuotas.reduce((a,c) => a + c.saldo, 0);
+    if (deuda <= 0.01) continue;
+    const cl = DB.clientes.find(x => x.id === clienteId) || {};
+    const pagosCl = DB.pagos.filter(pg => porCliente[clienteId].some(p => p.id === pg.prestId) && pg.monto > 0);
+    let ultimoPago = null;
+    for (const pg of pagosCl) { const f = parseFecha(pg.fecha); if (f && (!ultimoPago || f > ultimoPago)) ultimoPago = f; }
+    lista.push({
+      clienteId,
+      nombre: cl.apellido ? cl.apellido + ', ' + cl.nombre : clienteId,
+      tel: cl.tel || '',
+      deuda,
+      nCuotas: cuotas.length,
+      nPrest: porCliente[clienteId].length,
+      ultimoPago,
+      vetado: (cl.activo || '') === 'Vetado'
+    });
+  }
+  lista.sort((a,b) => b.deuda - a.deuda);
+  return lista;
+}
+
+function actualizarBadgeCobranzas() {
+  const badge = document.getElementById('badge-cobranzas');
+  if (!badge) return;
+  const n = getListaMorosos().length;
+  badge.textContent = n;
+  badge.style.display = n ? '' : 'none';
+}
+
+async function renderCobranzas() {
+  document.getElementById('cobranzas-loading').style.display = 'flex';
+  document.getElementById('cobranzas-content').style.display = 'none';
+  await loadAll();
+  const morosos = getListaMorosos();
+  const vetados = DB.clientes.filter(c => (c.activo || '') === 'Vetado');
+  const deudaTotal = morosos.reduce((a,m) => a + m.deuda, 0);
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+
+  const filasMorosos = morosos.map(m => {
+    const dias = m.ultimoPago ? Math.floor((hoy - m.ultimoPago) / 86400000) : null;
+    return `<tr class="clickable" onclick="nav('detalle-cliente','${m.clienteId}')">
+      <td><div class="td-name">${escapeHtml(m.nombre)} ${m.vetado ? '<span class="pill pill-gray" style="color:var(--red);font-size:9px">⛔</span>' : ''}</div><div class="td-sub">${m.clienteId} · ${m.nPrest} préstamo${m.nPrest!==1?'s':''}</div></td>
+      <td class="td-mono">${m.tel ? escapeHtml(m.tel) : '—'}</td>
+      <td class="td-mono text-red fw-700">${fmt(m.deuda)}</td>
+      <td class="td-mono">${m.nCuotas}</td>
+      <td>${m.ultimoPago ? fmtFecha(m.ultimoPago) + (dias !== null ? ' <span class="td-sub" style="display:inline">(' + dias + 'd)</span>' : '') : '<span class="text-muted">Nunca pagó</span>'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirCobroModal('${m.clienteId}')">💵 Cobrar</button>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();pedirSacarCobranza('${m.clienteId}')" title="Devuelve al cliente al dashboard principal">↩</button>
+        ${m.vetado ? '' : `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();pedirVetarCliente('${m.clienteId}')" title="No prestarle nunca más">⛔</button>`}
+      </td>
+    </tr>`;
+  }).join('');
+
+  const filasVetados = vetados.map(c => {
+    const saldoV = DB.cuotas.filter(cu => cu.clienteId === c.id && cu.estado !== 'Refinanciada' && cu.estado !== 'Salteada').reduce((a,cu) => a + cu.saldo, 0);
+    return `<tr class="clickable" onclick="nav('detalle-cliente','${c.id}')">
+      <td><div class="td-name">${escapeHtml(c.apellido)}, ${escapeHtml(c.nombre)}</div><div class="td-sub">${c.id}</div></td>
+      <td class="td-mono">${c.tel ? escapeHtml(c.tel) : '—'}</td>
+      <td class="td-mono ${saldoV > 0.01 ? 'text-red' : 'text-green'}">${saldoV > 0.01 ? fmt(saldoV) : 'Sin deuda ✓'}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();pedirQuitarVeto('${c.id}')">✓ Quitar veto</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('cobranzas-content').innerHTML = `
+    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card">
+        <div class="stat-label">Deuda en cobranza</div>
+        <div class="stat-value text-red">${fmt(deudaTotal)}</div>
+        <div class="stat-meta">${morosos.reduce((a,m)=>a+m.nCuotas,0)} cuotas adeudadas</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Clientes morosos</div>
+        <div class="stat-value">${morosos.length}</div>
+        <div class="stat-meta">fuera del dashboard principal</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Vetados</div>
+        <div class="stat-value">${vetados.length}</div>
+        <div class="stat-meta">no se les presta más</div>
+      </div>
+    </div>
+    <div class="table-wrap" style="margin-bottom:20px">
+      <div class="card-header">
+        <span class="card-title">🚨 Morosos en gestión de cobro</span>
+        <button class="btn btn-ghost btn-sm" onclick="sincronizarEventoMorosos()" title="Vuelve a generar/actualizar el evento semanal MOROSOS en Calendar">🔃 Sincronizar Calendar</button>
+      </div>
+      <table>
+        <thead><tr><th>Cliente</th><th>Teléfono</th><th>Debe</th><th>Cuotas</th><th>Último pago</th><th></th></tr></thead>
+        <tbody>${filasMorosos || '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">No hay clientes en cobranza 🎉 Marcá un cliente con el botón "🚨 A cobranza" desde su ficha.</td></tr>'}</tbody>
+      </table>
+    </div>
+    ${vetados.length ? `<div class="table-wrap">
+      <div class="card-header"><span class="card-title">⛔ Clientes vetados</span><span class="text-muted" style="font-size:11px">Se conserva el historial; el sistema bloquea nuevos préstamos</span></div>
+      <table>
+        <thead><tr><th>Cliente</th><th>Teléfono</th><th>Deuda restante</th><th></th></tr></thead>
+        <tbody>${filasVetados}</tbody>
+      </table>
+    </div>` : ''}`;
+
+  actualizarBadgeCobranzas();
+  document.getElementById('cobranzas-loading').style.display = 'none';
+  document.getElementById('cobranzas-content').style.display = 'block';
+}
+
+// ---------- Marcar / desmarcar en cobranza ----------
+
+function pedirEnviarCobranza(clienteId) {
+  const c = DB.clientes.find(x => x.id === clienteId);
+  if (!c) return;
+  mostrarConfirm('¿Enviar a cobranza?', c.apellido + ', ' + c.nombre + ' sale del dashboard y de las métricas. Sus eventos de cuota en Calendar se borran y se lo suma al recordatorio semanal MOROSOS. Se puede revertir cuando quieras.', () => ejecutarCambioCobranza(clienteId, null, true));
+}
+
+function pedirEnviarCobranzaPrest(prestId) {
+  const p = DB.prestamos.find(x => x.id === prestId);
+  if (!p) return;
+  mostrarConfirm('¿Enviar préstamo a cobranza?', p.id + ' sale del dashboard y de las métricas. Sus eventos de cuota en Calendar se borran y el cliente aparece en Cobranzas. Se puede revertir cuando quieras.', () => ejecutarCambioCobranza(p.clienteId, prestId, true));
+}
+
+function pedirSacarCobranza(clienteId) {
+  const c = DB.clientes.find(x => x.id === clienteId);
+  if (!c) return;
+  mostrarConfirm('¿Sacar de cobranza?', c.apellido + ', ' + c.nombre + ' vuelve al dashboard principal con sus cuotas pendientes. Después usá 🔧 Reparar Calendar para recrear los eventos de sus cuotas.', () => ejecutarCambioCobranza(clienteId, null, false));
+}
+
+function pedirSacarCobranzaPrest(prestId) {
+  const p = DB.prestamos.find(x => x.id === prestId);
+  if (!p) return;
+  mostrarConfirm('¿Sacar préstamo de cobranza?', p.id + ' vuelve al dashboard principal. Después usá 🔧 Reparar Calendar para recrear los eventos de sus cuotas.', () => ejecutarCambioCobranza(p.clienteId, prestId, false));
+}
+
+// Marca (o desmarca) préstamos "En cobranza" en la hoja Préstamos.
+// Al marcar: borra los eventos de cuotas pendientes en Calendar y limpia
+// su eventId. Al final actualiza el evento semanal MOROSOS.
+async function ejecutarCambioCobranza(clienteId, prestIdSolo, marcar) {
+  try {
+    showToast(marcar ? 'Enviando a cobranza...' : 'Sacando de cobranza...');
+    const objetivo = prestIdSolo
+      ? DB.prestamos.filter(p => p.id === prestIdSolo)
+      : DB.prestamos.filter(p => p.clienteId === clienteId &&
+          (marcar ? (p.estado !== 'Refinanciado' && p.estado !== 'En cobranza' && saldoPrestamo(p.id) > 0.01)
+                  : p.estado === 'En cobranza'));
+    if (!objetivo.length) { showToast(marcar ? 'El cliente no tiene préstamos con saldo para enviar a cobranza' : 'El cliente no tiene préstamos en cobranza', 'error'); return; }
+
+    const datosPrest = await sheetsGet('Préstamos!A1:P');
+    const updates = [];
+    for (const p of objetivo) {
+      const rowIdx = datosPrest.findIndex(r => r[0] === p.id);
+      if (rowIdx >= 0) updates.push({ range: `Préstamos!O${rowIdx + 1}`, values: [[marcar ? 'En cobranza' : 'Activo']] });
+    }
+    if (!updates.length) throw new Error('No se encontraron los préstamos en Sheets');
+    await sheetsBatchUpdate(updates);
+
+    if (marcar) {
+      // Borrar los eventos de cuotas pendientes (quedan solo los ✅ pagados
+      // como historial) y limpiar el eventId en la hoja Cuotas.
+      const cuotasData = await sheetsGet('Cuotas!A1:J');
+      const clearUpdates = [];
+      const prestIds = objetivo.map(p => p.id);
+      const cuotasConEvento = DB.cuotas.filter(c => prestIds.includes(c.prestId) && c.eventId &&
+        !c.estado.startsWith('Pagada') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
+      for (const c of cuotasConEvento) {
+        await borrarEventoCalendar(c.eventId);
+        const rowIdx = cuotasData.findIndex(r => r[0] === c.id);
+        if (rowIdx >= 0) clearUpdates.push({ range: `Cuotas!J${rowIdx + 1}`, values: [['']] });
+      }
+      if (clearUpdates.length) await sheetsBatchUpdate(clearUpdates);
+    }
+
+    invalidateCache();
+    await loadAll(true);
+    try { await actualizarEventoMorosos(); } catch(e) { console.warn('Evento morosos:', e); }
+    actualizarBadgeCobranzas();
+    showToast(marcar ? '🚨 Enviado a cobranza — lo ves en la pantalla Cobranzas' : '✓ De vuelta en el circuito normal. Usá 🔧 Reparar Calendar para recrear sus eventos.');
+    refrescarPantallaActual();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+// ---------- Cobro libre en cascada ----------
+
+let cobroClienteId = null;
+
+function abrirCobroModal(clienteId) {
+  const c = DB.clientes.find(x => x.id === clienteId);
+  if (!c) return;
+  cobroClienteId = clienteId;
+  const cuotas = cuotasCobrablesCliente(clienteId);
+  const deuda = cuotas.reduce((a,x) => a + x.saldo, 0);
+  document.getElementById('cobro-sub').textContent = c.apellido + ', ' + c.nombre + ' — debe ' + fmt(deuda) + ' en ' + cuotas.length + ' cuota' + (cuotas.length!==1?'s':'');
+  document.getElementById('cobro-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('cobro-monto').value = '';
+  document.getElementById('cobro-notas').value = '';
+  calcCobroPreview();
+  document.getElementById('cobroModal').classList.add('open');
+}
+
+function closeCobroModal() { document.getElementById('cobroModal').classList.remove('open'); cobroClienteId = null; }
+
+// Reparte un monto entre las cuotas adeudadas (más vieja primero).
+// Aplica la misma tolerancia de centavos que el pago normal: si a una
+// cuota le queda menos de $1, se da por saldada.
+function calcularDistribucionCobro(clienteId, monto, fechaPago) {
+  const cuotas = cuotasCobrablesCliente(clienteId);
+  const dist = [];
+  let rem = monto;
+  for (const c of cuotas) {
+    if (rem <= 0) break;
+    const aplicar = Math.min(rem, c.saldo);
+    let nuevoSaldo = c.saldo - aplicar;
+    if (nuevoSaldo < 1) nuevoSaldo = 0;
+    const diasAtraso = c._fecha ? Math.max(0, Math.floor((fechaPago - c._fecha) / 86400000)) : 0;
+    dist.push({ cuota: c, aplicar, nuevoPagado: c.pagado + aplicar, nuevoSaldo, diasAtraso, saldada: nuevoSaldo <= 0 });
+    rem -= aplicar;
+  }
+  return { dist, sobrante: Math.max(0, rem) };
+}
+
+function calcCobroPreview() {
+  if (!cobroClienteId) return;
+  const monto = parseFloat(document.getElementById('cobro-monto').value) || 0;
+  const fechaStr = document.getElementById('cobro-fecha').value;
+  const fechaPago = fechaStr ? new Date(fechaStr + 'T12:00:00') : new Date();
+  const cuotas = cuotasCobrablesCliente(cobroClienteId);
+  const deuda = cuotas.reduce((a,x) => a + x.saldo, 0);
+  const { dist, sobrante } = calcularDistribucionCobro(cobroClienteId, monto, fechaPago);
+  const aplicado = dist.reduce((a,d) => a + d.aplicar, 0);
+  const restante = Math.max(0, deuda - dist.reduce((a,d) => a + (d.cuota.saldo - d.nuevoSaldo), 0));
+  document.getElementById('cobro-deuda').textContent = fmt(deuda);
+  document.getElementById('cobro-este').textContent = fmt(aplicado) + (sobrante > 0.01 ? ' (sobran ' + fmt(sobrante) + ')' : '');
+  document.getElementById('cobro-resto').textContent = restante <= 0 ? '$0 — Deuda saldada 🎉' : fmt(restante);
+  document.getElementById('cobro-resto').style.color = restante <= 0 ? 'var(--green)' : 'var(--amber)';
+  const prev = document.getElementById('cobro-preview');
+  prev.innerHTML = dist.length ? dist.map(d => `
+    <div class="flex-between" style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px">
+      <span class="text-muted">Cuota ${d.cuota.nro} · ${d.cuota.prestId} · vto ${fmtFecha(d.cuota._fecha) || d.cuota.vencimiento}</span>
+      <span class="text-mono">${fmt(d.aplicar)} → ${d.saldada ? '<span class="text-green">saldada ✓</span>' : 'queda ' + fmt(d.nuevoSaldo)}</span>
+    </div>`).join('') : (monto > 0 ? '<div class="text-muted" style="font-size:12px;padding:6px 10px">Sin cuotas adeudadas</div>' : '');
+}
+
+async function confirmarCobro() {
+  if (!cobroClienteId) return;
+  const clienteId = cobroClienteId;
+  const monto = parseFloat(document.getElementById('cobro-monto').value) || 0;
+  const fechaStr = document.getElementById('cobro-fecha').value;
+  const notas = document.getElementById('cobro-notas').value.trim();
+  if (!monto || monto <= 0) { showToast('Ingresá el monto cobrado', 'error'); return; }
+  if (!fechaStr) { showToast('Elegí la fecha del cobro', 'error'); return; }
+  const fechaPago = new Date(fechaStr + 'T12:00:00');
+  const { dist, sobrante } = calcularDistribucionCobro(clienteId, monto, fechaPago);
+  if (!dist.length) { showToast('El cliente no tiene cuotas adeudadas', 'error'); return; }
+  if (sobrante > 0.01 && !confirm('El monto supera la deuda total: sobran ' + fmt(sobrante) + '. Se registra solo hasta cubrir la deuda. ¿Continuar?')) return;
+
+  const btn = document.getElementById('btn-cobro');
+  if (btn.disabled) return;
+  btn.disabled = true; const btnLabel = btn.textContent; btn.textContent = 'Registrando...';
+  try {
+    // 1. Filas de Pagos (IDs consecutivos a partir del máximo actual)
+    const baseNum = parseInt(nextId('PAGO-', DB.pagos).slice(5), 10);
+    const pagoRows = dist.map((d, i) => [
+      'PAGO-' + String(baseNum + i).padStart(4, '0'),
+      d.cuota.id, d.cuota.prestId, clienteId,
+      fmtFechaES(fechaPago), d.aplicar.toFixed(2), d.diasAtraso,
+      (notas ? notas + ' · ' : '') + 'Cobranza'
+    ]);
+    await sheetsAppend('Pagos!A:H', pagoRows);
+
+    // 2. Actualizar las cuotas afectadas en un solo batch
+    const cuotasData = await sheetsGet('Cuotas!A1:J');
+    const cuotaUpdates = [];
+    for (const d of dist) {
+      const rowIdx = cuotasData.findIndex(r => r[0] === d.cuota.id);
+      if (rowIdx < 0) { console.warn('Cuota no encontrada en Sheets:', d.cuota.id); continue; }
+      const estado = d.saldada ? (d.diasAtraso > 0 ? 'Pagada con atraso (' + d.diasAtraso + 'd)' : 'Pagada') : 'Pago parcial';
+      cuotaUpdates.push({ range: `Cuotas!G${rowIdx + 1}:I${rowIdx + 1}`, values: [[d.nuevoPagado.toFixed(2), d.nuevoSaldo.toFixed(2), estado]] });
+    }
+    await sheetsBatchUpdate(cuotaUpdates);
+
+    // 3. Préstamos que quedaron saldados pasan a Finalizado en la hoja
+    const prestAfectados = [...new Set(dist.map(d => d.cuota.prestId))];
+    const saldoRestantePorPrest = {};
+    for (const pid of prestAfectados) {
+      saldoRestantePorPrest[pid] = DB.cuotas
+        .filter(c => c.prestId === pid && c.estado !== 'Refinanciada' && c.estado !== 'Salteada')
+        .reduce((a,c) => {
+          const d = dist.find(x => x.cuota.id === c.id);
+          return a + (d ? d.nuevoSaldo : c.saldo);
+        }, 0);
+    }
+    const finalizados = prestAfectados.filter(pid => saldoRestantePorPrest[pid] <= 0.01);
+    if (finalizados.length) {
+      const datosPrest = await sheetsGet('Préstamos!A1:P');
+      const prestUpdates = [];
+      for (const pid of finalizados) {
+        const rowIdx = datosPrest.findIndex(r => r[0] === pid);
+        if (rowIdx >= 0) prestUpdates.push({ range: `Préstamos!O${rowIdx + 1}`, values: [['Finalizado']] });
+      }
+      if (prestUpdates.length) await sheetsBatchUpdate(prestUpdates);
+    }
+
+    invalidateCache();
+    await loadAll(true);
+    try { await actualizarEventoMorosos(); } catch(e) { console.warn('Evento morosos:', e); }
+    closeCobroModal();
+    const deudaFinal = cuotasCobrablesCliente(clienteId).reduce((a,c) => a + c.saldo, 0);
+    showToast('✓ Cobro de ' + fmt(dist.reduce((a,d) => a + d.aplicar, 0)) + ' registrado en ' + dist.length + ' cuota' + (dist.length!==1?'s':''));
+    await renderCobranzas();
+    if (deudaFinal <= 0.01) {
+      const cl = DB.clientes.find(x => x.id === clienteId);
+      const nombre = cl ? cl.apellido + ', ' + cl.nombre : clienteId;
+      if ((cl?.activo || '') !== 'Vetado') {
+        setTimeout(() => mostrarConfirm('Deuda saldada 🎉', nombre + ' terminó de pagar todo. ¿Vetarlo para que el sistema no permita prestarle nunca más? (Se conserva su historial.)', () => setVetoCliente(clienteId, true)), 400);
+      }
+    }
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = btnLabel;
+  }
+}
+
+// ---------- Evento semanal MOROSOS en Calendar ----------
+
+function _morososEventKey() { return 'morosos_event_' + (CFG.calId || ''); }
+
+// Busca el evento MOROSOS: primero por el ID cacheado en este dispositivo y,
+// si no está, por la propiedad extendida (funciona desde cualquier dispositivo).
+async function findEventoMorosos() {
+  if (!CFG.calId || !TOKEN) return null;
+  const base = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events';
+  const cached = localStorage.getItem(_morososEventKey());
+  if (cached) {
+    try {
+      const r = await fetch(base + '/' + cached, { headers: { Authorization: 'Bearer ' + TOKEN } });
+      if (r.ok) { const ev = await r.json(); if (ev.status !== 'cancelled') return cached; }
+    } catch(e) { console.warn('findEventoMorosos cache', e); }
+    localStorage.removeItem(_morososEventKey());
+  }
+  try {
+    const q = await fetch(base + '?privateExtendedProperty=' + encodeURIComponent('prestamosApp=morosos') + '&showDeleted=false&maxResults=10', { headers: { Authorization: 'Bearer ' + TOKEN } });
+    if (handleCalendarAuthError(q.status)) return null;
+    if (q.ok) {
+      const d = await q.json();
+      const ev = (d.items || []).find(e => e.status !== 'cancelled');
+      if (ev) { localStorage.setItem(_morososEventKey(), ev.id); return ev.id; }
+    }
+  } catch(e) { console.warn('findEventoMorosos search', e); }
+  return null;
+}
+
+// Crea/actualiza el evento recurrente semanal "MOROSOS" con la lista
+// completa. Si no queda ningún moroso, borra el evento.
+async function actualizarEventoMorosos() {
+  if (!CFG.calId || !TOKEN) return false;
+  const base = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events';
+  const lista = getListaMorosos();
+  const eventId = await findEventoMorosos();
+
+  if (!lista.length) {
+    if (eventId) { await borrarEventoCalendar(eventId); localStorage.removeItem(_morososEventKey()); }
+    return true;
+  }
+
+  const total = lista.reduce((a,m) => a + m.deuda, 0);
+  const summary = '🔴 MOROSOS (' + lista.length + ') — deben ' + fmt(total);
+  const description = 'Recordatorio semanal de cobranzas — Prestamo$\n\n'
+    + lista.map(m => '• ' + m.nombre + ' — debe ' + fmt(m.deuda) + ' (' + m.nCuotas + ' cuota' + (m.nCuotas!==1?'s':'') + ')' + (m.tel ? ' · 📞 ' + m.tel : '')).join('\n')
+    + '\n\nActualizado el ' + fmtFechaES(new Date()) + '. Se actualiza solo con cada cobro registrado en el sistema.';
+
+  try {
+    if (eventId) {
+      const r = await fetch(base + '/' + eventId, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ summary, description }) });
+      if (handleCalendarAuthError(r.status)) return false;
+      if (r.ok) return true;
+      // Si el evento ya no existe (borrado a mano), se recrea abajo
+      if (r.status !== 404 && r.status !== 410) return false;
+      localStorage.removeItem(_morososEventKey());
+    }
+    const hoyISO = new Date().toISOString().split('T')[0];
+    const body = {
+      summary, description,
+      start: { dateTime: hoyISO + 'T09:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
+      end:   { dateTime: hoyISO + 'T09:30:00', timeZone: 'America/Argentina/Buenos_Aires' },
+      recurrence: ['RRULE:FREQ=WEEKLY'],
+      colorId: '11',
+      reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] },
+      extendedProperties: { private: { prestamosApp: 'morosos' } }
+    };
+    const r = await fetch(base, { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (handleCalendarAuthError(r.status)) return false;
+    if (r.ok) { const d = await r.json(); if (d.id) localStorage.setItem(_morososEventKey(), d.id); return true; }
+  } catch(e) { console.warn('actualizarEventoMorosos', e); }
+  return false;
+}
+
+// Botón manual desde la pantalla Cobranzas.
+async function sincronizarEventoMorosos() {
+  if (!CFG.calId) { showToast('No tenés Calendar ID configurado', 'error'); return; }
+  showToast('Actualizando evento MOROSOS en Calendar...');
+  const ok = await actualizarEventoMorosos();
+  showToast(ok ? '✓ Evento semanal MOROSOS actualizado en Calendar' : '⚠ No se pudo actualizar el evento en Calendar', ok ? 'success' : 'error');
+}
+
+// ---------- Veto (lista negra reversible) ----------
+
+function pedirVetarCliente(clienteId) {
+  const c = DB.clientes.find(x => x.id === clienteId);
+  if (!c) return;
+  mostrarConfirm('¿Vetar cliente?', c.apellido + ', ' + c.nombre + ' queda marcado como VETADO: el sistema bloquea crearle préstamos nuevos. Su historial se conserva y el veto se puede quitar cuando quieras.', () => setVetoCliente(clienteId, true));
+}
+
+function pedirQuitarVeto(clienteId) {
+  const c = DB.clientes.find(x => x.id === clienteId);
+  if (!c) return;
+  mostrarConfirm('¿Quitar veto?', c.apellido + ', ' + c.nombre + ' vuelve a poder recibir préstamos.', () => setVetoCliente(clienteId, false));
+}
+
+async function setVetoCliente(clienteId, vetar) {
+  try {
+    showToast(vetar ? 'Vetando cliente...' : 'Quitando veto...');
+    const datos = await sheetsGet('Clientes!A1:L');
+    const rowIdx = datos.findIndex(r => r[0] === clienteId);
+    if (rowIdx < 0) throw new Error('Cliente no encontrado en Sheets');
+    await sheetsUpdate(`Clientes!K${rowIdx + 1}`, [[vetar ? 'Vetado' : 'Sí']]);
+    invalidateCache();
+    await loadAll(true);
+    showToast(vetar ? '⛔ Cliente vetado — no se le podrá crear préstamos' : '✓ Veto quitado');
+    refrescarPantallaActual();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+document.getElementById('cobroModal').addEventListener('click', e => { if (e.target === document.getElementById('cobroModal')) closeCobroModal(); });
+
 async function init() {
   const loggedIn = handleCallback();
   if (loggedIn && CFG.sheetId) {
@@ -5546,9 +6169,12 @@ async function escanearCalendar() {
 
   try {
     await loadAll(true);
+    // Las cuotas de préstamos en cobranza no tienen evento a propósito
+    // (se borran al marcar moroso): no son eventos "rotos" a reparar.
     const sinEvento = DB.cuotas.filter(c =>
       (!c.eventId || c.eventId.trim() === '') &&
-      c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada'
+      c.estado !== 'Pagada' && !c.estado.startsWith('Pagada con') && c.estado !== 'Refinanciada' && c.estado !== 'Salteada' &&
+      !prestEnCobranza(c.prestId)
     );
 
     if (sinEvento.length === 0) {
