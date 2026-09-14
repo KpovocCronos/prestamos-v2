@@ -792,6 +792,42 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
   </div>
 </div>
 
+<!-- MODAL APLAZAR CUOTA (mover fecha de vencimiento) -->
+<div class="modal-overlay" id="aplazarModal">
+  <div class="modal">
+    <div class="modal-title">Mover fecha de pago</div>
+    <div class="modal-sub" id="apl-sub">—</div>
+    <div id="apl-historial" style="display:none;background:var(--amberbg);border:1px solid rgba(251,191,36,.25);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px"></div>
+    <div class="calc-box" style="margin-bottom:14px">
+      <div class="calc-row"><span class="calc-label">Vencimiento actual</span><span class="calc-val" id="apl-actual">—</span></div>
+      <div class="calc-row"><span class="calc-label">Monto de la cuota</span><span class="calc-val" id="apl-monto">—</span></div>
+      <div class="calc-row"><span class="calc-label">Nueva fecha</span><span class="calc-val text-amber" id="apl-nueva">—</span></div>
+    </div>
+    <div class="form-field" style="margin-bottom:10px">
+      <label class="form-label">Atajos</label>
+      <div class="freq-group" id="apl-atajos">
+        <button type="button" class="freq-btn" onclick="setAplazoRapido(7,this)">+1 semana</button>
+        <button type="button" class="freq-btn" onclick="setAplazoRapido(15,this)">+15 días</button>
+        <button type="button" class="freq-btn" onclick="setAplazoRapido(30,this)">+1 mes</button>
+      </div>
+      <div class="form-hint">Los atajos cuentan desde hoy, que es lo que suele querer decir el cliente.</div>
+    </div>
+    <div class="form-field">
+      <label class="form-label">O elegí la fecha exacta</label>
+      <input class="form-input" type="date" id="apl-fecha" onchange="onAplazoFechaInput()">
+    </div>
+    <label style="display:flex;align-items:center;gap:10px;margin-top:14px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer">
+      <input type="checkbox" id="apl-correr" style="accent-color:var(--accent);width:18px;height:18px;flex-shrink:0" onchange="calcAplazoPreview()">
+      <span style="font-size:12px">Correr también las cuotas siguientes los mismos días<div class="form-hint" style="margin-top:2px" id="apl-correr-hint">Dejalo sin marcar para mover sólo esta cuota.</div></span>
+    </label>
+    <div id="apl-preview" style="margin-top:10px;max-height:170px;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAplazarModal()">Cancelar</button>
+      <button class="btn btn-amber" id="btn-aplazar" onclick="confirmarAplazo()">📅 Mover fecha</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL SALTEAR CUOTA -->
 <div class="modal-overlay" id="salteoModal">
   <div class="modal">
@@ -2299,10 +2335,10 @@ async function renderDashboard() {
               return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer" onclick="abrirPagoModal(\'' + c.id + '\')" onmouseenter="this.style.background=\'var(--bg3)\'" onmouseleave="this.style.background=\'\'">'+
                 '<td style="padding:10px 18px;font-size:12px;font-family:var(--mono);color:var(--muted)">' + c.prestId + '</td>'+
                 '<td style="padding:10px 18px;font-size:12px;font-family:var(--mono)">' + c.nro + '/' + (p.cuotas||'?') + '</td>'+
-                '<td style="padding:10px 18px;font-size:13px">' + vencLabel + '</td>'+
+                '<td style="padding:10px 18px;font-size:13px">' + vencLabel + badgeAplazos(c.prestId, c.nro) + '</td>'+
                 '<td style="padding:10px 18px;font-size:13px;font-family:var(--mono);font-weight:600">' + fmt(c.saldo) + '</td>'+
                 '<td style="padding:10px 18px">' + estadoPill(c.estado) + '</td>'+
-                '<td style="padding:10px 18px"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal(\'' + c.id + '\')">Pagar</button></td>'+
+                '<td style="padding:10px 18px;white-space:nowrap"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal(\'' + c.id + '\')">Pagar</button> <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" title="El cliente pidió más tiempo: mover la fecha de pago" onclick="event.stopPropagation();abrirAplazarModal(\'' + c.id + '\')">📅</button></td>'+
               '</tr>';
             }).join('')}
           </tbody>
@@ -2690,7 +2726,7 @@ function renderDetallePrestamo(prestId) {
           return `<div class="cuota-item" onclick="abrirPagoModal('${c.id}')">
             <div class="cuota-num" style="${vencida?'border-color:rgba(248,113,113,.3);color:var(--red)':pagada?'border-color:rgba(52,211,153,.3);color:var(--green)':esExtra?'border-color:rgba(251,191,36,.3);color:var(--amber)':''}">${String(posDisplay).padStart(2,'0')}${esExtra?'<span style="position:absolute;top:-4px;right:-4px;font-size:8px;background:var(--amber);color:#000;border-radius:50%;width:12px;height:12px;display:flex;align-items:center;justify-content:center;font-weight:700">+</span>':''}</div>
             <div style="flex:1">
-              <div class="cuota-fecha">Cuota ${posDisplay} de ${totalActivas} · ${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento} ${vencida?'<span style="color:var(--red);font-size:11px">● Vencida</span>':''}${esExtra?' <span class="pill pill-amber" style="font-size:9px;padding:1px 6px">Extra</span>':''}</div>
+              <div class="cuota-fecha">Cuota ${posDisplay} de ${totalActivas} · ${fmtFecha(parseFecha(c.vencimiento))||c.vencimiento}${badgeAplazos(c.prestId, c.nro)} ${vencida?'<span style="color:var(--red);font-size:11px">● Vencida</span>':''}${esExtra?' <span class="pill pill-amber" style="font-size:9px;padding:1px 6px">Extra</span>':''}</div>
               <div class="cuota-sub">${c.estado} · Pagado: ${fmt(c.pagado)}${sOrigen?' <span style="color:var(--amber);font-size:11px;margin-left:6px">↩ generada por salteo de cuota ' + sOrigen.cuotaOriginal + ' (' + fmtSalteoFecha(sOrigen.fecha) + ')</span>':''}</div>
               <div class="cuota-prog"><div class="cuota-prog-fill" style="width:${pct}%;background:${pagada?'var(--green)':pct>0?'var(--amber)':'var(--border2)'}"></div></div>
             </div>
@@ -2698,6 +2734,7 @@ function renderDetallePrestamo(prestId) {
               <div class="cuota-monto" style="color:${pagada?'var(--green)':vencida?'var(--red)':'var(--accent2)'}">${fmt(c.saldo)}</div>
               <div class="cuota-saldo">${estadoPill(c.estado)}</div>
               ${sePuedeSaltear ? `<div style="display:flex;gap:4px;margin-top:2px">
+                <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();abrirAplazarModal('${c.id}')" title="Mover la fecha de pago">📅 Mover</button>
                 <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();abrirEditCuotaModal('${c.id}')" title="Cambiar el monto de esta cuota">✏ Monto</button>
                 <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px" onclick="event.stopPropagation();abrirSalteoModal('${c.id}')" title="Saltear esta cuota">🚫 Saltear</button>
               </div>` : ''}
@@ -2740,12 +2777,12 @@ async function renderVencimientos() {
       <td><div class="td-name">${cl.id ? `${escapeHtml(cl.apellido)}, ${escapeHtml(cl.nombre)}` : c.clienteId}</div></td>
       <td class="td-mono">${c.prestId}</td>
       <td class="td-mono">${c.nro}</td>
-      <td>${vencida ? `<span class="text-red">${fechaMostrar}</span>` : fechaMostrar}</td>
+      <td>${vencida ? `<span class="text-red">${fechaMostrar}</span>` : fechaMostrar}${badgeAplazos(c.prestId, c.nro)}</td>
       <td class="td-mono">${fmt(c.monto)}</td>
       <td class="td-mono text-green">${fmt(c.pagado)}</td>
       <td class="td-mono text-amber">${fmt(c.saldo)}</td>
       <td>${estadoPill(c.estado)}</td>
-      <td style="white-space:nowrap"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal('${c.id}')">Pagar</button> <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="event.stopPropagation();abrirSalteoModal('${c.id}')" title="Saltear esta cuota">🚫</button></td>
+      <td style="white-space:nowrap"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();abrirPagoModal('${c.id}')">Pagar</button> <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="event.stopPropagation();abrirAplazarModal('${c.id}')" title="Mover la fecha de pago">📅</button> <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="event.stopPropagation();abrirSalteoModal('${c.id}')" title="Saltear esta cuota">🚫</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">No hay cuotas pendientes 🎉</td></tr>';
   document.getElementById('venc-loading').style.display = 'none';
@@ -3505,6 +3542,256 @@ function appendUnifNotas(notasStr, fecha, absorbidas, survivorNro) {
   if (!notasStr) return entry;
   return notasStr + ' | ' + entry;
 }
+
+// ============================================================
+// APLAZAR CUOTA (mover la fecha de vencimiento de una sola cuota)
+// El cliente avisa "te pago en una semana": se mueve la fecha, se
+// reubica el evento de Calendar y queda registrado cuántas veces
+// se movió esa cuota, que es la señal temprana de un futuro moroso.
+// Marcador en notas del préstamo: Aplazo:YYYY-MM-DD:nro:orig->nueva
+// ============================================================
+function parseAplazos(notasStr) {
+  if (!notasStr) return [];
+  const re = /Aplazo:(\d{4}-\d{2}-\d{2}):(\d+):(\d{4}-\d{2}-\d{2})->(\d{4}-\d{2}-\d{2})/g;
+  const out = []; let m;
+  while ((m = re.exec(notasStr)) !== null) out.push({ fecha: m[1], nro: parseInt(m[2]), de: m[3], a: m[4] });
+  return out;
+}
+
+function appendAplazoNotas(notasStr, a) {
+  const entry = 'Aplazo:' + a.fecha + ':' + a.nro + ':' + a.de + '->' + a.a;
+  return notasStr ? notasStr + ' | ' + entry : entry;
+}
+
+// Cuántas veces se movió una cuota puntual (para el badge del dashboard).
+function contarAplazos(prestId, nro) {
+  const p = DB.prestamos.find(x => x.id === prestId);
+  if (!p) return 0;
+  return parseAplazos(p.notas).filter(a => a.nro === nro).length;
+}
+
+// Badge "↻ N" que se muestra al lado de la fecha cuando la cuota fue movida.
+function badgeAplazos(prestId, nro) {
+  const n = contarAplazos(prestId, nro);
+  if (!n) return '';
+  const color = n >= 3 ? 'var(--red)' : 'var(--amber)';
+  return ' <span title="Esta cuota ya se movió ' + n + ' ve' + (n === 1 ? 'z' : 'ces') + '" style="font-size:10px;font-weight:700;color:' + color + ';border:1px solid ' + color + ';border-radius:10px;padding:0 5px;white-space:nowrap">↻ ' + n + '</span>';
+}
+
+const ISO = d => [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
+
+let aplazarCuotaId = null;
+
+function abrirAplazarModal(cuotaId) {
+  const c = DB.cuotas.find(x => x.id === cuotaId);
+  if (!c) return;
+  if (c.estado.startsWith('Pagada')) { showToast('Esta cuota ya está pagada', 'error'); return; }
+  if (c.estado === 'Refinanciada' || c.estado === 'Salteada') { showToast('Esta cuota está ' + c.estado.toLowerCase() + ' y no se puede mover', 'error'); return; }
+  aplazarCuotaId = cuotaId;
+  const cl = DB.clientes.find(x => x.id === c.clienteId) || {};
+  const nombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : c.clienteId;
+  document.getElementById('apl-sub').textContent = nombre + ' — Cuota ' + c.nro + ' de ' + c.prestId;
+  const f = parseFecha(c.vencimiento);
+  document.getElementById('apl-actual').textContent = f ? fmtFecha(f) : c.vencimiento;
+  document.getElementById('apl-monto').textContent = fmt(c.saldo);
+  document.getElementById('apl-fecha').value = f ? ISO(f) : '';
+  document.getElementById('apl-correr').checked = false;
+  document.querySelectorAll('#apl-atajos .freq-btn').forEach(b => b.classList.remove('active'));
+
+  // Historial: si ya la movió antes, se lo decimos en la cara antes de moverla de nuevo
+  const previos = parseAplazos((DB.prestamos.find(x => x.id === c.prestId) || {}).notas).filter(a => a.nro === c.nro);
+  const box = document.getElementById('apl-historial');
+  if (previos.length) {
+    const grave = previos.length >= 2;
+    box.style.display = 'block';
+    box.style.background = grave ? 'var(--redbg)' : 'var(--amberbg)';
+    box.style.borderColor = grave ? 'rgba(248,113,113,.3)' : 'rgba(251,191,36,.25)';
+    box.innerHTML = '<div style="font-weight:700;color:' + (grave ? 'var(--red)' : 'var(--amber)') + ';margin-bottom:4px">'
+      + (grave ? '⚠ Ojo: ' : '↻ ') + 'esta cuota ya se movió ' + previos.length + ' ve' + (previos.length === 1 ? 'z' : 'ces') + '</div>'
+      + previos.map(a => '<div style="color:var(--muted)">' + a.de + ' → ' + a.a + '</div>').join('')
+      + (grave ? '<div style="margin-top:6px;color:var(--muted)">Postergar de nuevo suele ser la antesala de la mora. Evaluá cobrarle algo a cuenta hoy.</div>' : '');
+  } else { box.style.display = 'none'; box.innerHTML = ''; }
+
+  calcAplazoPreview();
+  document.getElementById('aplazarModal').classList.add('open');
+}
+
+function closeAplazarModal() { document.getElementById('aplazarModal').classList.remove('open'); aplazarCuotaId = null; }
+
+// Atajos: cuentan desde HOY (el cliente dice "en una semana" desde hoy,
+// no desde un vencimiento que quizá pasó hace dos meses).
+function setAplazoRapido(dias, btn) {
+  const d = new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate() + dias);
+  document.getElementById('apl-fecha').value = ISO(d);
+  document.querySelectorAll('#apl-atajos .freq-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  calcAplazoPreview();
+}
+
+function onAplazoFechaInput() {
+  document.querySelectorAll('#apl-atajos .freq-btn').forEach(b => b.classList.remove('active'));
+  calcAplazoPreview();
+}
+
+// Cuotas que se correrían junto con la elegida (las posteriores sin pagar).
+function cuotasSiguientesAplazo(cuota) {
+  return DB.cuotas
+    .filter(x => x.prestId === cuota.prestId && x.nro > cuota.nro &&
+      !x.estado.startsWith('Pagada') && x.estado !== 'Refinanciada' && x.estado !== 'Salteada')
+    .sort((a,b) => a.nro - b.nro);
+}
+
+function calcAplazoPreview() {
+  if (!aplazarCuotaId) return;
+  const c = DB.cuotas.find(x => x.id === aplazarCuotaId);
+  if (!c) return;
+  const str = document.getElementById('apl-fecha').value;
+  const nueva = str ? new Date(str + 'T12:00:00') : null;
+  const orig = parseFecha(c.vencimiento);
+  const lbl = document.getElementById('apl-nueva');
+  const prev = document.getElementById('apl-preview');
+  if (!nueva || isNaN(nueva)) { lbl.textContent = '—'; prev.innerHTML = ''; return; }
+  const dias = orig ? Math.round((nueva - orig) / 86400000) : 0;
+  lbl.textContent = fmtFecha(nueva) + (dias ? ' (' + (dias > 0 ? '+' : '') + dias + ' días)' : ' (sin cambio)');
+  const siguientes = cuotasSiguientesAplazo(c);
+  document.getElementById('apl-correr-hint').textContent = siguientes.length
+    ? 'Hay ' + siguientes.length + ' cuota' + (siguientes.length !== 1 ? 's' : '') + ' después de esta. Sin marcar, sólo se mueve esta.'
+    : 'Es la última cuota pendiente, no hay siguientes.';
+  const correr = document.getElementById('apl-correr').checked && siguientes.length > 0;
+  let html = '<div class="flex-between" style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px">'
+    + '<span>Cuota ' + c.nro + '</span><span class="text-mono text-amber">' + (orig ? fmtFecha(orig) : '?') + ' → ' + fmtFecha(nueva) + '</span></div>';
+  if (correr) {
+    html += siguientes.map(x => {
+      const fo = parseFecha(x.vencimiento); if (!fo) return '';
+      const fn = new Date(fo.getTime() + dias * 86400000);
+      return '<div class="flex-between" style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px">'
+        + '<span class="text-muted">Cuota ' + x.nro + '</span><span class="text-mono text-muted">' + fmtFecha(fo) + ' → ' + fmtFecha(fn) + '</span></div>';
+    }).join('');
+  }
+  prev.innerHTML = html;
+}
+
+// Mueve el evento de Calendar a la fecha nueva. Si la cuota no tiene
+// evento (morosos, o nunca se creó), lo crea para que quede visible.
+async function moverEventoCalendar(cuota, nuevaFecha, motivoTxt) {
+  if (!CFG.calId || !TOKEN) return false;
+  const iso = ISO(nuevaFecha);
+  const base = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events';
+  const horario = {
+    start: { dateTime: iso + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
+    end:   { dateTime: iso + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' }
+  };
+  try {
+    if (cuota.eventId) {
+      const getRes = await fetch(base + '/' + cuota.eventId, { headers: { Authorization: 'Bearer ' + TOKEN } });
+      if (handleCalendarAuthError(getRes.status)) return false;
+      if (getRes.ok) {
+        const ev = await getRes.json();
+        const desc = (ev.description || '') + '\n📅 ' + motivoTxt;
+        const r = await fetch(base + '/' + cuota.eventId, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ description: desc }, horario)) });
+        if (handleCalendarAuthError(r.status)) return false;
+        if (r.ok) return true;
+        if (r.status !== 404 && r.status !== 410) return false;
+      } else if (getRes.status !== 404 && getRes.status !== 410) return false;
+    }
+    // Sin evento (o quedó huérfano): se crea uno nuevo en la fecha nueva
+    const p = DB.prestamos.find(x => x.id === cuota.prestId) || {};
+    const cl = DB.clientes.find(x => x.id === cuota.clienteId) || {};
+    const nombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : cuota.clienteId;
+    const total = DB.cuotas.filter(x => x.prestId === cuota.prestId && x.estado !== 'Refinanciada' && x.estado !== 'Salteada').length;
+    const body = Object.assign({
+      summary: '💰 ' + nombre + ' — Cuota ' + cuota.nro + '/' + total + ' | ' + fmt(cuota.saldo) + ' (' + cuota.prestId + ')',
+      description: 'Préstamo: ' + cuota.prestId + '\nCliente: ' + nombre + ' (' + cuota.clienteId + ')\nMonto cuota: ' + fmt(cuota.monto) + '\n📅 ' + motivoTxt,
+      colorId: '5',
+      reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
+    }, horario);
+    const r = await fetch(base, { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (handleCalendarAuthError(r.status)) return false;
+    if (r.ok) { const d = await r.json(); return d.id ? { nuevoEventId: d.id } : true; }
+  } catch(e) { console.warn('moverEventoCalendar', e); }
+  return false;
+}
+
+async function confirmarAplazo() {
+  if (!aplazarCuotaId) return;
+  const c = DB.cuotas.find(x => x.id === aplazarCuotaId);
+  if (!c) return;
+  const str = document.getElementById('apl-fecha').value;
+  if (!str) { showToast('Elegí la nueva fecha', 'error'); return; }
+  const nueva = new Date(str + 'T12:00:00');
+  if (isNaN(nueva)) { showToast('Fecha inválida', 'error'); return; }
+  const orig = parseFecha(c.vencimiento);
+  const dias = orig ? Math.round((nueva - orig) / 86400000) : 0;
+  if (dias === 0) { showToast('La fecha nueva es la misma que la actual', 'error'); return; }
+  const correr = document.getElementById('apl-correr').checked;
+  const siguientes = correr ? cuotasSiguientesAplazo(c) : [];
+
+  const btn = document.getElementById('btn-aplazar');
+  if (btn.disabled) return;
+  btn.disabled = true; const btnLabel = btn.textContent; btn.textContent = 'Moviendo...';
+  try {
+    const movimientos = [{ cuota: c, fecha: nueva }];
+    for (const x of siguientes) {
+      const fo = parseFecha(x.vencimiento);
+      if (fo) movimientos.push({ cuota: x, fecha: new Date(fo.getTime() + dias * 86400000) });
+    }
+
+    // 1. Fechas nuevas en la hoja Cuotas (columna E), todo en un batch
+    const cuotasData = await sheetsGet('Cuotas!A1:J');
+    const updates = [];
+    for (const mv of movimientos) {
+      const rowIdx = cuotasData.findIndex(r => r[0] === mv.cuota.id);
+      if (rowIdx >= 0) updates.push({ range: `Cuotas!E${rowIdx + 1}`, values: [[fmtFechaES(mv.fecha)]] });
+      else console.warn('Cuota no encontrada en Sheets:', mv.cuota.id);
+    }
+    if (!updates.length) throw new Error('No se encontraron las cuotas en Sheets');
+    await sheetsBatchUpdate(updates);
+
+    // 2. Mover los eventos de Calendar (si alguno no existía, se crea y se guarda su id)
+    const motivo = 'Reprogramada el ' + fmtFechaES(new Date()) + ': ' + (orig ? fmtFechaES(orig) : '?') + ' → ' + fmtFechaES(nueva);
+    const eventUpdates = [];
+    let calOk = 0;
+    for (const mv of movimientos) {
+      btn.textContent = 'Calendar cuota ' + mv.cuota.nro + '...';
+      const r = await moverEventoCalendar(mv.cuota, mv.fecha, motivo);
+      if (r) {
+        calOk++;
+        if (r.nuevoEventId) {
+          const rowIdx = cuotasData.findIndex(x => x[0] === mv.cuota.id);
+          if (rowIdx >= 0) eventUpdates.push({ range: `Cuotas!J${rowIdx + 1}`, values: [[r.nuevoEventId]] });
+        }
+      }
+    }
+    if (eventUpdates.length) await sheetsBatchUpdate(eventUpdates);
+
+    // 3. Dejar el rastro en las notas del préstamo (sólo de la cuota elegida)
+    const p = DB.prestamos.find(x => x.id === c.prestId);
+    if (p) {
+      const prestData = await sheetsGet('Préstamos!A1:P');
+      const rowIdx = prestData.findIndex(r => r[0] === c.prestId);
+      if (rowIdx >= 0) {
+        const nuevasNotas = appendAplazoNotas(prestData[rowIdx][15] || '', {
+          fecha: ISO(new Date()), nro: c.nro, de: orig ? ISO(orig) : ISO(nueva), a: ISO(nueva)
+        });
+        await sheetsUpdate(`Préstamos!P${rowIdx + 1}`, [[nuevasNotas]]);
+      }
+    }
+
+    invalidateCache();
+    await loadAll(true);
+    closeAplazarModal();
+    const nMov = movimientos.length;
+    showToast('✓ Fecha movida al ' + fmtFechaES(nueva) + (nMov > 1 ? ' (y ' + (nMov-1) + ' cuota' + (nMov-1 !== 1 ? 's' : '') + ' más)' : '')
+      + (calOk === nMov ? ' · Calendar actualizado ✓' : calOk ? ' · Calendar: ' + calOk + '/' + nMov : ''));
+    refrescarPantallaActual();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = btnLabel;
+  }
+}
+
+document.getElementById('aplazarModal').addEventListener('click', e => { if (e.target === document.getElementById('aplazarModal')) closeAplazarModal(); });
 
 function abrirSalteoModal(cuotaId) {
   const cuota = DB.cuotas.find(c => c.id === cuotaId);
