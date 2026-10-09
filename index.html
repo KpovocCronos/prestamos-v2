@@ -984,9 +984,6 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <div class="nav-item" onclick="escanearCalendar()" style="margin-top:8px;border-top:1px solid var(--border);padding-top:10px">
           <span class="nav-icon">🔧</span> Reparar Calendar
         </div>
-        <div class="nav-item" onclick="confirmarNotasACalendar()" style="margin-top:4px">
-          <span class="nav-icon">📝</span> Notas a Calendar
-        </div>
         <div class="nav-item" data-screen="calculadora" onclick="nav('calculadora')" style="margin-top:4px">
           <span class="nav-icon">🧮</span> Calculadora
         </div>
@@ -6492,6 +6489,7 @@ async function init() {
       document.getElementById('user-av').textContent = CFG.nombre.slice(0,2).toUpperCase();
     }
     await nav('dashboard');
+    migrarNotasACalendar().catch(e => console.warn('Migrar notas a Calendar:', e));
   } else {
     if (CFG.sheetId) document.getElementById('cfg-sheet-id').value = CFG.sheetId;
     if (CFG.clientId) document.getElementById('cfg-client-id').value = CFG.clientId;
@@ -6716,47 +6714,41 @@ function closeRepairModal() {
 }
 
 // ============================================================
-// NOTAS A CALENDAR (una sola vez, para préstamos ya creados)
-// Escribe la nota de cada préstamo en la descripción de sus eventos.
-// Sólo toca la descripción (el título queda igual) y saltea los
-// eventos que ya tienen la nota al día, así se puede correr de nuevo.
+// NOTAS A CALENDAR (migración única para préstamos ya creados)
+// Al abrir la app escribe en segundo plano la nota de cada préstamo en
+// la descripción de sus eventos (el título no se toca). Corre una sola
+// vez por calendario; si algo falla se reintenta en la próxima apertura.
 // ============================================================
-function confirmarNotasACalendar() {
-  if (!CFG.calId) { showToast('No tenés Calendar ID configurado', 'error'); return; }
-  mostrarConfirm('¿Pasar notas a Calendar?', 'Se agrega la nota de cada préstamo en la descripción de sus eventos de Calendar (pendientes y pagados). El título no cambia. Puede tardar si hay muchos eventos.', () => pasarNotasACalendar());
-}
+function _notasCalKey() { return 'notasCalMigradas_' + (CFG.calId || ''); }
 
-async function pasarNotasACalendar() {
-  try {
-    await loadAll(true);
-    const conNota = DB.prestamos.filter(p => notaCalendar(p.notas));
-    const cuotas = DB.cuotas.filter(c => c.eventId && c.estado !== 'Refinanciada' && c.estado !== 'Salteada' && conNota.some(p => p.id === c.prestId));
-    if (!cuotas.length) { showToast('No hay préstamos con notas para pasar a Calendar'); return; }
-    let ok = 0, igual = 0, fail = 0;
-    for (let i = 0; i < cuotas.length; i++) {
-      const c = cuotas[i];
-      const p = conNota.find(x => x.id === c.prestId);
-      showToast('Pasando notas a Calendar ' + (i + 1) + '/' + cuotas.length + '...');
-      const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId;
-      try {
-        const getRes = await fetch(url, { headers: { Authorization: 'Bearer ' + TOKEN } });
-        if (handleCalendarAuthError(getRes.status)) { fail++; break; }
-        if (!getRes.ok) { fail++; continue; }
-        const ev = await getRes.json();
-        const desc = descConNota(ev.description, p.notas);
-        if (desc === (ev.description || '')) { igual++; continue; }
-        const patchRes = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ description: desc }) });
-        if (handleCalendarAuthError(patchRes.status)) { fail++; break; }
-        if (patchRes.ok) ok++; else fail++;
-      } catch(e) {
-        console.warn('Nota a Calendar error', c.id, e);
-        fail++;
-      }
+async function migrarNotasACalendar() {
+  if (!CFG.calId || !TOKEN) return;
+  try { if (localStorage.getItem(_notasCalKey())) return; } catch(e) {}
+  if (!DB.prestamos.length) return; // datos sin cargar: no marcar como migrado
+  const conNota = DB.prestamos.filter(p => notaCalendar(p.notas));
+  const cuotas = DB.cuotas.filter(c => c.eventId && c.estado !== 'Refinanciada' && c.estado !== 'Salteada' && conNota.some(p => p.id === c.prestId));
+  let ok = 0, fail = 0;
+  for (const c of cuotas) {
+    const p = conNota.find(x => x.id === c.prestId);
+    const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId;
+    try {
+      const getRes = await fetch(url, { headers: { Authorization: 'Bearer ' + TOKEN } });
+      if (handleCalendarAuthError(getRes.status)) return;
+      if (getRes.status === 404 || getRes.status === 410) continue; // evento borrado: nada que anotar
+      if (!getRes.ok) { fail++; continue; }
+      const ev = await getRes.json();
+      const desc = descConNota(ev.description, p.notas);
+      if (desc === (ev.description || '')) continue;
+      const patchRes = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ description: desc }) });
+      if (handleCalendarAuthError(patchRes.status)) return;
+      if (patchRes.ok) ok++; else fail++;
+    } catch(e) {
+      console.warn('Nota a Calendar error', c.id, e);
+      fail++;
     }
-    showToast('✓ Notas en Calendar: ' + ok + ' actualizados' + (igual ? ', ' + igual + ' ya estaban' : '') + (fail ? ' · ' + fail + ' con error' : ''), fail ? 'error' : 'success');
-  } catch(e) {
-    showToast('Error: ' + e.message, 'error');
   }
+  if (!fail) { try { localStorage.setItem(_notasCalKey(), '1'); } catch(e) {} }
+  if (ok) showToast('📝 Notas de préstamos agregadas a ' + ok + ' eventos de Calendar');
 }
 
 async function escanearCalendar() {
