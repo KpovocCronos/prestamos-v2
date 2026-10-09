@@ -3073,7 +3073,7 @@ async function crearPrestamo() {
         btn.textContent = 'Creando cuota ' + i + '/' + cuotas + ' en Calendar...';
         const eventoBody = {
           summary: '💰 ' + clienteNombre + ' — Cuota ' + i + '/' + cuotas + ' | $' + Math.round(cuotaM).toLocaleString('es-AR') + ' (' + prestId + ')',
-          description: 'Préstamo: ' + prestId + '\nCliente: ' + clienteNombre + ' (' + clienteId + ')\nMonto cuota: $' + cuotaM.toFixed(2) + '\nTipo: ' + tipo + ((tipo === 'tercero' || tipo === 'De tercero') ? ' — Tercero: ' + tercero : ''),
+          description: 'Préstamo: ' + prestId + '\nCliente: ' + clienteNombre + ' (' + clienteId + ')\nMonto cuota: $' + cuotaM.toFixed(2) + '\nTipo: ' + tipo + ((tipo === 'tercero' || tipo === 'De tercero') ? ' — Tercero: ' + tercero : '') + notaCalendar(notas),
           start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
           end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
           colorId: '5',
@@ -3439,7 +3439,7 @@ async function confirmarCuotaExtra() {
         const totalCuotasLabel = nuevoNro;
         const eventoBody = {
           summary: '💰 ' + clienteNombre + ' — Cuota ' + nuevoNro + ' (EXTRA) | ' + fmt(monto) + ' (' + cuotaExtraPrestId + ')',
-          description: 'Préstamo: ' + cuotaExtraPrestId + '\nCliente: ' + clienteNombre + '\nMonto cuota: ' + fmt(monto) + '\n⚠ CUOTA EXTRA agregada manualmente' + (notas ? '\nNotas: ' + notas : ''),
+          description: 'Préstamo: ' + cuotaExtraPrestId + '\nCliente: ' + clienteNombre + '\nMonto cuota: ' + fmt(monto) + '\n⚠ CUOTA EXTRA agregada manualmente' + (notas ? '\nNotas: ' + notas : '') + notaCalendar(p.notas),
           start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
           end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
           colorId: '6',
@@ -3541,6 +3541,25 @@ function appendUnifNotas(notasStr, fecha, absorbidas, survivorNro) {
   const entry = 'Unif:' + fecha + ':' + absorbidas.join('+') + '->' + survivorNro;
   if (!notasStr) return entry;
   return notasStr + ' | ' + entry;
+}
+
+// Nota del préstamo para la descripción del evento de Calendar: sólo el
+// texto que escribió el usuario, sin los marcadores internos (Salteo/Unif/Aplazo).
+// Devuelve '' si no hay nota, o '\n📝 Nota: ...' listo para concatenar.
+function notaCalendar(notasStr) {
+  const txt = (notasStr || '').split(' | ').map(x => x.trim())
+    .filter(x => x && !/^(Salteo|Unif|Aplazo):\d{4}-\d{2}-\d{2}:/.test(x)).join(' | ');
+  return txt ? '\n📝 Nota: ' + txt : '';
+}
+
+// Reemplaza la línea de nota en una descripción ya existente de un evento.
+// Si ya tiene exactamente esa nota la deja como está (no la reordena).
+function descConNota(desc, notasStr) {
+  const lineas = (desc || '').split('\n');
+  const nota = notaCalendar(notasStr).slice(1);
+  const actuales = lineas.filter(l => l.startsWith('📝 Nota:'));
+  if (nota && actuales.length === 1 && actuales[0] === nota) return desc || '';
+  return lineas.filter(l => !l.startsWith('📝 Nota:')).join('\n') + notaCalendar(notasStr);
 }
 
 // ============================================================
@@ -3701,7 +3720,7 @@ async function moverEventoCalendar(cuota, nuevaFecha, motivoTxt) {
     const total = DB.cuotas.filter(x => x.prestId === cuota.prestId && x.estado !== 'Refinanciada' && x.estado !== 'Salteada').length;
     const body = Object.assign({
       summary: '💰 ' + nombre + ' — Cuota ' + cuota.nro + '/' + total + ' | ' + fmt(cuota.saldo) + ' (' + cuota.prestId + ')',
-      description: 'Préstamo: ' + cuota.prestId + '\nCliente: ' + nombre + ' (' + cuota.clienteId + ')\nMonto cuota: ' + fmt(cuota.monto) + '\n📅 ' + motivoTxt,
+      description: 'Préstamo: ' + cuota.prestId + '\nCliente: ' + nombre + ' (' + cuota.clienteId + ')\nMonto cuota: ' + fmt(cuota.monto) + '\n📅 ' + motivoTxt + notaCalendar(p.notas),
       colorId: '5',
       reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] }
     }, horario);
@@ -3878,7 +3897,7 @@ async function confirmarSalteo() {
     try {
       const eventoBody = {
         summary: '💰 ' + clienteNombre + ' — Cuota ' + nro + ' (post salteo cuota ' + cuota.nro + ') | ' + fmt(monto) + ' (' + cuota.prestId + ')',
-        description: 'Préstamo: ' + cuota.prestId + '\nCliente: ' + clienteNombre + '\nMonto cuota: ' + fmt(monto) + '\n🚫 Cuota generada por SALTEO de cuota ' + cuota.nro + ' (vto original ' + cuota.vencimiento + ', monto ' + fmt(cuota.monto) + ')',
+        description: 'Préstamo: ' + cuota.prestId + '\nCliente: ' + clienteNombre + '\nMonto cuota: ' + fmt(monto) + '\n🚫 Cuota generada por SALTEO de cuota ' + cuota.nro + ' (vto original ' + cuota.vencimiento + ', monto ' + fmt(cuota.monto) + ')' + notaCalendar(p.notas),
         start: { dateTime: fISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
         end:   { dateTime: fISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
         colorId: '6',
@@ -4156,7 +4175,7 @@ async function deshacerSalteo(prestId, nroOriginal) {
           try {
             const eventoBody = {
               summary: '💰 ' + p.nombre + ' — Cuota ' + nroOriginal + ' | ' + fmt(cuotaOrig.monto) + ' (' + prestId + ')',
-              description: 'Préstamo: ' + prestId + '\nCliente: ' + p.nombre + ' (' + p.clienteId + ')\nMonto cuota: ' + fmt(cuotaOrig.monto) + '\n↩ Evento recreado al deshacer un salteo',
+              description: 'Préstamo: ' + prestId + '\nCliente: ' + p.nombre + ' (' + p.clienteId + ')\nMonto cuota: ' + fmt(cuotaOrig.monto) + '\n↩ Evento recreado al deshacer un salteo' + notaCalendar(p.notas),
               start: { dateTime: fISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
               end:   { dateTime: fISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
               colorId: '5',
@@ -5058,8 +5077,8 @@ async function renumerarEventosCalendar(prestId) {
       const prefix = c.estado === 'Pago parcial' ? '🟡 ' : '💰 ';
       const summary = prefix + p.nombre + ' — Cuota ' + pos + '/' + total + ' | ' + fmt(c.monto) + ' (' + prestId + (huboSalteo ? ' · refinanciado' : '') + ')';
       // Quitar la nota de renumeración anterior (si la hay) y agregar la actual
-      const desc = (ev.description || '').split('\n').filter(l => !l.startsWith('🔄 Numeración actualizada')).join('\n')
-        + '\n🔄 Numeración actualizada: cuota ' + pos + ' de ' + total + (huboSalteo ? ' (crédito refinanciado por salteo de cuota)' : '');
+      const desc = descConNota((ev.description || '').split('\n').filter(l => !l.startsWith('🔄 Numeración actualizada')).join('\n')
+        + '\n🔄 Numeración actualizada: cuota ' + pos + ' de ' + total + (huboSalteo ? ' (crédito refinanciado por salteo de cuota)' : ''), p.notas);
       const patchRes = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ summary: summary, description: desc }) });
       if (handleCalendarAuthError(patchRes.status)) { fail++; break; }
       if (patchRes.ok) ok++; else fail++;
@@ -5313,7 +5332,7 @@ async function guardarEditPrest() {
                 headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   summary: '💰 ' + nombreCliente + ' — Cuota ' + c.nro + '/' + totalCuotasN + ' | ' + fmt(nuevoSaldo) + ' (' + editPrestId + ')',
-                  description: 'Préstamo: ' + editPrestId + '\nCliente: ' + nombreCliente + '\nMonto cuota: ' + fmt(nuevoMonto) + (capitalCambio ? '\n⚠ Capital modificado: ' + fmt(_epCapitalOriginal) + ' → ' + fmt(nuevoCapital) : '') + (interesCambio ? '\n⚠ Interés modificado: ' + _epInteresOriginal + '% → ' + nuevoInteres + '%' : '')
+                  description: 'Préstamo: ' + editPrestId + '\nCliente: ' + nombreCliente + '\nMonto cuota: ' + fmt(nuevoMonto) + (capitalCambio ? '\n⚠ Capital modificado: ' + fmt(_epCapitalOriginal) + ' → ' + fmt(nuevoCapital) : '') + (interesCambio ? '\n⚠ Interés modificado: ' + _epInteresOriginal + '% → ' + nuevoInteres + '%' : '') + notaCalendar(notas)
                 })
               }
             );
@@ -5322,6 +5341,27 @@ async function guardarEditPrest() {
             if (calErr._noRetry) throw calErr;
             console.warn('Error actualizando Calendar cuota', c.nro, calErr);
           }
+        }
+      }
+    }
+
+    // 3. Si sólo cambió la nota, reflejarla en los eventos (pendientes y pagados)
+    // (si cambió capital/interés los eventos ya se reescribieron arriba con la nota).
+    if (!capitalCambio && !interesCambio && notas !== (p.notas || '') && CFG.calId) {
+      const pend = DB.cuotas.filter(c => c.prestId === editPrestId && c.eventId && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
+      for (const c of pend) {
+        const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId;
+        try {
+          const getRes = await fetch(url, { headers: { Authorization: 'Bearer ' + TOKEN } });
+          if (handleCalendarAuthError(getRes.status)) throw Object.assign(new Error('Calendar auth ' + getRes.status), { _noRetry: true });
+          if (!getRes.ok) continue;
+          const ev = await getRes.json();
+          if (ev.status === 'cancelled') continue;
+          const patchRes = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ description: descConNota(ev.description, notas) }) });
+          if (handleCalendarAuthError(patchRes.status)) throw Object.assign(new Error('Calendar auth ' + patchRes.status), { _noRetry: true });
+        } catch(calErr) {
+          if (calErr._noRetry) throw calErr;
+          console.warn('Error actualizando nota en Calendar', c.id, calErr);
         }
       }
     }
@@ -5781,7 +5821,7 @@ async function confirmarReprogramar() {
           const montoCuota = c.monto || c.saldo || 0;
           const eventoBody = {
             summary: '💰 ' + nombreCliente + ' — Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(montoCuota) + ' (' + prestId + ')',
-            description: 'Préstamo: ' + prestId + '\nCliente: ' + nombreCliente + ' (' + c.clienteId + ')\nMonto cuota: ' + fmt(montoCuota) + '\nTipo: ' + (p.tipo || 'propio') + '\n⚠ Reprogramada',
+            description: 'Préstamo: ' + prestId + '\nCliente: ' + nombreCliente + ' (' + c.clienteId + ')\nMonto cuota: ' + fmt(montoCuota) + '\nTipo: ' + (p.tipo || 'propio') + '\n⚠ Reprogramada' + notaCalendar(p.notas),
             start: { dateTime: nuevaFechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
             end:   { dateTime: nuevaFechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
             colorId: '5',
@@ -5898,7 +5938,7 @@ async function confirmarUnificar() {
         const prefix = survivor.pagado > 0 ? '🟡 ' : '💰 ';
         const body = {
           summary: prefix + nombreCliente + ' — Cuota unificada | ' + fmt(nuevoSaldoSurv) + ' (' + prestId + ')',
-          description: 'Préstamo: ' + prestId + '\nCliente: ' + nombreCliente + '\nCuota única que unifica ' + pendientes.length + ' cuotas pendientes.\nMonto a cobrar: ' + fmt(nuevoSaldoSurv),
+          description: 'Préstamo: ' + prestId + '\nCliente: ' + nombreCliente + '\nCuota única que unifica ' + pendientes.length + ' cuotas pendientes.\nMonto a cobrar: ' + fmt(nuevoSaldoSurv) + notaCalendar(p.notas),
           start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
           end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
           colorId: '5'
@@ -6678,6 +6718,51 @@ function closeRepairModal() {
   _repairCuotas = [];
 }
 
+// ============================================================
+// NOTAS EN CALENDAR (parte de "Reparar Calendar")
+// Revisa los eventos de los préstamos con nota y escribe la nota en la
+// descripción de los que no la tienen o la tienen vieja (el título no se
+// toca). Los que ya están al día no se modifican, así que se puede correr
+// todas las veces que haga falta.
+// ============================================================
+async function sincronizarNotasCalendar(onProgress) {
+  const res = { ok: 0, fail: 0, cortado: false };
+  if (!CFG.calId || !TOKEN) return res;
+  const conNota = DB.prestamos.filter(p => notaCalendar(p.notas));
+  const cuotas = DB.cuotas.filter(c => c.eventId && c.estado !== 'Refinanciada' && c.estado !== 'Salteada' && conNota.some(p => p.id === c.prestId));
+  let ok = 0, fail = 0;
+  for (let i = 0; i < cuotas.length; i++) {
+    const c = cuotas[i];
+    const p = conNota.find(x => x.id === c.prestId);
+    if (onProgress) onProgress(i + 1, cuotas.length);
+    const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId;
+    // Ante 401/403/429 (sesión vencida o límite de pedidos de Google) se corta
+    // y se avisa, en vez de forzar el re-login: un 403 por límite no es sesión vencida.
+    const corte = st => st === 401 || st === 403 || st === 429;
+    try {
+      const getRes = await fetch(url, { headers: { Authorization: 'Bearer ' + TOKEN } });
+      if (corte(getRes.status)) { res.cortado = true; break; }
+      if (getRes.status === 404 || getRes.status === 410) continue; // evento borrado: nada que anotar
+      if (!getRes.ok) { fail++; continue; }
+      const ev = await getRes.json();
+      if (ev.status === 'cancelled') continue;
+      const desc = descConNota(ev.description, p.notas);
+      if (desc === (ev.description || '')) continue;
+      // If-Match: si el evento cambió entre el GET y el PATCH (ej. se registró
+      // un pago justo ahora) Google responde 412 y no se pisa ese cambio.
+      const patchRes = await fetch(url, { method: 'PATCH', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json', 'If-Match': ev.etag || '*' }, body: JSON.stringify({ description: desc }) });
+      if (corte(patchRes.status)) { res.cortado = true; break; }
+      if (patchRes.ok) ok++; else fail++;
+      await new Promise(r => setTimeout(r, 200));
+    } catch(e) {
+      console.warn('Nota a Calendar error', c.id, e);
+      fail++;
+    }
+  }
+  res.ok = ok; res.fail = fail;
+  return res;
+}
+
 async function escanearCalendar() {
   if (!CFG.calId) { showToast('No tenés Calendar ID configurado', 'error'); return; }
   document.getElementById('repair-sub').textContent = 'Escaneando cuotas...';
@@ -6687,6 +6772,16 @@ async function escanearCalendar() {
 
   try {
     await loadAll(true);
+    // 1. Notas de los préstamos en la descripción de sus eventos
+    const notasRes = await sincronizarNotasCalendar((i, n) => {
+      document.getElementById('repair-body').innerHTML = '<div class="loading"><div class="spinner"></div> Revisando notas en Calendar (' + i + '/' + n + ')...</div>';
+    });
+    const notasMsg = notasRes.cortado
+      ? '⚠ Google cortó la revisión de notas (sesión o límite de pedidos). Volvé a tocar Reparar Calendar en un rato.'
+      : (notasRes.ok ? '📝 Nota agregada en ' + notasRes.ok + ' evento(s).' : '') + (notasRes.fail ? ' ⚠ ' + notasRes.fail + ' evento(s) no se pudieron actualizar, reintentá más tarde.' : '');
+    const notasHtml = notasMsg ? '<div style="margin-bottom:12px;font-size:12px;color:var(--muted)">' + escapeHtml(notasMsg.trim()) + '</div>' : '';
+
+    // 2. Cuotas sin evento
     // Las cuotas de préstamos en cobranza no tienen evento a propósito
     // (se borran al marcar moroso): no son eventos "rotos" a reparar.
     const sinEvento = DB.cuotas.filter(c =>
@@ -6697,14 +6792,14 @@ async function escanearCalendar() {
 
     if (sinEvento.length === 0) {
       document.getElementById('repair-sub').textContent = 'Todo en orden';
-      document.getElementById('repair-body').innerHTML = '<div class="empty-state" style="padding:24px"><div class="empty-icon">✅</div><div class="empty-title">Sin problemas</div><div class="empty-sub">Todas las cuotas pendientes tienen su evento en Calendar.</div></div>';
+      document.getElementById('repair-body').innerHTML = notasHtml + '<div class="empty-state" style="padding:24px"><div class="empty-icon">✅</div><div class="empty-title">Sin problemas</div><div class="empty-sub">Todas las cuotas pendientes tienen su evento en Calendar.</div></div>';
       return;
     }
 
     _repairCuotas = sinEvento;
     document.getElementById('repair-sub').textContent = sinEvento.length + ' cuota(s) sin evento en Calendar';
 
-    let html = '<div style="margin-bottom:12px;font-size:12px;color:var(--muted)">Revisá la lista y desmarcá las que no querés reparar. Solo se crearán eventos para las seleccionadas.</div>';
+    let html = notasHtml + '<div style="margin-bottom:12px;font-size:12px;color:var(--muted)">Revisá la lista y desmarcá las que no querés reparar. Solo se crearán eventos para las seleccionadas.</div>';
     html += '<table style="width:100%"><thead><tr><th style="width:30px;text-align:center"><input type="checkbox" checked onchange="toggleAllRepair(this)"></th><th>Cuota</th><th>Cliente</th><th>Préstamo</th><th>Vencimiento</th><th>Monto</th></tr></thead><tbody>';
 
     sinEvento.forEach((c, idx) => {
@@ -6765,7 +6860,7 @@ async function ejecutarReparacion() {
       try {
         const eventoBody = {
           summary: '💰 ' + nombreCliente + ' — Cuota ' + c.nro + '/' + totalCuotas + ' | ' + fmt(c.saldo) + ' (' + c.prestId + ')',
-          description: 'Préstamo: ' + c.prestId + '\nCliente: ' + nombreCliente + ' (' + c.clienteId + ')\nMonto cuota: ' + fmt(c.monto) + '\nTipo: ' + (p.tipo || 'propio') + '\n🔧 Reparado',
+          description: 'Préstamo: ' + c.prestId + '\nCliente: ' + nombreCliente + ' (' + c.clienteId + ')\nMonto cuota: ' + fmt(c.monto) + '\nTipo: ' + (p.tipo || 'propio') + '\n🔧 Reparado' + notaCalendar(p.notas),
           start: { dateTime: fechaISO + 'T10:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
           end:   { dateTime: fechaISO + 'T10:15:00', timeZone: 'America/Argentina/Buenos_Aires' },
           colorId: '5',
