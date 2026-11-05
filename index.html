@@ -1974,11 +1974,29 @@ function handleCallback() {
   if (hash.get('access_token')) {
     TOKEN = hash.get('access_token');
     sessionStorage.setItem('gtoken', TOKEN);
+    const exp = parseInt(hash.get('expires_in') || '0', 10);
+    if (exp > 0) sessionStorage.setItem('gtoken_exp', String(Date.now() + exp * 1000));
     history.replaceState(null, '', window.location.pathname);
     return true;
   }
   const stored = sessionStorage.getItem('gtoken');
   if (stored) { TOKEN = stored; return true; }
+  return false;
+}
+
+// El token de Google dura ~1 hora y al vencer la app redirige a Google.
+// Si eso pasa a mitad de una operación de varios pasos (crear préstamo con N
+// cuotas, refinanciar, borrar...) queda a medias. Antes de empezar una de esas
+// operaciones verificamos que queden al menos `minutos`; si no, se renueva
+// la sesión ANTES de tocar nada.
+function asegurarSesion(minutos) {
+  let exp = 0;
+  try { exp = parseInt(sessionStorage.getItem('gtoken_exp') || '0', 10); } catch(e) {}
+  if (!exp) return true; // sesión vieja sin dato de vencimiento: no bloqueamos
+  if (exp - Date.now() > (minutos || 10) * 60000) return true;
+  showToast('⚠ La sesión de Google está por vencer. Renovándola antes de guardar (no se perdió nada)...', 'error');
+  try { sessionStorage.removeItem('gtoken'); sessionStorage.removeItem('gtoken_exp'); } catch(e) {}
+  setTimeout(() => signIn(), 1500);
   return false;
 }
 
@@ -2027,7 +2045,7 @@ function handleAuthError(status) {
   if (status !== 401 && status !== 403) return false;
   if (_authErrorShown) return true;
   _authErrorShown = true;
-  try { sessionStorage.removeItem('gtoken'); } catch(e) {}
+  try { sessionStorage.removeItem('gtoken'); sessionStorage.removeItem('gtoken_exp'); } catch(e) {}
   TOKEN = null;
   showToast('⚠ Sesión expirada — redirigiendo a Google para volver a iniciar sesión...', 'error');
   setTimeout(() => { signIn(); }, 1500);
@@ -2530,8 +2548,8 @@ function renderTablaClientes(lista) {
     return `<tr class="clickable" onclick="nav('detalle-cliente','${c.id}')">
       <td class="td-mono">${c.id}</td>
       <td><div class="td-name">${escapeHtml(c.apellido)}, ${escapeHtml(c.nombre)}</div><div class="td-sub">@${escapeHtml(c.alias)}</div></td>
-      <td class="td-mono">****${c.dni}</td>
-      <td class="td-mono">${c.tel}</td>
+      <td class="td-mono">****${escapeHtml(c.dni)}</td>
+      <td class="td-mono">${escapeHtml(c.tel)}</td>
       <td>${ps.length > 0 ? `<span class="pill pill-purple">${ps.length} préstamo${ps.length>1?'s':''}</span>` : '<span class="pill pill-gray">Sin préstamos</span>'}</td>
       <td>${estadoPill2(calcEstadoCliente(c.id))}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();nav('detalle-cliente','${c.id}')">Ver →</button></td>
@@ -2568,7 +2586,7 @@ function renderDetalleCliente(clienteId) {
         <button class="btn btn-ghost btn-sm" onclick="navBack('clientes')">← Volver</button>
         <div>
           <div style="font-size:20px;font-weight:700">${escapeHtml(c.apellido)}, ${escapeHtml(c.nombre)} ${enCobranza?'<span class="pill pill-red" style="vertical-align:middle">🚨 En cobranza</span>':''} ${vetado?'<span class="pill pill-gray" style="vertical-align:middle;color:var(--red)">⛔ Vetado</span>':''}</div>
-          <div class="text-muted" style="font-size:12px">${c.id} · @${escapeHtml(c.alias)} · DNI: ****${c.dni}</div>
+          <div class="text-muted" style="font-size:12px">${c.id} · @${escapeHtml(c.alias)} · DNI: ****${escapeHtml(c.dni)}</div>
         </div>
       </div>
       <div class="flex-row">
@@ -2585,9 +2603,9 @@ function renderDetalleCliente(clienteId) {
     <div class="detail-grid">
       <div class="detail-card">
         <div class="detail-card-label">Datos del cliente</div>
-        <div class="detail-row"><span class="detail-key">Alias</span><span class="detail-val">@${c.alias}</span></div>
-        <div class="detail-row"><span class="detail-key">DNI</span><span class="detail-val mono">****${c.dni}</span></div>
-        <div class="detail-row"><span class="detail-key">Teléfono</span><span class="detail-val mono">${c.tel}</span></div>
+        <div class="detail-row"><span class="detail-key">Alias</span><span class="detail-val">@${escapeHtml(c.alias)}</span></div>
+        <div class="detail-row"><span class="detail-key">DNI</span><span class="detail-val mono">****${escapeHtml(c.dni)}</span></div>
+        <div class="detail-row"><span class="detail-key">Teléfono</span><span class="detail-val mono">${escapeHtml(c.tel)}</span></div>
         ${c.tel2 ? `<div class="detail-row"><span class="detail-key">Contingencia</span><span class="detail-val mono">${c.tel2}</span></div>` : ''}
         <div class="detail-row"><span class="detail-key">Alta</span><span class="detail-val">${c.alta}</span></div>
       </div>
@@ -2965,7 +2983,7 @@ async function renderVencimientos() {
 // clienteId opcional: al venir desde la ficha de un cliente, queda
 // preseleccionado y no hay que volver a buscarlo en el buscador.
 function initNuevoPrestamo(clienteId) {
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = ISO(new Date());
   document.getElementById('np-fecha').value = hoy;
   document.getElementById('np-fecha-primera').value = '';
   document.getElementById('np-freq-custom-field').style.display = 'none';
@@ -3005,7 +3023,7 @@ function renderDropdownNP(lista) {
       <div class="client-av">${(c.apellido[0]||'?')+(c.nombre[0]||'?')}</div>
       <div>
         <div class="client-info-name">${escapeHtml(c.apellido)}, ${escapeHtml(c.nombre)}</div>
-        <div class="client-info-meta">${c.id} · ****${c.dni} · @${escapeHtml(c.alias)}</div>
+        <div class="client-info-meta">${c.id} · ****${escapeHtml(c.dni)} · @${escapeHtml(c.alias)}</div>
       </div>
       ${vetadoNP ? '<span class="pill pill-gray" style="margin-left:auto;color:var(--red)">⛔ Vetado</span>' : nPrest > 0 ? `<span class="pill pill-purple" style="margin-left:auto">${nPrest} prest.</span>` : ''}
     </div>`;
@@ -3189,6 +3207,7 @@ function recalcNP() {
 }
 
 async function crearPrestamo() {
+  if (!asegurarSesion(10)) return;
   const m = calcularMontosNP();
   const cap = m.cap, cuotas = m.cuotas, tipo = m.tipo;
   const fechaStr = document.getElementById('np-fecha').value;
@@ -3240,7 +3259,7 @@ async function crearPrestamo() {
       const d = fechaCuotaIndex(fechaInicio, fechaPrimera, i, npFreqDias);
       const cuotaId = prestId + '-C' + String(i).padStart(2,'0');
       const fechaVencES = fmtFechaES(d);
-      const fechaISO = d.toISOString().split('T')[0];
+      const fechaISO = ISO(d);
       let eventId = '';
       try {
         btn.textContent = 'Creando cuota ' + i + '/' + cuotas + ' en Calendar...';
@@ -3320,7 +3339,7 @@ function abrirPagoModal(cuotaId) {
   if (cuota.estado === 'Refinanciada') { showToast('Esta cuota fue refinanciada y ya no se puede pagar', 'error'); return; }
   if (cuota.estado === 'Salteada') { showToast('Esta cuota fue salteada y ya no se puede pagar', 'error'); return; }
   pagoActual = cuota;
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = ISO(new Date());
   document.getElementById('pago-fecha').value = hoy;
   // Redondear hacia arriba: si el saldo tiene centavos (ej $230.008,33) sugerir
   // $230.009 evita que quede un resto de centavos como "Pago parcial"
@@ -3506,6 +3525,7 @@ function calcPagoModal() {
 }
 
 async function confirmarPago() {
+  if (!asegurarSesion(10)) return;
   if (!pagoActual) return;
   const monto = parseFloat(document.getElementById('pago-monto').value)||0;
   const fechaStr = document.getElementById('pago-fecha').value;
@@ -3566,7 +3586,7 @@ function abrirCuotaExtraModal(prestId) {
   const ultimaFecha = ultimaCuota ? parseFecha(ultimaCuota.vencimiento) : new Date();
   const fechaDefault = new Date(ultimaFecha);
   fechaDefault.setDate(fechaDefault.getDate() + 30);
-  document.getElementById('ce-fecha').value = fechaDefault.toISOString().split('T')[0];
+  document.getElementById('ce-fecha').value = ISO(fechaDefault);
   document.getElementById('ce-monto').value = Math.round(montoCuota);
   document.getElementById('ce-notas').value = '';
 
@@ -3579,6 +3599,7 @@ function closeCuotaExtraModal() {
 }
 
 async function confirmarCuotaExtra() {
+  if (!asegurarSesion(10)) return;
   if (!cuotaExtraPrestId) return;
   const fechaStr = document.getElementById('ce-fecha').value;
   const monto = parseFloat(document.getElementById('ce-monto').value) || 0;
@@ -3596,7 +3617,7 @@ async function confirmarCuotaExtra() {
   const cuotaId = cuotaExtraPrestId + '-C' + String(nuevoNro).padStart(2, '0');
   const fecha = new Date(fechaStr + 'T12:00:00');
   const fechaES = fmtFechaES(fecha);
-  const fechaISO = fecha.toISOString().split('T')[0];
+  const fechaISO = ISO(fecha);
   const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.nombre;
 
   const btn = document.getElementById('btn-cuota-extra');
@@ -3719,6 +3740,18 @@ function appendUnifNotas(notasStr, fecha, absorbidas, survivorNro) {
 // Nota del préstamo para la descripción del evento de Calendar: sólo el
 // texto que escribió el usuario, sin los marcadores internos (Salteo/Unif/Aplazo).
 // Devuelve '' si no hay nota, o '\n📝 Nota: ...' listo para concatenar.
+// Las notas del préstamo mezclan texto libre con códigos internos
+// (Salteo:/Unif:/Aplazo:) que usan "Deshacer salteo" y el contador de aplazos.
+// En el formulario solo se muestra/edita el texto; los códigos se preservan.
+const RE_TOKEN_NOTA = /^(Salteo|Unif|Aplazo):\d{4}-\d{2}-\d{2}:/;
+function separarNotas(notasStr) {
+  const partes = String(notasStr || '').split(' | ').map(x => x.trim()).filter(Boolean);
+  return { texto: partes.filter(x => !RE_TOKEN_NOTA.test(x)).join(' | '), tokens: partes.filter(x => RE_TOKEN_NOTA.test(x)) };
+}
+function unirNotas(texto, tokens) {
+  return [String(texto || '').trim()].concat(tokens || []).filter(Boolean).join(' | ');
+}
+
 function notaCalendar(notasStr) {
   const txt = (notasStr || '').split(' | ').map(x => x.trim())
     .filter(x => x && !/^(Salteo|Unif|Aplazo):\d{4}-\d{2}-\d{2}:/.test(x)).join(' | ');
@@ -4014,8 +4047,8 @@ function abrirSalteoModal(cuotaId) {
   const ultimaFecha = ultimaCuota ? parseFecha(ultimaCuota.vencimiento) : new Date();
   const fecha1 = new Date(ultimaFecha); fecha1.setDate(fecha1.getDate() + 30);
   const fecha2 = new Date(ultimaFecha); fecha2.setDate(fecha2.getDate() + 60);
-  document.getElementById('salteo-fecha1').value = fecha1.toISOString().split('T')[0];
-  document.getElementById('salteo-fecha2').value = fecha2.toISOString().split('T')[0];
+  document.getElementById('salteo-fecha1').value = ISO(fecha1);
+  document.getElementById('salteo-fecha2').value = ISO(fecha2);
   document.getElementById('salteo-monto1').value = Math.round(cuota.monto);
   document.getElementById('salteo-monto2').value = Math.round(cuota.monto);
 
@@ -4028,6 +4061,7 @@ function closeSalteoModal() {
 }
 
 async function confirmarSalteo() {
+  if (!asegurarSesion(10)) return;
   if (!salteoCuotaId) return;
   const fecha1Str = document.getElementById('salteo-fecha1').value;
   const fecha2Str = document.getElementById('salteo-fecha2').value;
@@ -4051,15 +4085,15 @@ async function confirmarSalteo() {
   const id1 = cuota.prestId + '-C' + String(nro1).padStart(2, '0');
   const id2 = cuota.prestId + '-C' + String(nro2).padStart(2, '0');
   const f1 = new Date(fecha1Str + 'T12:00:00');
-  const f1ES = fmtFechaES(f1), f1ISO = f1.toISOString().split('T')[0];
+  const f1ES = fmtFechaES(f1), f1ISO = ISO(f1);
   let f2ES = '', f2ISO = '';
   if (crearSegunda) {
     const f2 = new Date(fecha2Str + 'T12:00:00');
-    f2ES = fmtFechaES(f2); f2ISO = f2.toISOString().split('T')[0];
+    f2ES = fmtFechaES(f2); f2ISO = ISO(f2);
   }
   const clienteNombre = cl.apellido ? cl.apellido + ', ' + cl.nombre : p.nombre;
   const hoy = new Date();
-  const hoyISO = hoy.toISOString().split('T')[0];
+  const hoyISO = ISO(hoy);
 
   const btn = document.getElementById('btn-salteo');
   btn.disabled = true;
@@ -4229,6 +4263,7 @@ function actualizarPreviewEditCuota() {
 function closeEditCuotaModal() { document.getElementById('editCuotaModal').classList.remove('open'); editCuotaId = null; }
 
 async function guardarEditCuota() {
+  if (!asegurarSesion(10)) return;
   if (!editCuotaId) return;
   const cuota = DB.cuotas.find(c => c.id === editCuotaId);
   if (!cuota) return;
@@ -4320,6 +4355,7 @@ document.getElementById('editCuotaModal').addEventListener('click', e => {
 // se restauran total/ganancias del préstamo y se sincroniza Calendar.
 // ============================================================
 async function deshacerSalteo(prestId, nroOriginal) {
+  if (!asegurarSesion(10)) return;
   const p = DB.prestamos.find(x => x.id === prestId);
   if (!p) return;
   const salteos = parseSalteos(p.notas);
@@ -4344,7 +4380,7 @@ async function deshacerSalteo(prestId, nroOriginal) {
         let eventId = '';
         const fechaOrig = parseFecha(cuotaOrig.vencimiento);
         if (CFG.calId && fechaOrig) {
-          const fISO = fechaOrig.toISOString().split('T')[0];
+          const fISO = ISO(fechaOrig);
           try {
             const eventoBody = {
               summary: '💰 ' + p.nombre + ' — Cuota ' + nroOriginal + ' | ' + fmt(cuotaOrig.monto) + ' (' + prestId + ')',
@@ -4425,6 +4461,9 @@ function parseFecha(str) {
   }
   const parts = String(str).split('/');
   if (parts.length === 3) return new Date(parts[2], parts[1]-1, parts[0], 12, 0, 0);
+  // 'AAAA-MM-DD' → mediodía LOCAL (new Date('AAAA-MM-DD') es medianoche UTC = 21hs del día anterior en Argentina)
+  const iso = String(str).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return new Date(+iso[1], +iso[2]-1, +iso[3], 12, 0, 0);
   const d = new Date(str);
   return isNaN(d) ? null : d;
 }
@@ -5268,6 +5307,7 @@ async function renumerarEventosCalendar(prestId) {
 // Botón "Sincronizar Calendar" del detalle de préstamo: aplica la
 // renumeración a un préstamo existente (sirve para los salteos viejos).
 async function sincronizarCalendarPrestamo(prestId) {
+  if (!asegurarSesion(10)) return;
   if (!CFG.calId) { showToast('No tenés Calendar ID configurado', 'error'); return; }
   showToast('Sincronizando eventos de Calendar...');
   const r = await renumerarEventosCalendar(prestId);
@@ -5306,6 +5346,7 @@ function pedirEliminarPrestamo(prestId) {
 }
 
 async function eliminarPrestamo(prestId) {
+  if (!asegurarSesion(10)) return;
   showToast('Eliminando préstamo...');
   try {
     const cuotasRaw = await sheetsGet('Cuotas!A:J');
@@ -5318,6 +5359,7 @@ async function eliminarPrestamo(prestId) {
     await eliminarFilasSheets('Cuotas!A:J', 1, prestId);
     await eliminarFilasSheets('Pagos!A:H', 2, prestId);
     await eliminarFilasSheets('Calendario!A:F', 1, prestId);
+    if ((DB.liquidaciones || []).some(l => l.prestId === prestId)) await eliminarFilasSheets('Liquidaciones!A:F', 3, prestId);
     await eliminarFilasSheets('Préstamos!A:P', 0, prestId);
     invalidateCache();
     await loadAll(true);
@@ -5330,20 +5372,14 @@ async function eliminarPrestamo(prestId) {
   }
 }
 
+// Borra las filas de una hoja cuyo valor en colIdx coincide.
+// Antes: leía toda la hoja, la vaciaba (clear) y la reescribía (PUT). Si se
+// cortaba entre el clear y el PUT se perdía la hoja entera, y el PUT con
+// USER_ENTERED volvía a interpretar todos los valores formateados.
+// Ahora: deleteDimension sólo sobre las filas afectadas (atómico en Google).
 async function eliminarFilasSheets(range, colIdx, valor) {
   const hoja = range.split('!')[0];
-  const datos = await sheetsGet(range);
-  if (!datos || datos.length === 0) return;
-  const esHeader = row => { const v = (row[0] || '').toString(); return !v.match(/^(CLI-|PREST-|PAGO-|DOC-)/); };
-  const nuevas = datos.filter(row => !esHeader(row) && (row[colIdx] || '') !== valor);
-  if (nuevas.length === datos.length && !datos.some(esHeader)) return;
-  const ultimaFila = datos.length + 1;
-  await sheetsClear(hoja + '!A2:Z' + ultimaFila);
-  if (nuevas.length > 0) {
-    const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(hoja + '!A2')}?valueInputOption=USER_ENTERED`, { method: 'PUT', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: nuevas }) });
-    if (handleAuthError(r.status)) throw new Error('Sheets UPDATE auth ' + r.status);
-    if (!r.ok) throw new Error('Sheets UPDATE error ' + r.status);
-  }
+  return borrarFilasPorValor(hoja, colIdx, valor);
 }
 
 async function sheetsClear(range) {
@@ -5375,7 +5411,7 @@ function abrirEditPrestModal(prestId) {
   document.getElementById('ep-tipo').value = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? 'tercero' : 'propio';
   document.getElementById('ep-tercero').value = esTercero(p) ? nombreTercero(p) : '';
   document.getElementById('ep-com-pct').value = esTercero(p) ? pctComision(p) : COMISION_PCT_DEFAULT;
-  document.getElementById('ep-notas').value = p.notas || '';
+  document.getElementById('ep-notas').value = separarNotas(p.notas).texto;
   poblarDatalistTerceros();
   toggleEpTercero();
   document.getElementById('editPrestModal').classList.add('open');
@@ -5449,13 +5485,14 @@ function actualizarPreviewComEp() {
 function closeEditPrestModal() { document.getElementById('editPrestModal').classList.remove('open'); editPrestId = null; }
 
 async function guardarEditPrest() {
+  if (!asegurarSesion(10)) return;
   if (!editPrestId) return;
   const nuevoCapital = parseFloat(document.getElementById('ep-capital').value) || 0;
   const nuevoInteres = parseFloat(document.getElementById('ep-interes').value) || 0;
   const tipo = document.getElementById('ep-tipo').value;
   const tercero = tipo === 'tercero' ? canonizarTercero(document.getElementById('ep-tercero').value) : '';
   const comPct = tipo === 'tercero' ? leerPct('ep-com-pct') : '';
-  const notas = document.getElementById('ep-notas').value.trim();
+  const notasTexto = document.getElementById('ep-notas').value.trim();
   if (!nuevoCapital || nuevoCapital <= 0) { showToast('El capital debe ser mayor a 0', 'error'); return; }
   if (nuevoInteres < 0) { showToast('El interés no puede ser negativo', 'error'); return; }
 
@@ -5483,6 +5520,9 @@ async function guardarEditPrest() {
     const rowIdx = datos.findIndex(r => r[0] === editPrestId);
     if (rowIdx < 0) throw new Error('Préstamo no encontrado en Sheets');
     const sheetRow = rowIdx + 1;
+    // Códigos internos tomados de la planilla (no de memoria) para no perder
+    // un salteo/aplazo registrado desde otro dispositivo.
+    const notas = unirNotas(notasTexto, separarNotas(datos[rowIdx][15]).tokens);
     const tipoStr = tipo === 'tercero' ? 'De tercero' : 'propio';
     // Columnas: E=capital, F=interes, G=total, I=tipo, J=terceroId, K=terceroNombre, L=ganBruta, M=comision, N=ganNeta, P=notas
     await sheetsBatchUpdate([
@@ -5548,7 +5588,7 @@ async function guardarEditPrest() {
 
     // 3. Si sólo cambió la nota, reflejarla en los eventos (pendientes y pagados)
     // (si cambió capital/interés los eventos ya se reescribieron arriba con la nota).
-    if (!capitalCambio && !interesCambio && notas !== (p.notas || '') && CFG.calId) {
+    if (!capitalCambio && !interesCambio && notasTexto !== separarNotas(p.notas).texto && CFG.calId) {
       const pend = DB.cuotas.filter(c => c.prestId === editPrestId && c.eventId && c.estado !== 'Refinanciada' && c.estado !== 'Salteada');
       for (const c of pend) {
         const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(CFG.calId) + '/events/' + c.eventId;
@@ -5642,7 +5682,7 @@ function abrirRefinanciarModal(clienteId) {
   // Si hay 2+, no preseleccionar para que elija
   
   // Defaults
-  document.getElementById('refi-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('refi-fecha').value = ISO(new Date());
   document.getElementById('refi-extra').value = '0';
   document.getElementById('refi-interes').value = '0';
   document.getElementById('refi-cuotas').value = '6';
@@ -5728,6 +5768,7 @@ function closeRefiModal() {
 }
 
 async function confirmarRefinanciar() {
+  if (!asegurarSesion(10)) return;
   if (!refiClienteId || refiSeleccionados.size === 0) return;
 
   const selIds = Array.from(refiSeleccionados);
@@ -5822,7 +5863,7 @@ async function confirmarRefinanciar() {
       const d = calcularFechaCuota(fechaInicio, i, freqDias);
       const cuotaId = nuevoPrestId + '-C' + String(i).padStart(2, '0');
       const fechaVencES = fmtFechaES(d);
-      const fechaISO = d.toISOString().split('T')[0];
+      const fechaISO = ISO(d);
       let eventId = '';
       try {
         btn.textContent = 'Creando cuota ' + i + '/' + cuotasN + ' en Calendar...';
@@ -5969,7 +6010,7 @@ function abrirReprogModal(prestId) {
   const proxFecha = parseFecha(pendientes[0].vencimiento);
   const hoy = new Date();
   const fechaDefault = proxFecha && proxFecha > hoy ? proxFecha : hoy;
-  document.getElementById('reprog-fecha').value = fechaDefault.toISOString().split('T')[0];
+  document.getElementById('reprog-fecha').value = ISO(fechaDefault);
   document.getElementById('reprog-freq').value = '30';
   actualizarPreviewReprog();
   document.getElementById('reprogModal').classList.add('open');
@@ -5994,6 +6035,7 @@ function actualizarPreviewReprog() {
 function closeReprogModal() { document.getElementById('reprogModal').classList.remove('open'); reprogPrestId = null; }
 
 async function confirmarReprogramar() {
+  if (!asegurarSesion(10)) return;
   if (!reprogPrestId) return;
   const fechaStr = document.getElementById('reprog-fecha').value;
   const freq = parseInt(document.getElementById('reprog-freq').value) || 30;
@@ -6014,7 +6056,7 @@ async function confirmarReprogramar() {
       const c = cuotasPend[i];
       const nuevaFecha = i === 0 ? base : calcularFechaCuota(base, i, freq);
       const nuevaFechaES = fmtFechaES(nuevaFecha);
-      const nuevaFechaISO = nuevaFecha.toISOString().split('T')[0];
+      const nuevaFechaISO = ISO(nuevaFecha);
       if (c.eventId) { showToast(`Borrando evento Calendar cuota ${c.nro}...`); await borrarEventoCalendar(c.eventId); }
       let nuevoEventId = '';
       if (CFG.calId) {
@@ -6085,7 +6127,7 @@ function abrirUnificarModal(prestId) {
   // Fecha default: la de la última cuota pendiente
   const ultima = pendientes[pendientes.length - 1];
   const fUlt = parseFecha(ultima.vencimiento);
-  document.getElementById('unif-fecha').value = (fUlt && !isNaN(fUlt)) ? fUlt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+  document.getElementById('unif-fecha').value = (fUlt && !isNaN(fUlt)) ? ISO(fUlt) : ISO(new Date());
   document.getElementById('unificarModal').classList.add('open');
 }
 
@@ -6093,6 +6135,7 @@ function closeUnificarModal() { document.getElementById('unificarModal').classLi
 document.getElementById('unificarModal').addEventListener('click', e => { if (e.target === document.getElementById('unificarModal')) closeUnificarModal(); });
 
 async function confirmarUnificar() {
+  if (!asegurarSesion(10)) return;
   if (!unifPrestId) return;
   const prestId = unifPrestId;
   const p = DB.prestamos.find(x => x.id === prestId);
@@ -6111,7 +6154,7 @@ async function confirmarUnificar() {
   const nuevoSaldoSurv = parseFloat(sumaSaldos.toFixed(2));
   const estadoSurv = survivor.pagado > 0 ? 'Pago parcial' : 'Pendiente';
   const fechaES = fmtFechaES(fecha);
-  const fechaISO = fecha.toISOString().split('T')[0];
+  const fechaISO = ISO(fecha);
   closeUnificarModal();
   try {
     showToast('Unificando cuotas...');
@@ -6180,6 +6223,7 @@ function pedirEliminarCliente(clienteId) {
 }
 
 async function eliminarCliente(clienteId) {
+  if (!asegurarSesion(10)) return;
   showToast('Eliminando cliente...');
   try {
     if (CFG.calId) {
@@ -6190,6 +6234,9 @@ async function eliminarCliente(clienteId) {
     await eliminarFilasSheets('Cuotas!A:J', 2, clienteId);
     await eliminarFilasSheets('Pagos!A:H', 3, clienteId);
     await eliminarFilasSheets('Calendario!A:F', 2, clienteId);
+    for (const pid of DB.prestamos.filter(x => x.clienteId === clienteId).map(x => x.id)) {
+      if ((DB.liquidaciones || []).some(l => l.prestId === pid)) await eliminarFilasSheets('Liquidaciones!A:F', 3, pid);
+    }
     await eliminarFilasSheets('Préstamos!A:P', 1, clienteId);
     await eliminarFilasSheets('Clientes!A:L', 0, clienteId);
     invalidateCache();
@@ -6447,7 +6494,7 @@ function abrirCobroModal(clienteId) {
   const cuotas = cuotasCobrablesCliente(clienteId);
   const deuda = cuotas.reduce((a,x) => a + x.saldo, 0);
   document.getElementById('cobro-sub').textContent = c.apellido + ', ' + c.nombre + ' — debe ' + fmt(deuda) + ' en ' + cuotas.length + ' cuota' + (cuotas.length!==1?'s':'');
-  document.getElementById('cobro-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('cobro-fecha').value = ISO(new Date());
   document.getElementById('cobro-monto').value = '';
   document.getElementById('cobro-notas').value = '';
   calcCobroPreview();
@@ -6498,6 +6545,7 @@ function calcCobroPreview() {
 }
 
 async function confirmarCobro() {
+  if (!asegurarSesion(10)) return;
   if (!cobroClienteId) return;
   const clienteId = cobroClienteId;
   const monto = parseFloat(document.getElementById('cobro-monto').value) || 0;
@@ -6635,7 +6683,7 @@ async function actualizarEventoMorosos() {
       if (r.status !== 404 && r.status !== 410) return false;
       localStorage.removeItem(_morososEventKey());
     }
-    const hoyISO = new Date().toISOString().split('T')[0];
+    const hoyISO = ISO(new Date());
     const body = {
       summary, description,
       start: { dateTime: hoyISO + 'T09:00:00', timeZone: 'America/Argentina/Buenos_Aires' },
@@ -6891,6 +6939,7 @@ function actualizarTotalLiq() {
   document.getElementById('liq-total').textContent = fmt(tot);
 }
 async function guardarLiquidacion() {
+  if (!asegurarSesion(10)) return;
   const fechaStr = document.getElementById('liq-fecha').value;
   if (!fechaStr) { showToast('Elegí la fecha del pago', 'error'); return; }
   const fecha = new Date(fechaStr + 'T12:00:00');
@@ -6922,6 +6971,7 @@ async function guardarLiquidacion() {
   }
 }
 async function eliminarLiquidacion(id) {
+  if (!asegurarSesion(10)) return;
   const l = (DB.liquidaciones || []).find(x => x.id === id);
   if (!l || !confirm('¿Borrar el pago ' + id + ' de ' + fmt(l.monto) + ' a ' + l.tercero + '?')) return;
   try {
@@ -7009,6 +7059,7 @@ async function renombrarTerceroEnSheets(cambios) { // cambios: [{ prestId, nombr
   return updates.length;
 }
 async function unificarTercerosSeleccionados() {
+  if (!asegurarSesion(10)) return;
   const formas = new Set([...document.querySelectorAll('.unif-ter-chk:checked')].map(ch => ch.dataset.forma));
   const final = document.getElementById('unif-ter-nombre').value.trim().replace(/\s+/g, ' ');
   if (!formas.size) { showToast('Marcá al menos un nombre', 'error'); return; }
@@ -7021,6 +7072,7 @@ async function unificarTercerosSeleccionados() {
   await aplicarRenombres(cambios, 'btn-unif-ter');
 }
 async function normalizarTodosTerceros() {
+  if (!asegurarSesion(10)) return;
   const grupos = mapaTerceros();
   const cambios = DB.prestamos.filter(esTercero).map(p => {
     const g = grupos[claveTercero(p.terceroNombre) || '(sin nombre)'];
@@ -7102,6 +7154,7 @@ function abrirRevisarComisionesModal() {
   document.getElementById('revComModal').classList.add('open');
 }
 async function corregirComisionesSeleccionadas() {
+  if (!asegurarSesion(10)) return;
   const sel = [...document.querySelectorAll('.rev-com-chk:checked')].map(ch => revComFilas[+ch.dataset.i]).filter(Boolean);
   if (!sel.length) { showToast('No marcaste ningún crédito', 'error'); return; }
   const btn = document.getElementById('btn-rev-com');
@@ -7410,6 +7463,7 @@ async function sincronizarNotasCalendar(onProgress) {
 }
 
 async function escanearCalendar() {
+  if (!asegurarSesion(10)) return;
   if (!CFG.calId) { showToast('No tenés Calendar ID configurado', 'error'); return; }
   document.getElementById('repair-sub').textContent = 'Escaneando cuotas...';
   document.getElementById('repair-body').innerHTML = '<div class="loading"><div class="spinner"></div> Cargando datos desde Sheets...</div>';
@@ -7499,7 +7553,7 @@ async function ejecutarReparacion() {
       const totalCuotas = DB.cuotas.filter(x => x.prestId === c.prestId).length;
       const f = parseFecha(c.vencimiento);
       if (!f) { console.warn('Fecha inválida para', c.id); continue; }
-      const fechaISO = f.toISOString().split('T')[0];
+      const fechaISO = ISO(f);
 
       showToast(`Creando evento ${i + 1}/${seleccionadas.length}: ${c.id}...`);
 
