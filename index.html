@@ -972,6 +972,9 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
           <span class="nav-icon">🚨</span> Cobranzas
           <span class="nav-badge" id="badge-cobranzas" style="display:none">0</span>
         </div>
+        <div class="nav-item" data-screen="terceros" onclick="nav('terceros')">
+          <span class="nav-icon">🤝</span> Terceros
+        </div>
       </div>
       <div class="nav-section">
         <div class="nav-section-label">Acciones</div>
@@ -1135,6 +1138,30 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <div id="cobranzas-content" style="display:none"></div>
       </div>
 
+      <!-- TERCEROS -->
+      <div class="screen" id="screen-terceros">
+        <div id="terceros-loading" class="loading"><div class="spinner"></div> Cargando terceros...</div>
+        <div id="terceros-content" style="display:none">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px">
+            <select class="form-select" id="ter-sel" style="width:auto;min-width:180px" onchange="terSel=this.value;renderTercerosContenido()"></select>
+            <input class="form-input" id="ter-mes" type="month" style="width:auto" onchange="renderTercerosContenido()" title="Mes a analizar">
+            <span style="flex:1"></span>
+            <button class="btn btn-ghost btn-sm" onclick="abrirUnificarTercerosModal()" title="Junta los nombres escritos distinto (MELGAREJO, de melgarejo, melga...) en uno solo">🔗 Unificar nombres</button>
+            <button class="btn btn-ghost btn-sm" onclick="abrirRevisarComisionesModal()" title="Detecta créditos con total, ganancia o comisión mal calculados">🧮 Revisar comisiones</button>
+          </div>
+          <div id="ter-avisos"></div>
+          <div class="stats-grid" id="ter-stats"></div>
+          <div class="table-wrap" style="margin-bottom:20px">
+            <div class="card-header"><span class="card-title" id="ter-tabla-titulo">Por tercero</span><span id="ter-tabla-acciones"></span></div>
+            <div style="overflow-x:auto"><table><thead id="ter-thead"></thead><tbody id="ter-tbody"></tbody></table></div>
+          </div>
+          <div class="table-wrap">
+            <div class="card-header"><span class="card-title">Pagos a terceros</span><span class="text-muted" style="font-size:12px" id="ter-liq-sub"></span></div>
+            <div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Tercero</th><th>Crédito</th><th>Monto</th><th>Notas</th><th></th></tr></thead><tbody id="ter-liq-tbody"></tbody></table></div>
+          </div>
+        </div>
+      </div>
+
       <!-- NUEVO PRESTAMO -->
       <div class="screen" id="screen-nuevo-prestamo">
         <div style="max-width: 600px;">
@@ -1241,8 +1268,10 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
                   </select>
                 </div>
                 <div class="form-field" id="np-tercero-field" style="display:none">
-                  <label class="form-label">Nombre del tercero</label>
-                  <input class="form-input" id="np-tercero" placeholder="Nombre del financiador">
+                  <label class="form-label">Tercero (quien trajo al cliente)</label>
+                  <input class="form-input" id="np-tercero" list="dl-terceros" autocomplete="off" placeholder="Elegí uno existente o escribí uno nuevo">
+                  <label class="form-label" style="margin-top:8px">Comisión del tercero (% de la ganancia)</label>
+                  <input class="form-input" id="np-com-pct" type="number" min="0" max="100" step="1" value="20" oninput="recalcNP()">
                 </div>
                 <div class="form-field full">
                   <label class="form-label">Notas</label>
@@ -1254,7 +1283,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
               <div class="calc-row"><span class="calc-label">Total a devolver</span><span class="calc-val" id="np-r-total">$140.000</span></div>
               <div class="calc-row"><span class="calc-label">Interés efectivo</span><span class="calc-val text-amber" id="np-r-int-ef">40%</span></div>
               <div class="calc-row"><span class="calc-label">Ganancia bruta</span><span class="calc-val text-green" id="np-r-gb">$40.000</span></div>
-              <div class="calc-row" id="np-r-com-row" style="display:none"><span class="calc-label">Comisión 20% (tercero)</span><span class="calc-val text-amber" id="np-r-com">$8.000</span></div>
+              <div class="calc-row" id="np-r-com-row" style="display:none"><span class="calc-label">Comisión <span id="np-r-com-pct">20</span>% (tercero)</span><span class="calc-val text-amber" id="np-r-com">$8.000</span></div>
               <div class="calc-row"><span class="calc-label">Ganancia neta</span><span class="calc-val text-green" id="np-r-gn">$40.000</span></div>
               <div class="calc-row"><span class="calc-label">Cuota <span id="np-r-freq" class="text-accent">mensual</span></span><span class="calc-val text-accent" id="np-r-cuota">$23.333</span></div>
             </div>
@@ -1669,12 +1698,12 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
     <div class="form-grid">
       <div class="form-field">
         <label class="form-label">Capital prestado ($)</label>
-        <input class="form-input" id="ep-capital" type="number" min="0" step="100" placeholder="0" oninput="actualizarPreviewCapital()">
+        <input class="form-input" id="ep-capital" type="number" min="0" step="100" placeholder="0" oninput="actualizarPreviewCapital();actualizarPreviewComEp()">
         <div class="form-hint" id="ep-capital-hint" style="color:var(--amber)"></div>
       </div>
       <div class="form-field">
         <label class="form-label">Interés (%)</label>
-        <input class="form-input" id="ep-interes" type="number" min="0" step="1" placeholder="0" oninput="actualizarPreviewCapital()">
+        <input class="form-input" id="ep-interes" type="number" min="0" step="1" placeholder="0" oninput="actualizarPreviewCapital();actualizarPreviewComEp()">
         <div class="form-hint" id="ep-interes-hint" style="color:var(--amber)"></div>
       </div>
       <div class="form-field">
@@ -1685,8 +1714,11 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         </select>
       </div>
       <div class="form-field" id="ep-tercero-field" style="display:none">
-        <label class="form-label">Nombre del tercero</label>
-        <input class="form-input" id="ep-tercero" placeholder="Nombre del financiador">
+        <label class="form-label">Tercero (quien trajo al cliente)</label>
+        <input class="form-input" id="ep-tercero" list="dl-terceros" autocomplete="off" placeholder="Elegí uno existente o escribí uno nuevo">
+        <label class="form-label" style="margin-top:8px">Comisión del tercero (%)</label>
+        <input class="form-input" id="ep-com-pct" type="number" min="0" max="100" step="1" value="20" oninput="actualizarPreviewComEp()">
+        <div class="form-hint" id="ep-com-preview" style="color:var(--amber)"></div>
       </div>
       <div class="form-field full" id="ep-capital-preview" style="display:none">
         <div class="calc-box">
@@ -1881,8 +1913,10 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         </select>
       </div>
       <div class="form-field" id="refi-tercero-field" style="display:none">
-        <label class="form-label">Nombre del tercero</label>
-        <input class="form-input" id="refi-tercero" placeholder="Nombre del financiador">
+        <label class="form-label">Tercero (quien trajo al cliente)</label>
+        <input class="form-input" id="refi-tercero" list="dl-terceros" autocomplete="off" placeholder="Elegí uno existente o escribí uno nuevo">
+        <label class="form-label" style="margin-top:8px">Comisión del tercero (%)</label>
+        <input class="form-input" id="refi-com-pct" type="number" min="0" max="100" step="1" value="20" oninput="recalcRefi()">
       </div>
     </div>
 
@@ -1891,7 +1925,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
       <div class="calc-row" id="refi-p-desglose-row" style="display:none"><span class="calc-label">↳ Saldo refinanciado + dinero extra</span><span class="calc-val" id="refi-p-desglose">—</span></div>
       <div class="calc-row"><span class="calc-label">Total a devolver</span><span class="calc-val" id="refi-p-total">$0</span></div>
       <div class="calc-row"><span class="calc-label">Ganancia bruta</span><span class="calc-val text-green" id="refi-p-gb">$0</span></div>
-      <div class="calc-row" id="refi-p-com-row" style="display:none"><span class="calc-label">Comisión 20%</span><span class="calc-val text-amber" id="refi-p-com">$0</span></div>
+      <div class="calc-row" id="refi-p-com-row" style="display:none"><span class="calc-label">Comisión <span id="refi-p-com-pct">20</span>%</span><span class="calc-val text-amber" id="refi-p-com">$0</span></div>
       <div class="calc-row"><span class="calc-label">Ganancia neta</span><span class="calc-val text-green" id="refi-p-gn">$0</span></div>
       <div class="calc-row"><span class="calc-label">Valor de cuota</span><span class="calc-val text-accent" id="refi-p-cuota">$0</span></div>
     </div>
@@ -1913,7 +1947,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
 const CFG_KEY = 'prestamos_cfg';
 let CFG = JSON.parse(localStorage.getItem(CFG_KEY) || '{}');
 let TOKEN = null;
-let DB = { clientes: [], prestamos: [], cuotas: [], pagos: [], documentos: [], calendario: [] };
+let DB = { clientes: [], prestamos: [], cuotas: [], pagos: [], documentos: [], calendario: [], liquidaciones: [] };
 let npFreqDias = 30, npFreqLabel = 'mensual', npClienteSeleccionado = null, npModoCliente = 'existente';
 let npModoCalculo = 'interes'; // 'interes' = se ingresa %, 'cuota' = se ingresa monto por cuota
 let pagoActual = null;
@@ -2056,6 +2090,67 @@ async function sheetsBatchUpdate(updates) {
   return r.json();
 }
 
+// Lee un rango de una hoja que puede no existir todavía (ej. Liquidaciones).
+// Si la hoja no existe la API devuelve 400: en ese caso devolvemos [].
+async function sheetsGetOpcional(range) {
+  const r = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(range)}`,
+    { headers: { Authorization: 'Bearer ' + TOKEN } }
+  );
+  if (handleAuthError(r.status)) throw new Error('Sheets GET auth ' + r.status);
+  if (r.status === 400) return [];
+  if (!r.ok) throw new Error('Sheets GET error ' + r.status);
+  const d = await r.json();
+  return d.values || [];
+}
+
+// Devuelve { titulo: sheetId(gid) } de todas las hojas de la planilla.
+async function sheetsMeta() {
+  const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}?fields=sheets.properties(sheetId,title)`, { headers: { Authorization: 'Bearer ' + TOKEN } });
+  if (handleAuthError(r.status)) throw new Error('Sheets META auth ' + r.status);
+  if (!r.ok) throw new Error('Sheets META error ' + r.status);
+  const d = await r.json();
+  const out = {};
+  (d.sheets || []).forEach(sh => { out[sh.properties.title] = sh.properties.sheetId; });
+  return out;
+}
+
+async function sheetsStructUpdate(requests) {
+  const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests })
+  });
+  if (handleAuthError(r.status)) throw new Error('Sheets STRUCT auth ' + r.status);
+  if (!r.ok) throw new Error('Sheets STRUCT error ' + r.status);
+  return r.json();
+}
+
+// Crea la hoja con su fila de encabezados si todavía no existe.
+async function asegurarHoja(titulo, encabezados) {
+  const meta = await sheetsMeta();
+  if (meta[titulo] !== undefined) return;
+  await sheetsStructUpdate([{ addSheet: { properties: { title: titulo } } }]);
+  await sheetsUpdate(titulo + '!A1', [encabezados]);
+}
+
+// Borra SOLO las filas cuyo valor en la columna colIdx coincide, con
+// deleteDimension (operación atómica del lado de Google). No reescribe el
+// resto de la hoja, así que un corte a mitad de camino no pierde datos.
+async function borrarFilasPorValor(hoja, colIdx, valor) {
+  const datos = await sheetsGet(hoja + '!A:Z');
+  const idxs = [];
+  datos.forEach((row, i) => { if (i > 0 && (row[colIdx] || '') === valor) idxs.push(i); });
+  if (!idxs.length) return 0;
+  const meta = await sheetsMeta();
+  const gid = meta[hoja];
+  if (gid === undefined) throw new Error('No existe la hoja ' + hoja);
+  // De abajo hacia arriba para que los índices de las filas restantes no se corran.
+  const requests = idxs.sort((a, b) => b - a).map(i => ({ deleteDimension: { range: { sheetId: gid, dimension: 'ROWS', startIndex: i, endIndex: i + 1 } } }));
+  await sheetsStructUpdate(requests);
+  return idxs.length;
+}
+
 // Detecta 401/403 en respuestas de Calendar API; usa el mismo handler que Sheets.
 function handleCalendarAuthError(status) { return handleAuthError(status); }
 
@@ -2072,16 +2167,18 @@ async function loadAll(force = false) {
   if (_loadingPromise) return _loadingPromise;
   _loadingPromise = (async () => {
     try {
-      const [clientes, prestamos, cuotas, pagos] = await Promise.all([
+      const [clientes, prestamos, cuotas, pagos, liquidaciones] = await Promise.all([
         sheetsGet('Clientes!A2:L'),
-        sheetsGet('Préstamos!A2:P'),
+        sheetsGet('Préstamos!A2:Q'),
         sheetsGet('Cuotas!A2:J'),
         sheetsGet('Pagos!A2:H'),
+        sheetsGetOpcional('Liquidaciones!A2:F'),
       ]);
       DB.clientes  = clientes.map(rowToCliente).filter(c => c.id && c.id.startsWith('CLI-'));
       DB.prestamos = prestamos.map(rowToPrestamo).filter(p => p.id && p.id.startsWith('PREST-'));
       DB.cuotas    = cuotas.map(rowToCuota).filter(c => c.id && c.id.startsWith('PREST-'));
       DB.pagos     = pagos.map(rowToPago).filter(p => p.id && p.id.startsWith('PAGO-'));
+      DB.liquidaciones = liquidaciones.map(rowToLiquidacion).filter(l => l.id && l.id.startsWith('LIQ-'));
       _lastLoad = Date.now();
     } catch(e) {
       console.error(e);
@@ -2096,8 +2193,9 @@ async function loadAll(force = false) {
 function invalidateCache() { _lastLoad = 0; }
 
 function rowToCliente(r)  { return { id:r[0]||'', apellido:r[1]||'', nombre:r[2]||'', alias:r[3]||'', dni:r[4]||'', tel:r[5]||'', tel2:r[6]||'', email:r[7]||'', dir:r[8]||'', alta:r[9]||'', activo:r[10]||'Sí', notas:r[11]||'' }; }
-function rowToPrestamo(r) { return { id:r[0]||'', clienteId:r[1]||'', nombre:r[2]||'', fechaInicio:r[3]||'', capital:parseFloat(r[4])||0, interes:r[5]||'', total:parseFloat(r[6])||0, cuotas:parseInt(r[7])||0, tipo:r[8]||'', terceroId:r[9]||'', terceroNombre:r[10]||'', ganBruta:parseFloat(r[11])||0, comision:parseFloat(r[12])||0, ganNeta:parseFloat(r[13])||0, estado:r[14]||'Activo', notas:r[15]||'' }; }
+function rowToPrestamo(r) { return { id:r[0]||'', clienteId:r[1]||'', nombre:r[2]||'', fechaInicio:r[3]||'', capital:parseFloat(r[4])||0, interes:r[5]||'', total:parseFloat(r[6])||0, cuotas:parseInt(r[7])||0, tipo:r[8]||'', terceroId:r[9]||'', terceroNombre:r[10]||'', ganBruta:parseFloat(r[11])||0, comision:parseFloat(r[12])||0, ganNeta:parseFloat(r[13])||0, estado:r[14]||'Activo', notas:r[15]||'', comPctRaw:r[16]||'' }; }
 function rowToCuota(r)    { return { id:r[0]||'', prestId:r[1]||'', clienteId:r[2]||'', nro:parseInt(r[3])||0, vencimiento:r[4]||'', monto:parseFloat(r[5])||0, pagado:parseFloat(r[6])||0, saldo:parseFloat(r[7])||0, estado:r[8]||'Pendiente', eventId:r[9]||'' }; }
+function rowToLiquidacion(r) { return { id:r[0]||'', fecha:r[1]||'', tercero:r[2]||'', prestId:r[3]||'', monto:parseFloat(r[4])||0, notas:r[5]||'' }; }
 function rowToPago(r)     { return { id:r[0]||'', cuotaId:r[1]||'', prestId:r[2]||'', clienteId:r[3]||'', fecha:r[4]||'', monto:parseFloat(r[5])||0, diasAtraso:parseInt(r[6])||0, notas:r[7]||'' }; }
 
 // Genera el próximo ID disponible buscando el MAX existente + 1.
@@ -2120,7 +2218,7 @@ function nextId(prefix, collection, padding) {
 // ============================================================
 // NAVIGATION
 // ============================================================
-const TITLES = { dashboard:'Dashboard', estadisticas:'Estadísticas', clientes:'Clientes', 'detalle-cliente':'Detalle cliente', prestamos:'Préstamos', 'detalle-prestamo':'Detalle préstamo', vencimientos:'Vencimientos', cobranzas:'Cobranzas — morosos', 'nuevo-prestamo':'Nuevo préstamo', 'nuevo-cliente':'Nuevo cliente', calculadora:'Calculadora de préstamos' };
+const TITLES = { dashboard:'Dashboard', estadisticas:'Estadísticas', clientes:'Clientes', 'detalle-cliente':'Detalle cliente', prestamos:'Préstamos', 'detalle-prestamo':'Detalle préstamo', vencimientos:'Vencimientos', cobranzas:'Cobranzas — morosos', terceros:'Terceros — comisiones', 'nuevo-prestamo':'Nuevo préstamo', 'nuevo-cliente':'Nuevo cliente', calculadora:'Calculadora de préstamos' };
 
 let navStack = [];
 let _navCurrentData = null;
@@ -2145,6 +2243,7 @@ async function nav(screen, data, opts) {
   if (screen === 'prestamos')        await renderPrestamos();
   if (screen === 'vencimientos')     await renderVencimientos();
   if (screen === 'cobranzas')        await renderCobranzas();
+  if (screen === 'terceros')         await renderTerceros(data);
   if (screen === 'detalle-cliente')  renderDetalleCliente(data);
   if (screen === 'detalle-prestamo') renderDetallePrestamo(data);
   if (screen === 'nuevo-prestamo')   initNuevoPrestamo(data);
@@ -2535,8 +2634,76 @@ async function renderPrestamos() {
   document.getElementById('prestamos-content').style.display = 'block';
 }
 
-// Nombre de agrupación de un préstamo de tercero (los sin nombre van juntos)
-function nombreTercero(p) { return (p.terceroNombre || '').trim() || '(sin nombre)'; }
+// ============================================================
+// TERCEROS — helpers
+// ============================================================
+const COMISION_PCT_DEFAULT = 20;
+function leerPct(inputId) {
+  const v = parseFloat(document.getElementById(inputId)?.value);
+  return isFinite(v) && v >= 0 && v <= 100 ? v : COMISION_PCT_DEFAULT;
+}
+// Codifica un texto para pasarlo seguro como argumento en un onclick='...'
+function argTercero(k) { return encodeURIComponent(k).replace(/'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29'); }
+function esTercero(p) { return !!p && (p.tipo === 'tercero' || p.tipo === 'De tercero'); }
+
+// % de comisión del tercero para ESTE crédito. Se guarda en la columna Q de
+// Préstamos; los créditos viejos (sin Q) usan el 20% de siempre.
+function pctComision(p) {
+  if (!esTercero(p)) return 0;
+  const v = parseFloat(String(p.comPctRaw || '').replace('%', '').replace(',', '.'));
+  return isFinite(v) && v >= 0 ? v : COMISION_PCT_DEFAULT;
+}
+
+// Clave de comparación: sin mayúsculas, sin tildes, sin "de " adelante y
+// sin espacios repetidos. "De Melgarejo", "melgarejo " y "MELGAREJO" → "melgarejo".
+function claveTercero(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/\s+/g, ' ').trim().replace(/^(de|del)\s+/, '').trim();
+}
+
+// Agrupa los créditos de tercero por clave y elige como nombre "oficial" la
+// forma escrita más usada (a igual uso, la que empieza con mayúscula).
+function mapaTerceros() {
+  const grupos = {};
+  DB.prestamos.filter(esTercero).forEach(p => {
+    const raw = (p.terceroNombre || '').trim();
+    const k = claveTercero(raw) || '(sin nombre)';
+    if (!grupos[k]) grupos[k] = { clave: k, formas: {}, prestamos: [] };
+    grupos[k].formas[raw || '(sin nombre)'] = (grupos[k].formas[raw || '(sin nombre)'] || 0) + 1;
+    grupos[k].prestamos.push(p);
+  });
+  Object.values(grupos).forEach(g => {
+    g.nombre = Object.keys(g.formas).sort((a, b) =>
+      (g.formas[b] - g.formas[a]) || ((/^[A-ZÁÉÍÓÚÑ]/.test(b) ? 1 : 0) - (/^[A-ZÁÉÍÓÚÑ]/.test(a) ? 1 : 0)) || a.localeCompare(b))[0];
+  });
+  return grupos;
+}
+
+// Nombre de agrupación de un préstamo de tercero (los sin nombre van juntos).
+// Variantes de mayúsculas / "de ..." se muestran con el nombre oficial.
+function nombreTercero(p) {
+  const k = claveTercero(p.terceroNombre) || '(sin nombre)';
+  const g = mapaTerceros()[k];
+  return g ? g.nombre : ((p.terceroNombre || '').trim() || '(sin nombre)');
+}
+
+// Al guardar un crédito: si el nombre escrito coincide (por clave) con un
+// tercero que ya existe, se usa la forma oficial. Así no se generan variantes nuevas.
+function canonizarTercero(nombre) {
+  const raw = String(nombre || '').trim().replace(/\s+/g, ' ');
+  if (!raw) return '';
+  const g = mapaTerceros()[claveTercero(raw)];
+  return g && g.clave !== '(sin nombre)' ? g.nombre : raw;
+}
+
+// Llena el <datalist> de terceros para que el input sugiera los existentes.
+function poblarDatalistTerceros() {
+  const dl = document.getElementById('dl-terceros');
+  if (!dl) return;
+  dl.innerHTML = Object.values(mapaTerceros()).filter(g => g.clave !== '(sin nombre)')
+    .map(g => g.nombre).sort((a, b) => a.localeCompare(b))
+    .map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
+}
 
 // Llena el select de terceros con cada nombre y cuántos créditos generó.
 // Se oculta si no hay ningún crédito de tercero.
@@ -2610,7 +2777,7 @@ function renderTablaPrestamos(lista) {
   }).join('') || '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">Sin créditos que coincidan con el filtro</td></tr>';
   const resumen = document.getElementById('cartera-resumen');
   const terceroF = document.getElementById('cartera-tercero')?.value || '';
-  const comisionTxt = terceroF ? ` · Comisión de ${escapeHtml(terceroF)}: <b class="text-mono text-amber">${fmt(lista.reduce((a, p) => a + (p.comision || 0), 0))}</b>` : '';
+  const comisionTxt = terceroF ? ` · Comisión de ${escapeHtml(terceroF)}: <b class="text-mono text-amber">${fmt(lista.reduce((a, p) => a + (p.comision || 0), 0))}</b> · Le debés hoy: <b class="text-mono text-red">${fmt(lista.filter(esTercero).reduce((a, p) => a + cuentaTerceroPrest(p).aPagar, 0))}</b> <a href="#" onclick="event.preventDefault();nav('terceros','${argTercero(claveTercero(terceroF) || '(sin nombre)')}')">ver detalle →</a>` : '';
   if (resumen) resumen.innerHTML = `<b>${lista.length}</b> crédito${lista.length !== 1 ? 's' : ''} · Capital: <b class="text-mono">${fmt(totCapital)}</b> · A devolver: <b class="text-mono">${fmt(totTotal)}</b> · Saldo por cobrar: <b class="text-mono text-amber">${fmt(totSaldo)}</b>${comisionTxt}`;
 }
 
@@ -2674,9 +2841,12 @@ function renderDetallePrestamo(prestId) {
          <div class="detail-row"><span class="detail-key">Interés</span><span class="detail-val mono">${p.interes}</span></div>
          <div class="detail-row"><span class="detail-key">Total a devolver</span><span class="detail-val mono">${fmt(p.total)}</span></div>
          <div class="detail-row"><span class="detail-key">Ganancia bruta</span><span class="detail-val mono text-green">${fmt(p.ganBruta)}</span></div>
-         ${(p.tipo === 'tercero' || p.tipo === 'De tercero') ? `<div class="detail-row"><span class="detail-key">Comisión (20%)</span><span class="detail-val mono text-amber">${fmt(p.comision)}</span></div>` : ''}
+         ${esTercero(p) ? (() => { const ct = cuentaTerceroPrest(p); return `<div class="detail-row"><span class="detail-key">Comisión tercero (${pctComision(p)}%)</span><span class="detail-val mono text-amber">${fmt(p.comision)}</span></div>
+         <div class="detail-row"><span class="detail-key">↳ Ganada sobre lo cobrado</span><span class="detail-val mono">${fmt(ct.devengada)}</span></div>
+         <div class="detail-row"><span class="detail-key">↳ Ya le pagaste</span><span class="detail-val mono text-green">${fmt(ct.pagada)}</span></div>
+         <div class="detail-row"><span class="detail-key">↳ Le debés hoy</span><span class="detail-val mono ${ct.aPagar > 0.5 ? 'text-red' : ''}">${fmt(ct.aPagar)}${ct.aPagar > 0.5 ? ` <button class="btn btn-amber btn-sm" style="padding:2px 8px;font-size:11px" onclick="abrirLiquidacionModal('${p.id}')">Pagar</button>` : ''}</span></div>`; })() : ''}
          <div class="detail-row"><span class="detail-key">Ganancia neta</span><span class="detail-val mono text-green">${fmt(p.ganNeta)}</span></div>
-         <div class="detail-row"><span class="detail-key">Tipo</span><span class="detail-val">${(p.tipo === 'tercero' || p.tipo === 'De tercero') ? '⚡ Tercero: ' + p.terceroNombre : 'Propio'}</span></div>
+         <div class="detail-row"><span class="detail-key">Tipo</span><span class="detail-val">${(p.tipo === 'tercero' || p.tipo === 'De tercero') ? '⚡ Tercero: <a href="#" onclick="event.preventDefault();nav(\'terceros\',\'' + argTercero(claveTercero(p.terceroNombre) || '(sin nombre)') + '\')">' + escapeHtml(nombreTercero(p)) + '</a>' : 'Propio'}</span></div>
          <div class="detail-row"><span class="detail-key">Inicio</span><span class="detail-val">${p.fechaInicio}</span></div>
       </div>
       <div class="detail-card">
@@ -2803,6 +2973,7 @@ function initNuevoPrestamo(clienteId) {
   limpiarClienteNP();
   setModoCliente('existente');
   setModoNP('interes');
+  poblarDatalistTerceros();
   recalcNP();
   if (clienteId && DB.clientes.some(c => c.id === clienteId)) seleccionarClienteNP(clienteId);
 }
@@ -2978,9 +3149,10 @@ function calcularMontosNP() {
   const total = cuotaM * cuotas;
   const interesEf = cap > 0 ? (total / cap - 1) * 100 : 0;
   const gb = total - cap;
-  const com = tipo === 'tercero' ? gb * 0.2 : 0;
+  const pct = leerPct('np-com-pct');
+  const com = tipo === 'tercero' ? gb * pct / 100 : 0;
   const gn = gb - com;
-  return { cap, cuotas, tipo, total, cuotaM, interesEf, gb, com, gn };
+  return { cap, cuotas, tipo, total, cuotaM, interesEf, gb, com, gn, pct };
 }
 
 function recalcNP() {
@@ -2993,6 +3165,7 @@ function recalcNP() {
   if (intEfEl) intEfEl.textContent = (Math.round(m.interesEf * 100) / 100) + '%';
   document.getElementById('np-r-gb').textContent = fmt(m.gb);
   document.getElementById('np-r-com').textContent = fmt(m.com);
+  document.getElementById('np-r-com-pct').textContent = m.pct;
   document.getElementById('np-r-gn').textContent = fmt(m.gn);
   document.getElementById('np-r-cuota').textContent = fmt(cuotaM);
   document.getElementById('np-r-freq').textContent = npFreqLabel;
@@ -3020,7 +3193,7 @@ async function crearPrestamo() {
   const cap = m.cap, cuotas = m.cuotas, tipo = m.tipo;
   const fechaStr = document.getElementById('np-fecha').value;
   const fechaPrimStr = document.getElementById('np-fecha-primera')?.value || '';
-  const tercero = document.getElementById('np-tercero')?.value||'';
+  const tercero = m.tipo === 'tercero' ? canonizarTercero(document.getElementById('np-tercero')?.value) : '';
   const notas = document.getElementById('np-notas')?.value||'';
   let clienteId, clienteNombre, nuevoClienteRow = null;
   if (npModoCliente === 'nuevo') {
@@ -3059,7 +3232,7 @@ async function crearPrestamo() {
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
     if (nuevoClienteRow) await sheetsAppend('Clientes!A:L', [nuevoClienteRow]);
-    await sheetsAppend('Préstamos!A:P', [[prestId, clienteId, clienteNombre, fmtFechaES(fechaInicio), cap, int+'%', total.toFixed(2), cuotas, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notas]]);
+    await sheetsAppend('Préstamos!A:Q', [[prestId, clienteId, clienteNombre, fmtFechaES(fechaInicio), cap, int+'%', total.toFixed(2), cuotas, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notas, tipo === 'tercero' ? m.pct : '']]);
     const cuotasRows = [];
     const calRows = [];
     btn.textContent = 'Creando cuotas...';
@@ -3476,7 +3649,7 @@ async function confirmarCuotaExtra() {
       const nuevaCantCuotas = nuevoNro;
       const nuevaGB = nuevoTotal - p.capital;
       const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
-      const nuevaCom = esTercero ? nuevaGB * 0.2 : 0;
+      const nuevaCom = esTercero ? nuevaGB * pctComision(p) / 100 : 0;
       const nuevaGN = nuevaGB - nuevaCom;
       await sheetsBatchUpdate([
         { range: `Préstamos!G${sheetRow}:H${sheetRow}`, values: [[nuevoTotal.toFixed(2), nuevaCantCuotas]] },
@@ -3949,7 +4122,7 @@ async function confirmarSalteo() {
       const nuevaCantCuotas = crearSegunda ? nro2 : nro1;
       const nuevaGB = nuevoTotal - p.capital;
       const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
-      const nuevaCom = esTercero ? nuevaGB * 0.2 : 0;
+      const nuevaCom = esTercero ? nuevaGB * pctComision(p) / 100 : 0;
       const nuevaGN = nuevaGB - nuevaCom;
       updates.push({ range: `Préstamos!G${sheetRow}:H${sheetRow}`, values: [[nuevoTotal.toFixed(2), nuevaCantCuotas]] });
       updates.push({ range: `Préstamos!L${sheetRow}:P${sheetRow}`, values: [[nuevaGB.toFixed(2), nuevaCom.toFixed(2), nuevaGN.toFixed(2), p.estado || 'Activo', nuevasNotas]] });
@@ -4046,7 +4219,7 @@ function actualizarPreviewEditCuota() {
   const nuevoTotal = p.total + diff;
   const nuevaGB = nuevoTotal - p.capital;
   const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
-  const nuevaGN = nuevaGB - (esTercero ? nuevaGB * 0.2 : 0);
+  const nuevaGN = nuevaGB - (esTercero ? nuevaGB * pctComision(p) / 100 : 0);
   document.getElementById('ec-prev-saldo').textContent = fmt(Math.max(0, nuevoMonto - cuota.pagado));
   document.getElementById('ec-prev-total').textContent = fmt(nuevoTotal);
   document.getElementById('ec-prev-gan').textContent = fmt(nuevaGN);
@@ -4078,7 +4251,7 @@ async function guardarEditCuota() {
     const nuevoTotal = parseFloat((p.total + nuevoMonto - montoViejo).toFixed(2));
     const nuevaGB = nuevoTotal - p.capital;
     const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
-    const nuevaCom = esTercero ? nuevaGB * 0.2 : 0;
+    const nuevaCom = esTercero ? nuevaGB * pctComision(p) / 100 : 0;
     const nuevaGN = nuevaGB - nuevaCom;
 
     // 1. Cuota en Sheets: F=monto, H=saldo (G=pagado no cambia)
@@ -4212,7 +4385,7 @@ async function deshacerSalteo(prestId, nroOriginal) {
           const nuevaCant = Math.max.apply(null, DB.cuotas.filter(c => c.prestId === prestId && !generadas.some(g => g.id === c.id)).map(c => c.nro));
           const nuevaGB = nuevoTotal - p.capital;
           const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
-          const nuevaCom = esTercero ? nuevaGB * 0.2 : 0;
+          const nuevaCom = esTercero ? nuevaGB * pctComision(p) / 100 : 0;
           const nuevaGN = nuevaGB - nuevaCom;
           await sheetsBatchUpdate([
             { range: `Préstamos!G${sheetRow}:H${sheetRow}`, values: [[nuevoTotal.toFixed(2), nuevaCant]] },
@@ -4626,12 +4799,13 @@ async function renderEstadisticas() {
 // ---- BALANCE REAL ----
 function renderBalanceReal(prestPeriodo, pagosPeriodo, desde, hoy, hoyMidnight) {
   // FLUJO DE PLATA
-  // Capital invertido (lo que salió de tu bolsillo para prestar)
-  // Solo contamos capital de préstamos PROPIOS, en terceros no ponés plata
+  // Capital invertido (lo que salió de tu bolsillo para prestar).
+  // En los créditos "de tercero" el capital también lo ponés vos: el tercero
+  // solo trae al cliente y cobra un % de la ganancia. Se cuentan todos.
   const propiosPeriodo = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero');
   const tercerosPeriodo = prestPeriodo.filter(p => p.tipo === 'tercero' || p.tipo === 'De tercero');
 
-  const capitalInvertidoPropio = propiosPeriodo.reduce((a,p) => a + (p.capital || 0), 0);
+  const capitalInvertidoPropio = prestPeriodo.reduce((a,p) => a + (p.capital || 0), 0);
   const capitalTotalPrestado = prestPeriodo.reduce((a,p) => a + (p.capital || 0), 0);
 
   // Total que DEBERÍA volver: monto_total de todos los préstamos del período
@@ -4689,14 +4863,14 @@ function renderBalanceReal(prestPeriodo, pagosPeriodo, desde, hoy, hoyMidnight) 
 
   document.getElementById('bal-flow-body').innerHTML =
     flowRow('Capital prestado (total)', capitalTotalPrestado, 'var(--accent2)', false, propiosPeriodo.length + ' propios · ' + tercerosPeriodo.length + ' de tercero') +
-    flowRow('Capital invertido (tu bolsillo)', capitalInvertidoPropio, 'var(--red)', false, 'Solo propios — en terceros no ponés capital') +
+    flowRow('Capital invertido (tu bolsillo)', capitalInvertidoPropio, 'var(--red)', false, 'Propios + de tercero (el capital es tuyo en ambos)') +
     flowRow('Total que debe volver', totalDeberiaVolver, 'var(--text)', true, 'Capital + intereses de todos los préstamos') +
     flowRow('Ganancia neta prometida', gnPrometida, 'var(--green)', false, 'Si se cobra absolutamente todo') +
     '<div style="height:1px;background:var(--accent);opacity:0.3"></div>' +
     flowRow('Total cobrado', totalCobrado, 'var(--green)', true, pagosPeriodo.length + ' pagos recibidos') +
     flowRow('↳ Capital recuperado', capitalRecuperado, 'var(--muted)', false, 'Parte del cobro que es devolución de capital') +
     flowRow('↳ Ganancia realizada', gananciaRealizada, 'var(--green)', false, 'Parte del cobro que es ganancia neta tuya') +
-    (comisionRealizada > 0.5 ? flowRow('↳ Comisiones pagadas', comisionRealizada, 'var(--amber)', false, 'Parte del cobro que va a terceros') : '') +
+    (comisionRealizada > 0.5 ? flowRow('↳ Comisión de terceros', comisionRealizada, 'var(--amber)', false, 'Parte del cobro que le corresponde a los terceros') : '') +
     '<div style="height:1px;background:var(--accent);opacity:0.3"></div>' +
     flowRow('Pendiente de cobro', pendienteCobro, 'var(--amber)', true, 'Cuotas sin pagar de estos préstamos');
 
@@ -4804,7 +4978,8 @@ function renderBalanceReal(prestPeriodo, pagosPeriodo, desde, hoy, hoyMidnight) 
 // ---- RENDIMIENTO ----
 function renderRendimiento(prestPeriodo, pagosPeriodo, capitalTotal, gbTotal, gnTotal, comTotal, hoyMidnight, desde, hoy) {
   const montoCobrado = pagosPeriodo.reduce((a,p) => a + p.monto, 0);
-  const capitalInvertidoPropio = prestPeriodo.filter(p => p.tipo !== 'tercero' && p.tipo !== 'De tercero').reduce((a,p) => a + (p.capital || 0), 0);
+  // El capital de los créditos de tercero también es tuyo (ver renderBalanceReal).
+  const capitalInvertidoPropio = prestPeriodo.reduce((a,p) => a + (p.capital || 0), 0);
 
   // ROI real: ganancia realizada / capital invertido propio
   // Para los pagos del período, calcular cuánta ganancia neta representan
@@ -5198,8 +5373,10 @@ function abrirEditPrestModal(prestId) {
   document.getElementById('ep-interes-hint').textContent = '';
   document.getElementById('ep-capital-preview').style.display = 'none';
   document.getElementById('ep-tipo').value = (p.tipo === 'tercero' || p.tipo === 'De tercero') ? 'tercero' : 'propio';
-  document.getElementById('ep-tercero').value = p.terceroNombre || '';
+  document.getElementById('ep-tercero').value = esTercero(p) ? nombreTercero(p) : '';
+  document.getElementById('ep-com-pct').value = esTercero(p) ? pctComision(p) : COMISION_PCT_DEFAULT;
   document.getElementById('ep-notas').value = p.notas || '';
+  poblarDatalistTerceros();
   toggleEpTercero();
   document.getElementById('editPrestModal').classList.add('open');
 }
@@ -5248,7 +5425,27 @@ function actualizarPreviewCapital() {
   preview.style.display = 'block';
 }
 
-function toggleEpTercero() { document.getElementById('ep-tercero-field').style.display = document.getElementById('ep-tipo').value === 'tercero' ? 'flex' : 'none'; }
+function toggleEpTercero() { document.getElementById('ep-tercero-field').style.display = document.getElementById('ep-tipo').value === 'tercero' ? 'flex' : 'none'; actualizarPreviewComEp(); }
+
+// Total que se usa al guardar la edición: si no cambió capital ni interés se
+// conserva el total REAL del préstamo (cuotas extra, salteos, cuotas editadas
+// y el redondeo de cuota quedan incluidos). Solo si cambian se recalcula.
+function totalEditPrest(p, nuevoCapital, nuevoInteres) {
+  const cambio = nuevoCapital !== _epCapitalOriginal || nuevoInteres !== _epInteresOriginal;
+  return cambio ? nuevoCapital * (1 + nuevoInteres / 100) : (p.total || 0);
+}
+
+function actualizarPreviewComEp() {
+  const el = document.getElementById('ep-com-preview');
+  const p = DB.prestamos.find(x => x.id === editPrestId);
+  if (!el || !p) return;
+  if (document.getElementById('ep-tipo').value !== 'tercero') { el.textContent = ''; return; }
+  const cap = parseFloat(document.getElementById('ep-capital').value) || 0;
+  const int = parseFloat(document.getElementById('ep-interes').value) || 0;
+  const gb = totalEditPrest(p, cap, int) - cap;
+  const pct = leerPct('ep-com-pct');
+  el.textContent = 'Comisión del tercero: ' + fmt(gb * pct / 100) + ' (' + pct + '% de la ganancia ' + fmt(gb) + ') · Te queda: ' + fmt(gb - gb * pct / 100);
+}
 function closeEditPrestModal() { document.getElementById('editPrestModal').classList.remove('open'); editPrestId = null; }
 
 async function guardarEditPrest() {
@@ -5256,7 +5453,8 @@ async function guardarEditPrest() {
   const nuevoCapital = parseFloat(document.getElementById('ep-capital').value) || 0;
   const nuevoInteres = parseFloat(document.getElementById('ep-interes').value) || 0;
   const tipo = document.getElementById('ep-tipo').value;
-  const tercero = document.getElementById('ep-tercero').value.trim();
+  const tercero = tipo === 'tercero' ? canonizarTercero(document.getElementById('ep-tercero').value) : '';
+  const comPct = tipo === 'tercero' ? leerPct('ep-com-pct') : '';
   const notas = document.getElementById('ep-notas').value.trim();
   if (!nuevoCapital || nuevoCapital <= 0) { showToast('El capital debe ser mayor a 0', 'error'); return; }
   if (nuevoInteres < 0) { showToast('El interés no puede ser negativo', 'error'); return; }
@@ -5269,13 +5467,16 @@ async function guardarEditPrest() {
     if (!p) throw new Error('Préstamo no encontrado en memoria');
     const capitalCambio = nuevoCapital !== _epCapitalOriginal;
     const interesCambio = nuevoInteres !== _epInteresOriginal;
-    const nuevoTotal = nuevoCapital * (1 + nuevoInteres / 100);
+    // BUG corregido: antes se recalculaba SIEMPRE capital*(1+interés), lo que
+    // al pasar de propio a tercero pisaba el total real (extras, salteos,
+    // redondeo de cuota) y dejaba mal la ganancia y la comisión.
+    const nuevoTotal = totalEditPrest(p, nuevoCapital, nuevoInteres);
     const ganBruta = nuevoTotal - nuevoCapital;
     // La comisión se calcula con el tipo NUEVO elegido en el form (no el
     // viejo): si pasa de propio a tercero arranca a comisionar y viceversa.
-    const comision = tipo === 'tercero' ? ganBruta * 0.2 : 0;
+    const comision = tipo === 'tercero' ? ganBruta * comPct / 100 : 0;
     const ganNeta = ganBruta - comision;
-    const terceroFinal = tipo === 'tercero' ? tercero : '';
+    const terceroFinal = tercero;
 
     // 1. Actualizar Préstamos en Sheets
     const datos = await sheetsGet('Préstamos!A1:P');
@@ -5288,7 +5489,7 @@ async function guardarEditPrest() {
       { range: `Préstamos!E${sheetRow}:G${sheetRow}`, values: [[nuevoCapital, nuevoInteres + '%', nuevoTotal.toFixed(2)]] },
       { range: `Préstamos!I${sheetRow}:K${sheetRow}`, values: [[tipoStr, '', terceroFinal]] },
       { range: `Préstamos!L${sheetRow}:N${sheetRow}`, values: [[ganBruta.toFixed(2), comision.toFixed(2), ganNeta.toFixed(2)]] },
-      { range: `Préstamos!P${sheetRow}`, values: [[notas]] },
+      { range: `Préstamos!P${sheetRow}:Q${sheetRow}`, values: [[notas, comPct]] },
     ]);
 
     // 2. Si cambió el capital o el interés, actualizar cuotas pendientes
@@ -5448,6 +5649,9 @@ function abrirRefinanciarModal(clienteId) {
   document.getElementById('refi-freq').value = '30';
   document.getElementById('refi-tipo').value = 'propio';
   document.getElementById('refi-tercero-field').style.display = 'none';
+  document.getElementById('refi-tercero').value = '';
+  document.getElementById('refi-com-pct').value = COMISION_PCT_DEFAULT;
+  poblarDatalistTerceros();
 
   recalcRefi();
   document.getElementById('refiModal').classList.add('open');
@@ -5493,9 +5697,11 @@ function recalcRefi() {
   const capital = saldoTotal + extra;
   const total = capital * (1 + interes / 100);
   const gb = total - capital;
-  const com = tipo === 'tercero' ? gb * 0.2 : 0;
+  const pct = leerPct('refi-com-pct');
+  const com = tipo === 'tercero' ? gb * pct / 100 : 0;
   const gn = gb - com;
   const cuotaVal = total / cuotas;
+  document.getElementById('refi-p-com-pct').textContent = pct;
 
   document.getElementById('refi-p-capital').textContent = fmt(capital);
   const desgloseRow = document.getElementById('refi-p-desglose-row');
@@ -5530,7 +5736,8 @@ async function confirmarRefinanciar() {
   const cuotasN = Math.max(1, parseInt(document.getElementById('refi-cuotas').value) || 1);
   const freqDias = parseInt(document.getElementById('refi-freq').value) || 30;
   const tipo = document.getElementById('refi-tipo').value;
-  const tercero = document.getElementById('refi-tercero')?.value || '';
+  const tercero = tipo === 'tercero' ? canonizarTercero(document.getElementById('refi-tercero')?.value) : '';
+  const refiPct = tipo === 'tercero' ? leerPct('refi-com-pct') : '';
   const fechaStr = document.getElementById('refi-fecha').value;
 
   if (!fechaStr) { showToast('Elegí una fecha de inicio', 'error'); return; }
@@ -5601,12 +5808,12 @@ async function confirmarRefinanciar() {
     const capital = saldoTotal + extra;
     const total = capital * (1 + interes / 100);
     const gb = total - capital;
-    const com = tipo === 'tercero' ? gb * 0.2 : 0;
+    const com = tipo === 'tercero' ? gb * refiPct / 100 : 0;
     const gn = gb - com;
     const cuotaM = total / cuotasN;
     const notaNuevo = 'Refinanciación de: ' + selIds.join(', ') + (extra > 0 ? ' + ' + fmt(extra) + ' extra entregado en efectivo' : '');
 
-    await sheetsAppend('Préstamos!A:P', [[nuevoPrestId, refiClienteId, clienteNombre, fmtFechaES(fechaInicio), capital, interes+'%', total.toFixed(2), cuotasN, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notaNuevo]]);
+    await sheetsAppend('Préstamos!A:Q', [[nuevoPrestId, refiClienteId, clienteNombre, fmtFechaES(fechaInicio), capital, interes+'%', total.toFixed(2), cuotasN, tipo, '', tercero, gb.toFixed(2), com.toFixed(2), gn.toFixed(2), 'Activo', notaNuevo, refiPct]]);
 
     // 7. Crear cuotas + Calendar del nuevo préstamo
     const cuotasRows = [];
@@ -6485,6 +6692,445 @@ async function setVetoCliente(clienteId, vetar) {
 
 document.getElementById('cobroModal').addEventListener('click', e => { if (e.target === document.getElementById('cobroModal')) closeCobroModal(); });
 
+// ============================================================
+// TERCEROS — pantalla, pagos al tercero, unificar nombres, revisar comisiones
+// ============================================================
+// Modelo: el capital lo ponés vos; el tercero trae al cliente y le corresponde
+// un % (default 20) de la ganancia del crédito. Su parte se "gana" a medida
+// que el cliente paga (proporcional a lo cobrado) y se le paga cuando quieras
+// (cuota a cuota o todo al final). Los pagos al tercero van a la hoja Liquidaciones.
+let terSel = '';      // '' = todos; si no, la clave del tercero
+let liqFilas = [];    // filas del modal de pago al tercero
+
+function cerrarModal(id) { document.getElementById(id)?.classList.remove('open'); }
+
+function sumar(arr, f) { return arr.reduce((a, x) => a + (f(x) || 0), 0); }
+
+function rangoMesTer() {
+  const v = document.getElementById('ter-mes')?.value || '';
+  const [y, m] = v.split('-').map(Number);
+  if (!y || !m) return { desde: null, hasta: null, label: '' };
+  const label = new Date(y, m - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  return { desde: new Date(y, m - 1, 1, 0, 0, 0), hasta: new Date(y, m, 1, 0, 0, 0), label };
+}
+
+// Cuenta del tercero para un crédito. desde/hasta (opcionales) acotan el "mes".
+function cuentaTerceroPrest(p, desde, hasta) {
+  const com = p.comision || 0;
+  const ratioCom = p.total > 0 ? com / p.total : 0;
+  const ratioGN = p.total > 0 ? (p.ganNeta || 0) / p.total : 0;
+  const pagos = DB.pagos.filter(x => x.prestId === p.id);
+  const liqs = (DB.liquidaciones || []).filter(l => l.prestId === p.id);
+  const enMes = f => { if (!desde) return false; const d = parseFecha(f); return !!d && d >= desde && d < hasta; };
+  const cobrado = sumar(pagos, x => x.monto);
+  const devengada = Math.min(com, cobrado * ratioCom);
+  const pagada = sumar(liqs, l => l.monto);
+  const pagosMes = pagos.filter(x => enMes(x.fecha));
+  const cobradoMes = sumar(pagosMes, x => x.monto);
+  return {
+    p, com, cobrado, devengada, pagada,
+    aPagar: Math.max(0, devengada - pagada),
+    adelantado: Math.max(0, pagada - devengada),
+    restante: Math.max(0, com - pagada),
+    futura: p.estado === 'Refinanciado' ? 0 : Math.max(0, com - devengada),
+    saldo: saldoPrestamo(p.id),
+    cobradoMes,
+    comMes: cobradoMes * ratioCom,
+    gnMes: cobradoMes * ratioGN,
+    pagadaMes: sumar(liqs.filter(l => enMes(l.fecha)), l => l.monto),
+  };
+}
+
+function totalizarCuentas(cs) {
+  const t = {};
+  ['com','cobrado','devengada','pagada','aPagar','adelantado','restante','futura','saldo','cobradoMes','comMes','gnMes','pagadaMes']
+    .forEach(k => { t[k] = sumar(cs, c => c[k]); });
+  return t;
+}
+
+async function renderTerceros(data) {
+  document.getElementById('terceros-loading').style.display = 'flex';
+  document.getElementById('terceros-content').style.display = 'none';
+  await loadAll();
+  if (data) { try { terSel = decodeURIComponent(data); } catch(e) { terSel = data; } }
+  const mesInp = document.getElementById('ter-mes');
+  if (!mesInp.value) { const h = new Date(); mesInp.value = h.getFullYear() + '-' + String(h.getMonth() + 1).padStart(2, '0'); }
+  poblarDatalistTerceros();
+  renderTercerosContenido();
+  document.getElementById('terceros-loading').style.display = 'none';
+  document.getElementById('terceros-content').style.display = 'block';
+}
+
+function renderTercerosContenido() {
+  const grupos = mapaTerceros();
+  const lista = Object.values(grupos).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  if (terSel && !grupos[terSel]) terSel = '';
+  const sel = document.getElementById('ter-sel');
+  sel.innerHTML = '<option value="">Todos los terceros</option>' + lista.map(g =>
+    `<option value="${escapeHtml(g.clave)}">${escapeHtml(g.nombre)} (${g.prestamos.length})</option>`).join('');
+  sel.value = terSel;
+
+  const { desde, hasta, label } = rangoMesTer();
+  const prests = terSel ? grupos[terSel].prestamos : DB.prestamos.filter(esTercero);
+  const cuentas = prests.map(p => cuentaTerceroPrest(p, desde, hasta));
+  const t = totalizarCuentas(cuentas);
+  const quien = terSel ? escapeHtml(grupos[terSel].nombre) : 'los terceros';
+
+  // Avisos: nombres escritos de varias formas / posibles duplicados
+  const variantes = lista.filter(g => Object.keys(g.formas).length > 1).length;
+  const sospechosos = sugerenciasTerceros(lista).length;
+  const avisos = [];
+  if (variantes) avisos.push(`${variantes} tercero${variantes !== 1 ? 's están' : ' está'} escrito${variantes !== 1 ? 's' : ''} de varias formas (mayúsculas / "de ..."). Ya se agrupan bien acá, pero conviene corregirlo en la planilla.`);
+  if (sospechosos) avisos.push(`${sospechosos} posible${sospechosos !== 1 ? 's' : ''} duplicado${sospechosos !== 1 ? 's' : ''} con nombre parecido (ej. abreviado).`);
+  const malCalc = DB.prestamos.filter(esTercero).map(analizarPrestamoComision).filter(Boolean).length;
+  const cajaAviso = (txt, btn) => `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:12px;font-size:13px">⚠ ${txt} ${btn}</div>`;
+  document.getElementById('ter-avisos').innerHTML =
+    (avisos.length ? cajaAviso(avisos.join(' '), '<button class="btn btn-amber btn-sm" style="margin-left:8px" onclick="abrirUnificarTercerosModal()">Unificar nombres</button>') : '')
+    + (malCalc ? cajaAviso(`${malCalc} crédito${malCalc !== 1 ? 's' : ''} de tercero con la comisión o la ganancia mal guardada (por ejemplo, editados de propio a tercero con la versión anterior). Los montos de esta pantalla dependen de eso.`, '<button class="btn btn-amber btn-sm" style="margin-left:8px" onclick="abrirRevisarComisionesModal()">Revisar</button>') : '');
+
+  document.getElementById('ter-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Cobrado en ${escapeHtml(label)}</div><div class="stat-value">${fmt(t.cobradoMes)}</div><div class="stat-meta">De créditos de ${quien}</div></div>
+    <div class="stat-card"><div class="stat-label">Te quedó a vos</div><div class="stat-value text-green">${fmt(t.gnMes)}</div><div class="stat-meta">Tu ganancia neta del mes (sin capital)</div></div>
+    <div class="stat-card"><div class="stat-label">Comisión generada</div><div class="stat-value text-amber">${fmt(t.comMes)}</div><div class="stat-meta">Pagado en el mes: ${fmt(t.pagadaMes)}</div></div>
+    <div class="stat-card"><div class="stat-label">Le debés hoy</div><div class="stat-value ${t.aPagar > 0.5 ? 'text-red' : ''}">${fmt(t.aPagar)}</div><div class="stat-meta">Futura (al seguir cobrando): ${fmt(t.futura)}${t.adelantado > 0.5 ? ' · Adelantado: ' + fmt(t.adelantado) : ''}</div></div>`;
+
+  const thead = document.getElementById('ter-thead'), tbody = document.getElementById('ter-tbody');
+  const acciones = document.getElementById('ter-tabla-acciones');
+  if (!terSel) {
+    document.getElementById('ter-tabla-titulo').textContent = 'Por tercero';
+    acciones.innerHTML = '';
+    thead.innerHTML = '<tr><th>Tercero</th><th>Créditos</th><th>Saldo por cobrar</th><th>Cobrado mes</th><th>Comisión mes</th><th>Le debés hoy</th><th>Futura</th><th></th></tr>';
+    tbody.innerHTML = lista.map(g => {
+      const cs = g.prestamos.map(p => cuentaTerceroPrest(p, desde, hasta));
+      const tg = totalizarCuentas(cs);
+      const activos = g.prestamos.filter(p => saldoPrestamo(p.id) > 0.01 && p.estado !== 'Refinanciado').length;
+      const k = argTercero(g.clave);
+      return `<tr class="clickable" onclick="terSel=decodeURIComponent('${k}');renderTercerosContenido()">
+        <td><div class="td-name">${escapeHtml(g.nombre)}</div>${Object.keys(g.formas).length > 1 ? `<div class="td-sub">${Object.keys(g.formas).length} formas de escribirlo</div>` : ''}</td>
+        <td class="td-mono">${activos} activos / ${g.prestamos.length}</td>
+        <td class="td-mono">${fmt(tg.saldo)}</td>
+        <td class="td-mono">${fmt(tg.cobradoMes)}</td>
+        <td class="td-mono text-amber">${fmt(tg.comMes)}</td>
+        <td class="td-mono ${tg.aPagar > 0.5 ? 'text-red' : ''}">${fmt(tg.aPagar)}</td>
+        <td class="td-mono">${fmt(tg.futura)}</td>
+        <td style="white-space:nowrap">${tg.aPagar > 0.5 ? `<button class="btn btn-amber btn-sm" onclick="event.stopPropagation();abrirLiquidacionTercero(decodeURIComponent('${k}'))">Pagar</button>` : ''}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">No hay créditos de tercero</td></tr>';
+  } else {
+    const g = grupos[terSel];
+    document.getElementById('ter-tabla-titulo').textContent = 'Créditos de ' + g.nombre;
+    const k = argTercero(g.clave);
+    acciones.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="terSel='';renderTercerosContenido()">← Todos</button> `
+      + (t.aPagar > 0.5 ? `<button class="btn btn-amber btn-sm" onclick="abrirLiquidacionTercero(decodeURIComponent('${k}'))">Pagar todo lo adeudado (${fmt(t.aPagar)})</button>` : '');
+    thead.innerHTML = '<tr><th>Crédito</th><th>%</th><th>Comisión total</th><th>Cobrado</th><th>Ganada</th><th>Pagada</th><th>Le debés</th><th>Futura</th><th>Estado</th><th></th></tr>';
+    const orden = cuentas.slice().sort((a, b) => (b.aPagar - a.aPagar) || (b.saldo - a.saldo) || b.p.id.localeCompare(a.p.id));
+    tbody.innerHTML = orden.map(c => {
+      const p = c.p;
+      const cl = DB.clientes.find(x => x.id === p.clienteId) || {};
+      return `<tr class="clickable" onclick="nav('detalle-prestamo','${p.id}')">
+        <td><div class="td-name">${cl.id ? escapeHtml(cl.apellido) + ', ' + escapeHtml(cl.nombre) : escapeHtml(p.nombre)}</div><div class="td-sub">${p.id} · ${escapeHtml(p.fechaInicio)}</div></td>
+        <td class="td-mono">${pctComision(p)}%</td>
+        <td class="td-mono">${fmt(c.com)}</td>
+        <td class="td-mono">${fmt(c.cobrado)} <span class="td-sub">de ${fmt(p.total)}</span></td>
+        <td class="td-mono text-amber">${fmt(c.devengada)}</td>
+        <td class="td-mono text-green">${fmt(c.pagada)}</td>
+        <td class="td-mono ${c.aPagar > 0.5 ? 'text-red' : ''}">${fmt(c.aPagar)}${c.adelantado > 0.5 ? `<div class="td-sub">adelantado ${fmt(c.adelantado)}</div>` : ''}</td>
+        <td class="td-mono">${fmt(c.futura)}</td>
+        <td>${estadoPill2(calcEstadoPrestamo(p.id))}</td>
+        <td>${c.restante > 0.5 ? `<button class="btn btn-amber btn-sm" onclick="event.stopPropagation();abrirLiquidacionModal('${p.id}')">Pagar</button>` : ''}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--muted)">Sin créditos</td></tr>';
+  }
+
+  // Historial de pagos a terceros
+  const idsSel = new Set(prests.map(p => p.id));
+  const liqs = (DB.liquidaciones || []).filter(l => idsSel.has(l.prestId) || (!terSel && !l.prestId))
+    .sort((a, b) => (parseFecha(b.fecha) || 0) - (parseFecha(a.fecha) || 0) || b.id.localeCompare(a.id));
+  document.getElementById('ter-liq-sub').textContent = liqs.length + ' pago' + (liqs.length !== 1 ? 's' : '') + ' · ' + fmt(sumar(liqs, l => l.monto));
+  document.getElementById('ter-liq-tbody').innerHTML = liqs.map(l => `<tr>
+      <td class="td-mono">${escapeHtml(l.fecha)}</td>
+      <td>${escapeHtml(l.tercero)}</td>
+      <td class="td-mono">${l.prestId ? `<a href="#" onclick="event.preventDefault();nav('detalle-prestamo','${escapeHtml(l.prestId)}')">${escapeHtml(l.prestId)}</a>` : '—'}</td>
+      <td class="td-mono text-green">${fmt(l.monto)}</td>
+      <td class="td-sub">${escapeHtml(l.notas)}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="eliminarLiquidacion('${escapeHtml(l.id)}')" title="Borrar este pago">🗑</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--muted)">Todavía no registraste pagos a terceros</td></tr>';
+}
+
+// ---------- Pago al tercero ----------
+function abrirLiquidacionModal(prestId) {
+  const p = DB.prestamos.find(x => x.id === prestId);
+  if (!p) return;
+  abrirLiquidacionCon([p], nombreTercero(p));
+}
+function abrirLiquidacionTercero(clave) {
+  const g = mapaTerceros()[clave];
+  if (!g) return;
+  const conDeuda = g.prestamos.filter(p => cuentaTerceroPrest(p).aPagar > 0.5);
+  abrirLiquidacionCon(conDeuda.length ? conDeuda : g.prestamos, g.nombre);
+}
+function abrirLiquidacionCon(prests, nombre) {
+  liqFilas = prests.map(p => cuentaTerceroPrest(p));
+  document.getElementById('liq-sub').textContent = 'Tercero: ' + nombre;
+  document.getElementById('liq-fecha').value = ISO(new Date());
+  document.getElementById('liq-notas').value = '';
+  document.getElementById('liq-tbody').innerHTML = liqFilas.map((c, i) => {
+    const cl = DB.clientes.find(x => x.id === c.p.clienteId) || {};
+    return `<tr>
+      <td><div class="td-name">${cl.id ? escapeHtml(cl.apellido) + ', ' + escapeHtml(cl.nombre) : escapeHtml(c.p.nombre)}</div><div class="td-sub">${c.p.id} · ${pctComision(c.p)}%</div></td>
+      <td class="td-mono">${fmt(c.aPagar)}</td>
+      <td class="td-mono">${fmt(c.restante)}</td>
+      <td><input class="form-input" id="liq-m-${i}" type="number" min="0" step="100" style="width:120px" value="${Math.round(c.aPagar)}" oninput="actualizarTotalLiq()"></td>
+    </tr>`;
+  }).join('');
+  actualizarTotalLiq();
+  document.getElementById('liqModal').classList.add('open');
+}
+function actualizarTotalLiq() {
+  const tot = liqFilas.reduce((a, c, i) => a + (parseFloat(document.getElementById('liq-m-' + i)?.value) || 0), 0);
+  document.getElementById('liq-total').textContent = fmt(tot);
+}
+async function guardarLiquidacion() {
+  const fechaStr = document.getElementById('liq-fecha').value;
+  if (!fechaStr) { showToast('Elegí la fecha del pago', 'error'); return; }
+  const fecha = new Date(fechaStr + 'T12:00:00');
+  const notas = document.getElementById('liq-notas').value.trim();
+  const items = liqFilas.map((c, i) => ({ c, monto: parseFloat(document.getElementById('liq-m-' + i)?.value) || 0 })).filter(x => x.monto > 0);
+  if (!items.length) { showToast('Ingresá al menos un monto', 'error'); return; }
+  const excedidos = items.filter(x => x.monto > x.c.restante + 1);
+  if (excedidos.length && !confirm('En ' + excedidos.length + ' crédito(s) el monto supera la comisión que queda por pagar. ¿Registrar igual?')) return;
+  const btn = document.getElementById('btn-guardar-liq');
+  if (btn.disabled) return;
+  btn.disabled = true; const lbl = btn.textContent; btn.textContent = 'Guardando...';
+  try {
+    await asegurarHoja('Liquidaciones', ['ID', 'Fecha', 'Tercero', 'Préstamo', 'Monto', 'Notas']);
+    // Releer IDs de la planilla para no duplicar si se cargó desde otro dispositivo
+    const existentes = (await sheetsGetOpcional('Liquidaciones!A2:A')).map(r => ({ id: r[0] || '' }));
+    let n = parseInt(nextId('LIQ-', existentes.concat(DB.liquidaciones || [])).slice(4), 10);
+    const rows = items.map(x => ['LIQ-' + String(n++).padStart(4, '0'), fmtFechaES(fecha), nombreTercero(x.c.p), x.c.p.id, x.monto.toFixed(2), notas]);
+    await sheetsAppend('Liquidaciones!A:F', rows);
+    cerrarModal('liqModal');
+    showToast('✓ Pago al tercero registrado (' + fmt(sumar(items, x => x.monto)) + ')');
+    invalidateCache();
+    await loadAll(true);
+    refrescarPantallaActual();
+  } catch(e) {
+    console.error(e);
+    showToast('Error al registrar el pago: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = lbl;
+  }
+}
+async function eliminarLiquidacion(id) {
+  const l = (DB.liquidaciones || []).find(x => x.id === id);
+  if (!l || !confirm('¿Borrar el pago ' + id + ' de ' + fmt(l.monto) + ' a ' + l.tercero + '?')) return;
+  try {
+    await borrarFilasPorValor('Liquidaciones', 0, id);
+    showToast('✓ Pago borrado');
+    invalidateCache();
+    await loadAll(true);
+    refrescarPantallaActual();
+  } catch(e) {
+    console.error(e);
+    showToast('Error al borrar: ' + e.message, 'error');
+  }
+}
+function refrescarPantallaActual() {
+  const actual = document.querySelector('.screen.active')?.id?.replace('screen-', '') || 'dashboard';
+  if (actual === 'terceros') renderTercerosContenido();
+  else if (actual === 'detalle-prestamo') renderDetallePrestamo(_navCurrentData);
+  else nav(actual, _navCurrentData, { back: true });
+}
+
+// ---------- Unificar nombres ----------
+function distanciaEdicion(a, b) {
+  if (Math.abs(a.length - b.length) > 3) return 99;
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i-1][j] + 1, d[i][j-1] + 1, d[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+// Pares de grupos que probablemente sean la misma persona: uno es el comienzo
+// del otro ("melga" / "melgarejo") o difieren en 1-2 letras ("melgareho").
+function sugerenciasTerceros(lista) {
+  const out = [];
+  const gs = lista.filter(g => g.clave !== '(sin nombre)');
+  for (let i = 0; i < gs.length; i++) for (let j = i + 1; j < gs.length; j++) {
+    const a = gs[i].clave, b = gs[j].clave;
+    const corto = a.length <= b.length ? a : b, largo = corto === a ? b : a;
+    const prefijo = corto.length >= 3 && (largo.startsWith(corto) || largo.split(' ').some(w => w.startsWith(corto)));
+    const parecido = Math.min(a.length, b.length) >= 5 && distanciaEdicion(a, b) <= 2;
+    if (prefijo || parecido) out.push([gs[i], gs[j]]);
+  }
+  return out;
+}
+function abrirUnificarTercerosModal() {
+  const lista = Object.values(mapaTerceros()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const filas = [];
+  lista.forEach(g => Object.keys(g.formas).sort().forEach(f => filas.push({ forma: f, n: g.formas[f], g })));
+  document.getElementById('unif-ter-tbody').innerHTML = filas.map((f, i) => `<tr>
+      <td><input type="checkbox" class="unif-ter-chk" data-forma="${escapeHtml(f.forma)}" data-clave="${escapeHtml(f.g.clave)}" onchange="sugerirNombreFinal()"></td>
+      <td>${escapeHtml(f.forma)}</td>
+      <td class="td-mono">${f.n}</td>
+      <td class="td-sub">${escapeHtml(f.g.nombre)}</td>
+    </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:18px;color:var(--muted)">No hay créditos de tercero</td></tr>';
+  const sug = sugerenciasTerceros(lista);
+  document.getElementById('unif-ter-sugerencias').innerHTML = sug.length
+    ? `<div style="font-size:13px;margin-bottom:10px">Posibles duplicados: ${sug.map(([a, b]) =>
+        `<button class="btn btn-ghost btn-sm" style="margin:2px" onclick="marcarGruposUnif(['${argTercero(a.clave)}','${argTercero(b.clave)}'])">${escapeHtml(a.nombre)} ↔ ${escapeHtml(b.nombre)}</button>`).join('')}</div>` : '';
+  document.getElementById('unif-ter-nombre').value = '';
+  poblarDatalistTerceros();
+  document.getElementById('unifTerModal').classList.add('open');
+}
+function marcarGruposUnif(clavesCod) {
+  const claves = clavesCod.map(decodeURIComponent);
+  document.querySelectorAll('.unif-ter-chk').forEach(ch => { ch.checked = claves.includes(ch.dataset.clave); });
+  sugerirNombreFinal();
+}
+// Propone como nombre final el grupo con más créditos entre los marcados.
+function sugerirNombreFinal() {
+  const grupos = mapaTerceros();
+  const claves = [...new Set([...document.querySelectorAll('.unif-ter-chk:checked')].map(ch => ch.dataset.clave))];
+  if (!claves.length) return;
+  const mejor = claves.map(k => grupos[k]).filter(Boolean).sort((a, b) => b.prestamos.length - a.prestamos.length)[0];
+  if (mejor && mejor.clave !== '(sin nombre)') document.getElementById('unif-ter-nombre').value = mejor.nombre;
+}
+// Reescribe la columna K (nombre del tercero) de los créditos indicados.
+async function renombrarTerceroEnSheets(cambios) { // cambios: [{ prestId, nombre }]
+  if (!cambios.length) return 0;
+  const datos = await sheetsGet('Préstamos!A1:P');
+  const updates = [];
+  cambios.forEach(c => {
+    const idx = datos.findIndex(r => r[0] === c.prestId);
+    if (idx >= 0) updates.push({ range: `Préstamos!K${idx + 1}`, values: [[c.nombre]] });
+  });
+  await sheetsBatchUpdate(updates);
+  return updates.length;
+}
+async function unificarTercerosSeleccionados() {
+  const formas = new Set([...document.querySelectorAll('.unif-ter-chk:checked')].map(ch => ch.dataset.forma));
+  const final = document.getElementById('unif-ter-nombre').value.trim().replace(/\s+/g, ' ');
+  if (!formas.size) { showToast('Marcá al menos un nombre', 'error'); return; }
+  if (!final) { showToast('Escribí el nombre final', 'error'); return; }
+  const cambios = DB.prestamos.filter(esTercero)
+    .filter(p => formas.has((p.terceroNombre || '').trim() || '(sin nombre)') && (p.terceroNombre || '').trim() !== final)
+    .map(p => ({ prestId: p.id, nombre: final }));
+  if (!cambios.length) { showToast('Esos créditos ya tienen ese nombre'); return; }
+  if (!confirm('Se va a cambiar el tercero de ' + cambios.length + ' crédito(s) a "' + final + '". ¿Seguir?')) return;
+  await aplicarRenombres(cambios, 'btn-unif-ter');
+}
+async function normalizarTodosTerceros() {
+  const grupos = mapaTerceros();
+  const cambios = DB.prestamos.filter(esTercero).map(p => {
+    const g = grupos[claveTercero(p.terceroNombre) || '(sin nombre)'];
+    return g && g.clave !== '(sin nombre)' && (p.terceroNombre || '') !== g.nombre ? { prestId: p.id, nombre: g.nombre } : null;
+  }).filter(Boolean);
+  if (!cambios.length) { showToast('No hay nada para corregir: cada tercero ya está escrito de una sola forma'); return; }
+  if (!confirm('Se van a reescribir ' + cambios.length + ' crédito(s) con el nombre oficial de su tercero. ¿Seguir?')) return;
+  await aplicarRenombres(cambios, 'btn-normalizar-ter');
+}
+async function aplicarRenombres(cambios, btnId) {
+  const btn = document.getElementById(btnId);
+  if (btn.disabled) return;
+  btn.disabled = true; const lbl = btn.textContent; btn.textContent = 'Guardando...';
+  try {
+    const n = await renombrarTerceroEnSheets(cambios);
+    // Los pagos ya registrados al tercero van por crédito, así que siguen
+    // asociados; solo actualizamos el nombre para que el historial se lea bien.
+    const ids = new Set(cambios.map(c => c.prestId));
+    const liqData = (DB.liquidaciones || []).length ? await sheetsGetOpcional('Liquidaciones!A1:F') : [];
+    const liqUpd = [];
+    liqData.forEach((r, i) => {
+      if (i > 0 && ids.has(r[3] || '')) {
+        const c = cambios.find(x => x.prestId === r[3]);
+        if (c && r[2] !== c.nombre) liqUpd.push({ range: `Liquidaciones!C${i + 1}`, values: [[c.nombre]] });
+      }
+    });
+    if (liqUpd.length) await sheetsBatchUpdate(liqUpd);
+    showToast('✓ ' + n + ' crédito(s) actualizados');
+    invalidateCache();
+    await loadAll(true);
+    abrirUnificarTercerosModal();
+    if (document.getElementById('screen-terceros').classList.contains('active')) renderTercerosContenido();
+  } catch(e) {
+    console.error(e);
+    showToast('Error al unificar: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = lbl;
+  }
+}
+
+// ---------- Revisar totales y comisiones ----------
+// Detecta préstamos con ganancia/comisión mal guardadas. Caso típico: un crédito
+// que se editó (ej. propio → tercero) con la versión vieja de "Editar préstamo",
+// que pisaba el total con capital × (1 + interés) y perdía extras/salteos/redondeo.
+let revComFilas = [];
+function analizarPrestamoComision(p) {
+  if (p.estado === 'Refinanciado') return null;
+  // Total según cuotas: todas menos las absorbidas/refinanciadas (las salteadas
+  // siguen sumando en el total, igual que hace el flujo de salteo).
+  const cuotas = DB.cuotas.filter(c => c.prestId === p.id && c.estado !== 'Refinanciada');
+  const totalCuotas = sumar(cuotas, c => c.monto);
+  const totalBajo = cuotas.length > 0 && totalCuotas - (p.total || 0) > 1;
+  const total = totalBajo ? totalCuotas : (p.total || 0);
+  const gb = total - (p.capital || 0);
+  const com = esTercero(p) ? gb * pctComision(p) / 100 : 0;
+  const gn = gb - com;
+  const problemas = [];
+  if (totalBajo) problemas.push('Total menor a la suma de sus cuotas');
+  if (Math.abs((p.ganBruta || 0) - gb) > 1) problemas.push('Ganancia bruta');
+  if (Math.abs((p.comision || 0) - com) > 1) problemas.push(esTercero(p) ? 'Comisión' : 'Tiene comisión siendo propio');
+  if (Math.abs((p.ganNeta || 0) - gn) > 1) problemas.push('Ganancia neta');
+  return problemas.length ? { p, totalCuotas, totalBajo, total, gb, com, gn, problemas } : null;
+}
+function abrirRevisarComisionesModal() {
+  revComFilas = DB.prestamos.map(analizarPrestamoComision).filter(Boolean);
+  document.getElementById('rev-com-tbody').innerHTML = revComFilas.map((f, i) => {
+    const cl = DB.clientes.find(x => x.id === f.p.clienteId) || {};
+    return `<tr>
+      <td><input type="checkbox" class="rev-com-chk" data-i="${i}" checked></td>
+      <td><div class="td-name">${cl.id ? escapeHtml(cl.apellido) + ', ' + escapeHtml(cl.nombre) : escapeHtml(f.p.nombre)}</div><div class="td-sub">${f.p.id} · ${esTercero(f.p) ? 'Tercero ' + pctComision(f.p) + '%' : 'Propio'}</div></td>
+      <td class="td-mono">${fmt(f.p.total)}</td>
+      <td class="td-mono ${f.totalBajo ? 'text-amber' : ''}">${fmt(f.totalCuotas)}</td>
+      <td class="td-mono">${fmt(f.p.comision)}</td>
+      <td class="td-mono text-green">${fmt(f.com)}</td>
+      <td class="td-sub">${f.problemas.join(' · ')}${f.totalBajo ? '<br>Se usará el total de las cuotas' : ''}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--green)">✓ Todos los créditos tienen la ganancia y la comisión bien calculadas</td></tr>';
+  document.getElementById('btn-rev-com').style.display = revComFilas.length ? '' : 'none';
+  document.getElementById('revComModal').classList.add('open');
+}
+async function corregirComisionesSeleccionadas() {
+  const sel = [...document.querySelectorAll('.rev-com-chk:checked')].map(ch => revComFilas[+ch.dataset.i]).filter(Boolean);
+  if (!sel.length) { showToast('No marcaste ningún crédito', 'error'); return; }
+  const btn = document.getElementById('btn-rev-com');
+  if (btn.disabled) return;
+  btn.disabled = true; const lbl = btn.textContent; btn.textContent = 'Corrigiendo...';
+  try {
+    const datos = await sheetsGet('Préstamos!A1:P');
+    const updates = [];
+    sel.forEach(f => {
+      const idx = datos.findIndex(r => r[0] === f.p.id);
+      if (idx < 0) return;
+      const row = idx + 1;
+      if (f.totalBajo) updates.push({ range: `Préstamos!G${row}`, values: [[f.total.toFixed(2)]] });
+      updates.push({ range: `Préstamos!L${row}:N${row}`, values: [[f.gb.toFixed(2), f.com.toFixed(2), f.gn.toFixed(2)]] });
+    });
+    await sheetsBatchUpdate(updates);
+    showToast('✓ ' + sel.length + ' crédito(s) corregidos');
+    invalidateCache();
+    await loadAll(true);
+    abrirRevisarComisionesModal();
+    refrescarPantallaActual();
+  } catch(e) {
+    console.error(e);
+    showToast('Error al corregir: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = lbl;
+  }
+}
+
 async function init() {
   const loggedIn = handleCallback();
   if (loggedIn && CFG.sheetId) {
@@ -7200,5 +7846,63 @@ function calcCopiar() {
 
 init();
 </script>
+<!-- MODAL: pago a tercero (liquidación) -->
+<div class="modal-overlay" id="liqModal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title">Registrar pago al tercero</div>
+    <div class="modal-sub" id="liq-sub">—</div>
+    <div class="form-grid">
+      <div class="form-field">
+        <label class="form-label">Fecha del pago</label>
+        <input class="form-input" id="liq-fecha" type="date">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Notas</label>
+        <input class="form-input" id="liq-notas" placeholder="Opcional (efectivo, transferencia...)">
+      </div>
+    </div>
+    <div class="form-hint" style="margin:12px 0 6px">Monto por crédito. Viene cargado lo que le debés hoy (su parte de lo ya cobrado). Podés cambiarlo: por ejemplo, para pagarle toda la comisión cuando el crédito termina.</div>
+    <div style="overflow-x:auto;max-height:45vh"><table><thead><tr><th>Crédito</th><th>Le debés hoy</th><th>Comisión restante</th><th>A pagar</th></tr></thead><tbody id="liq-tbody"></tbody></table></div>
+    <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:14px"><span class="text-muted">Total a registrar</span><b class="text-mono text-amber" id="liq-total">$0</b></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cerrarModal('liqModal')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-guardar-liq" onclick="guardarLiquidacion()">Registrar pago</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: unificar nombres de terceros -->
+<div class="modal-overlay" id="unifTerModal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title">Unificar nombres de terceros</div>
+    <div class="modal-sub">Marcá todas las formas en que escribiste a la misma persona y elegí el nombre final. Se reescribe en la planilla solo la columna del tercero de esos créditos.</div>
+    <div id="unif-ter-sugerencias"></div>
+    <div style="overflow-x:auto;max-height:40vh"><table><thead><tr><th></th><th>Cómo está escrito</th><th>Créditos</th><th>Se agrupa como</th></tr></thead><tbody id="unif-ter-tbody"></tbody></table></div>
+    <div class="form-field" style="margin-top:12px">
+      <label class="form-label">Nombre final</label>
+      <input class="form-input" id="unif-ter-nombre" list="dl-terceros" placeholder="Ej: Melgarejo">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cerrarModal('unifTerModal')">Cerrar</button>
+      <button class="btn btn-ghost" id="btn-normalizar-ter" onclick="normalizarTodosTerceros()" title="Reescribe mayúsculas/minúsculas y 'de ...' con el nombre oficial de cada grupo">Corregir mayúsculas y "de"</button>
+      <button class="btn btn-primary" id="btn-unif-ter" onclick="unificarTercerosSeleccionados()">Unificar seleccionados</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: revisar comisiones -->
+<div class="modal-overlay" id="revComModal">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-title">Revisar totales y comisiones</div>
+    <div class="modal-sub">Créditos donde la ganancia o la comisión guardadas no coinciden con el cálculo. Revisá cada fila antes de corregir.</div>
+    <div style="overflow-x:auto;max-height:55vh"><table><thead><tr><th></th><th>Crédito</th><th>Total guardado</th><th>Total s/ cuotas</th><th>Comisión guardada</th><th>Comisión correcta</th><th>Problema</th></tr></thead><tbody id="rev-com-tbody"></tbody></table></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cerrarModal('revComModal')">Cerrar</button>
+      <button class="btn btn-primary" id="btn-rev-com" onclick="corregirComisionesSeleccionadas()">Corregir seleccionados</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="dl-terceros"></datalist>
 </body>
 </html>
