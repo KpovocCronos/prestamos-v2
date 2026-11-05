@@ -1994,7 +1994,7 @@ function asegurarSesion(minutos) {
   try { exp = parseInt(sessionStorage.getItem('gtoken_exp') || '0', 10); } catch(e) {}
   if (!exp) return true; // sesión vieja sin dato de vencimiento: no bloqueamos
   if (exp - Date.now() > (minutos || 10) * 60000) return true;
-  showToast('⚠ La sesión de Google está por vencer. Renovándola antes de guardar (no se perdió nada)...', 'error');
+  showToast('⚠ La sesión de Google está por vencer: se renueva ANTES de guardar (no se grabó nada). Volvé a hacer la operación al volver.', 'error');
   try { sessionStorage.removeItem('gtoken'); sessionStorage.removeItem('gtoken_exp'); } catch(e) {}
   setTimeout(() => signIn(), 1500);
   return false;
@@ -2158,7 +2158,8 @@ async function asegurarHoja(titulo, encabezados) {
 async function borrarFilasPorValor(hoja, colIdx, valor) {
   const datos = await sheetsGet(hoja + '!A:Z');
   const idxs = [];
-  datos.forEach((row, i) => { if (i > 0 && (row[colIdx] || '') === valor) idxs.push(i); });
+  if (!valor) return 0;
+  datos.forEach((row, i) => { if ((row[colIdx] || '') === valor) idxs.push(i); });
   if (!idxs.length) return 0;
   const meta = await sheetsMeta();
   const gid = meta[hoja];
@@ -2190,13 +2191,14 @@ async function loadAll(force = false) {
         sheetsGet('Préstamos!A2:Q'),
         sheetsGet('Cuotas!A2:J'),
         sheetsGet('Pagos!A2:H'),
-        sheetsGetOpcional('Liquidaciones!A2:F'),
+        sheetsGetOpcional('Liquidaciones!A1:F').catch(e => { console.warn('Liquidaciones no disponible', e); return null; }),
       ]);
       DB.clientes  = clientes.map(rowToCliente).filter(c => c.id && c.id.startsWith('CLI-'));
       DB.prestamos = prestamos.map(rowToPrestamo).filter(p => p.id && p.id.startsWith('PREST-'));
       DB.cuotas    = cuotas.map(rowToCuota).filter(c => c.id && c.id.startsWith('PREST-'));
       DB.pagos     = pagos.map(rowToPago).filter(p => p.id && p.id.startsWith('PAGO-'));
-      DB.liquidaciones = liquidaciones.map(rowToLiquidacion).filter(l => l.id && l.id.startsWith('LIQ-'));
+      // Si falló la lectura de Liquidaciones se conservan las ya cargadas (no mostrar deudas infladas)
+      if (liquidaciones) DB.liquidaciones = liquidaciones.map(rowToLiquidacion).filter(l => l.id && l.id.startsWith('LIQ-'));
       _lastLoad = Date.now();
     } catch(e) {
       console.error(e);
@@ -5380,13 +5382,6 @@ async function eliminarPrestamo(prestId) {
 async function eliminarFilasSheets(range, colIdx, valor) {
   const hoja = range.split('!')[0];
   return borrarFilasPorValor(hoja, colIdx, valor);
-}
-
-async function sheetsClear(range) {
-  const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}/values/${encodeURIComponent(range)}:clear`, { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN } });
-  if (handleAuthError(r.status)) throw new Error('Sheets CLEAR auth ' + r.status);
-  if (!r.ok) throw new Error('Sheets CLEAR error ' + r.status);
-  return r.json();
 }
 
 // ============================================================
