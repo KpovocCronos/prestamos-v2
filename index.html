@@ -659,6 +659,54 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
 .text-mono { font-family: var(--mono); font-size: 12px; }
 .fw-700 { font-weight: 700; }
 .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+/* ============================================================
+   CELULAR / PANTALLAS CHICAS
+   ============================================================ */
+.menu-btn { display: none; background: none; border: 1px solid var(--border2); color: var(--text); border-radius: 8px; width: 38px; height: 36px; font-size: 18px; align-items: center; justify-content: center; flex-shrink: 0; }
+.sidebar-backdrop { display: none; }
+@media (max-width: 820px) {
+  body { font-size: 13px; }
+  .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: 260px; z-index: 950; transform: translateX(-105%); transition: transform .22s ease; box-shadow: 8px 0 30px rgba(0,0,0,.5); }
+  .app.menu-open .sidebar { transform: none; }
+  .app.menu-open .sidebar-backdrop { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 940; }
+  .nav-item { padding-top: 11px; padding-bottom: 11px; }
+  .menu-btn { display: inline-flex; }
+  .topbar { padding: 0 12px; gap: 10px; }
+  .topbar-title { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #topbar-actions { display: flex; gap: 6px; overflow-x: auto; max-width: 50vw; flex-shrink: 1; }
+  .content { padding: 12px; }
+  .stats-grid { grid-template-columns: 1fr 1fr !important; gap: 8px; margin-bottom: 12px; }
+  .stat-card { padding: 12px; min-width: 0; }
+  .stat-label { font-size: 10px; letter-spacing: .5px; }
+  .stat-value { font-size: 18px; margin: 6px 0 4px; overflow-wrap: anywhere; }
+  .form-grid, .form-grid-3, .detail-grid { grid-template-columns: 1fr !important; }
+  .freq-group { grid-template-columns: repeat(3, 1fr); }
+  .content div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+  .content div[style*="grid-template-columns:repeat(4,1fr)"] { grid-template-columns: 1fr 1fr !important; }
+  .stats-grid[style*="grid-template-columns:repeat(3,1fr)"] { grid-template-columns: 1fr 1fr !important; }
+  .table-wrap, .card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .card-header { flex-wrap: wrap; gap: 8px; }
+  thead th { padding: 8px 10px; font-size: 10px; }
+  tbody td { padding: 9px 10px; font-size: 12px; }
+  tbody td { white-space: nowrap; }
+  tbody td .td-sub { white-space: normal; min-width: 90px; }
+  .btn { padding: 9px 14px; }
+  .btn-sm { padding: 7px 11px; }
+  input, select, textarea, .form-input, .form-select { font-size: 16px !important; } /* evita el zoom automático de iPhone */
+  .modal-overlay { align-items: flex-end; }
+  .modal { max-width: 100% !important; border-radius: 16px 16px 0 0; padding: 18px 14px calc(18px + env(safe-area-inset-bottom)); max-height: 92vh; }
+  .modal-footer { flex-wrap: wrap; }
+  .modal-footer .btn { flex: 1 1 auto; }
+  .toast, #toast { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+  .flex-row { flex-wrap: wrap; }
+  .flex-between { flex-wrap: wrap; gap: 8px; }
+  .mode-toggle { width: 100%; overflow-x: auto; }
+  .mode-btn { padding: 7px 10px; flex: 1 0 auto; white-space: nowrap; }
+}
+@media (max-width: 380px) {
+  .stat-value { font-size: 16px; }
+}
 </style>
 </head>
 <body>
@@ -984,7 +1032,7 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
         <div class="nav-item" data-screen="nuevo-cliente" onclick="nav('nuevo-cliente')">
           <span class="nav-icon">⊞</span> Nuevo cliente
         </div>
-        <div class="nav-item" onclick="escanearCalendar()" style="margin-top:8px;border-top:1px solid var(--border);padding-top:10px">
+        <div class="nav-item" onclick="toggleMenu(false);escanearCalendar()" style="margin-top:8px;border-top:1px solid var(--border);padding-top:10px">
           <span class="nav-icon">🔧</span> Reparar Calendar
         </div>
         <div class="nav-item" data-screen="calculadora" onclick="nav('calculadora')" style="margin-top:4px">
@@ -1004,8 +1052,10 @@ tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
   </aside>
 
   <!-- MAIN -->
+  <div class="sidebar-backdrop" onclick="toggleMenu(false)"></div>
   <main class="main">
     <div class="topbar">
+      <button class="menu-btn" onclick="toggleMenu()" aria-label="Abrir menú">☰</button>
       <div class="topbar-title" id="topbar-title">Dashboard</div>
       <div id="topbar-actions"></div>
     </div>
@@ -2060,7 +2110,7 @@ async function sheetsAppend(range, values, retries = 3) {
         {
           method: 'POST',
           headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ values })
+          body: JSON.stringify({ values: normalizarValoresSheet(values) })
         }
       );
       if (handleAuthError(r.status)) throw Object.assign(new Error('Sheets APPEND auth ' + r.status), { _noRetry: true });
@@ -2082,7 +2132,7 @@ async function sheetsUpdate(range, values) {
     {
       method: 'PUT',
       headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values })
+      body: JSON.stringify({ values: normalizarValoresSheet(values) })
     }
   );
   if (handleAuthError(r.status)) throw Object.assign(new Error('Sheets UPDATE auth ' + r.status), { _noRetry: true });
@@ -2100,7 +2150,7 @@ async function sheetsBatchUpdate(updates) {
     {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: updates })
+      body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: updates.map(u => ({ ...u, values: normalizarValoresSheet(u.values) })) })
     }
   );
   if (handleAuthError(r.status)) throw Object.assign(new Error('Sheets BATCH auth ' + r.status), { _noRetry: true });
@@ -2186,6 +2236,7 @@ async function loadAll(force = false) {
   if (_loadingPromise) return _loadingPromise;
   _loadingPromise = (async () => {
     try {
+      if (!_localeDetectado) { _localeDetectado = true; await detectarLocaleSheet(); }
       const [clientes, prestamos, cuotas, pagos, liquidaciones] = await Promise.all([
         sheetsGet('Clientes!A2:L'),
         sheetsGet('Préstamos!A2:Q'),
@@ -2210,13 +2261,53 @@ async function loadAll(force = false) {
   return _loadingPromise;
 }
 
+let _localeDetectado = false;
 function invalidateCache() { _lastLoad = 0; }
 
+// ---- Números independientes de la configuración regional de la planilla ----
+// Sheets devuelve los valores FORMATEADOS: con la planilla en Argentina un
+// monto puede venir como "$ 100.000,50"; con parseFloat eso daba 100.
+let DEC_SHEET = '.'; // separador decimal de la planilla ('.' o ','), se detecta al cargar
+async function detectarLocaleSheet() {
+  try {
+    const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CFG.sheetId}?fields=properties.locale`, { headers: { Authorization: 'Bearer ' + TOKEN } });
+    if (!r.ok) return;
+    const loc = ((await r.json()).properties || {}).locale || 'en_US';
+    DEC_SHEET = (1.5).toLocaleString(loc.replace('_', '-')).includes(',') ? ',' : '.';
+  } catch(e) { console.warn('No se pudo detectar el locale de la planilla', e); }
+}
+function parseMonto(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  let t = String(v ?? '').replace(/[^\d,.\-]/g, '');
+  if (!t) return 0;
+  if (/^-?\d+\.\d{1,2}$/.test(t)) return parseFloat(t);            // "1500.5" / "1500.50": punto decimal sin dudas
+  if (t.includes('.') && t.includes(',')) {                           // el último separador es el decimal
+    t = t.lastIndexOf(',') > t.lastIndexOf('.') ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  } else if (DEC_SHEET === ',') {
+    t = t.replace(/\./g, '').replace(',', '.');                       // "100.000" → 100000 ; "33,33" → 33.33
+  } else {
+    t = t.replace(/,/g, '');                                          // "100,000" → 100000
+  }
+  const n = parseFloat(t);
+  return isFinite(n) ? n : 0;
+}
+// Al escribir: los montos que el código arma como texto ("1500.00") se mandan
+// como NÚMERO, así Google no los reinterpreta según el idioma de la planilla.
+// Los porcentajes con decimales se adaptan al separador de la planilla.
+function normalizarValoresSheet(values) {
+  return (values || []).map(row => (row || []).map(v => {
+    if (typeof v !== 'string') return v;
+    if (v.length <= 15 && /^-?(0|[1-9]\d*)(\.\d+)?$/.test(v)) return Number(v);
+    if (DEC_SHEET === ',' && /^-?\d+\.\d+%$/.test(v)) return v.replace('.', ',');
+    return v;
+  }));
+}
+
 function rowToCliente(r)  { return { id:r[0]||'', apellido:r[1]||'', nombre:r[2]||'', alias:r[3]||'', dni:r[4]||'', tel:r[5]||'', tel2:r[6]||'', email:r[7]||'', dir:r[8]||'', alta:r[9]||'', activo:r[10]||'Sí', notas:r[11]||'' }; }
-function rowToPrestamo(r) { return { id:r[0]||'', clienteId:r[1]||'', nombre:r[2]||'', fechaInicio:r[3]||'', capital:parseFloat(r[4])||0, interes:r[5]||'', total:parseFloat(r[6])||0, cuotas:parseInt(r[7])||0, tipo:r[8]||'', terceroId:r[9]||'', terceroNombre:r[10]||'', ganBruta:parseFloat(r[11])||0, comision:parseFloat(r[12])||0, ganNeta:parseFloat(r[13])||0, estado:r[14]||'Activo', notas:r[15]||'', comPctRaw:r[16]||'' }; }
-function rowToCuota(r)    { return { id:r[0]||'', prestId:r[1]||'', clienteId:r[2]||'', nro:parseInt(r[3])||0, vencimiento:r[4]||'', monto:parseFloat(r[5])||0, pagado:parseFloat(r[6])||0, saldo:parseFloat(r[7])||0, estado:r[8]||'Pendiente', eventId:r[9]||'' }; }
-function rowToLiquidacion(r) { return { id:r[0]||'', fecha:r[1]||'', tercero:r[2]||'', prestId:r[3]||'', monto:parseFloat(r[4])||0, notas:r[5]||'' }; }
-function rowToPago(r)     { return { id:r[0]||'', cuotaId:r[1]||'', prestId:r[2]||'', clienteId:r[3]||'', fecha:r[4]||'', monto:parseFloat(r[5])||0, diasAtraso:parseInt(r[6])||0, notas:r[7]||'' }; }
+function rowToPrestamo(r) { return { id:r[0]||'', clienteId:r[1]||'', nombre:r[2]||'', fechaInicio:r[3]||'', capital:parseMonto(r[4])||0, interes:r[5]||'', total:parseMonto(r[6])||0, cuotas:parseInt(r[7])||0, tipo:r[8]||'', terceroId:r[9]||'', terceroNombre:r[10]||'', ganBruta:parseMonto(r[11])||0, comision:parseMonto(r[12])||0, ganNeta:parseMonto(r[13])||0, estado:r[14]||'Activo', notas:r[15]||'', comPctRaw:r[16]||'' }; }
+function rowToCuota(r)    { return { id:r[0]||'', prestId:r[1]||'', clienteId:r[2]||'', nro:parseInt(r[3])||0, vencimiento:r[4]||'', monto:parseMonto(r[5])||0, pagado:parseMonto(r[6])||0, saldo:parseMonto(r[7])||0, estado:r[8]||'Pendiente', eventId:r[9]||'' }; }
+function rowToLiquidacion(r) { return { id:r[0]||'', fecha:r[1]||'', tercero:r[2]||'', prestId:r[3]||'', monto:parseMonto(r[4])||0, notas:r[5]||'' }; }
+function rowToPago(r)     { return { id:r[0]||'', cuotaId:r[1]||'', prestId:r[2]||'', clienteId:r[3]||'', fecha:r[4]||'', monto:parseMonto(r[5])||0, diasAtraso:parseInt(r[6])||0, notas:r[7]||'' }; }
 
 // Genera el próximo ID disponible buscando el MAX existente + 1.
 // Evita duplicados cuando se borraron items previos (bug de length+1).
@@ -2242,7 +2333,13 @@ const TITLES = { dashboard:'Dashboard', estadisticas:'Estadísticas', clientes:'
 
 let navStack = [];
 let _navCurrentData = null;
+function toggleMenu(abrir) {
+  const app = document.getElementById('appShell');
+  app.classList.toggle('menu-open', abrir === undefined ? !app.classList.contains('menu-open') : abrir);
+}
+
 async function nav(screen, data, opts) {
+  toggleMenu(false);
   const isBack = opts && opts.back;
   const currentScreen = document.querySelector('.screen.active')?.id?.replace('screen-','');
   if (!isBack && currentScreen && currentScreen !== screen) {
@@ -2670,7 +2767,8 @@ function esTercero(p) { return !!p && (p.tipo === 'tercero' || p.tipo === 'De te
 // Préstamos; los créditos viejos (sin Q) usan el 20% de siempre.
 function pctComision(p) {
   if (!esTercero(p)) return 0;
-  const v = parseFloat(String(p.comPctRaw || '').replace('%', '').replace(',', '.'));
+  if (String(p.comPctRaw || '').trim() === '') return COMISION_PCT_DEFAULT;
+  const v = parseMonto(p.comPctRaw);
   return isFinite(v) && v >= 0 ? v : COMISION_PCT_DEFAULT;
 }
 
@@ -3386,14 +3484,14 @@ async function recalcularCuotaDesdePagos(cuotaId) {
   if (!cuota) throw new Error('Cuota no encontrada');
   const pagosData = await sheetsGet('Pagos!A2:H');
   const pagosCuota = pagosData.filter(r => (r[1] || '') === cuotaId);
-  const nuevoPagado = pagosCuota.reduce((a, r) => a + (parseFloat(r[5]) || 0), 0);
+  const nuevoPagado = pagosCuota.reduce((a, r) => a + parseMonto(r[5]), 0);
   let nuevoSaldo = Math.max(0, cuota.monto - nuevoPagado);
   if (nuevoSaldo < 1) nuevoSaldo = 0;
   let nuevoEstado;
   if (nuevoPagado <= 0) nuevoEstado = 'Pendiente';
   else if (nuevoSaldo <= 0) {
     // Si la cuota queda saldada, conservar el atraso del último pago real
-    const atrasoMax = pagosCuota.filter(r => (parseFloat(r[5]) || 0) > 0).reduce((m, r) => Math.max(m, parseInt(r[6]) || 0), 0);
+    const atrasoMax = pagosCuota.filter(r => parseMonto(r[5]) > 0).reduce((m, r) => Math.max(m, parseInt(r[6]) || 0), 0);
     nuevoEstado = atrasoMax > 0 ? 'Pagada con atraso (' + atrasoMax + 'd)' : 'Pagada';
   } else nuevoEstado = 'Pago parcial';
   const cuotasData = await sheetsGet('Cuotas!A1:J');
@@ -4154,7 +4252,10 @@ async function confirmarSalteo() {
       const sheetRow = rowIdxPrest + 1;
       const notasActuales = prestData[rowIdxPrest][15] || '';
       const nuevasNotas = appendSalteoNotas(notasActuales, { fecha: hoyISO, cuotaOriginal: cuota.nro, cuotasNuevas: crearSegunda ? [nro1, nro2] : [nro1] });
-      const nuevoTotal = p.total + monto1 + (crearSegunda ? monto2 : 0);
+      // La cuota salteada queda con saldo 0 y NO se cobra: su monto sale del
+      // total y entran las cuotas nuevas. (Antes se sumaban las nuevas sin
+      // restar la salteada, inflando total, ganancia y comisión.)
+      const nuevoTotal = p.total - (cuota.monto - (cuota.pagado || 0)) + monto1 + (crearSegunda ? monto2 : 0);
       const nuevaCantCuotas = crearSegunda ? nro2 : nro1;
       const nuevaGB = nuevoTotal - p.capital;
       const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
@@ -4419,7 +4520,8 @@ async function deshacerSalteo(prestId, nroOriginal) {
           const sheetRow = rowIdxP + 1;
           const entry = 'Salteo:' + s.fecha + ':' + s.cuotaOriginal + '->' + s.cuotasNuevas.join('+');
           const notas = (prestData[rowIdxP][15] || '').split(' | ').filter(x => x.trim() !== entry).join(' | ');
-          const nuevoTotal = p.total - montoGeneradas;
+          // Inverso del salteo: salen las generadas y vuelve la cuota original.
+          const nuevoTotal = p.total - montoGeneradas + cuotaOrig.monto;
           const nuevaCant = Math.max.apply(null, DB.cuotas.filter(c => c.prestId === prestId && !generadas.some(g => g.id === c.id)).map(c => c.nro));
           const nuevaGB = nuevoTotal - p.capital;
           const esTercero = p.tipo === 'tercero' || p.tipo === 'De tercero';
@@ -5396,7 +5498,7 @@ function abrirEditPrestModal(prestId) {
   if (!p) return;
   editPrestId = prestId;
   _epCapitalOriginal = p.capital || 0;
-  _epInteresOriginal = parseFloat(String(p.interes).replace('%','').trim()) || 0;
+  _epInteresOriginal = parseMonto(p.interes);
   document.getElementById('edit-prest-sub').textContent = prestId + ' · ' + p.nombre;
   document.getElementById('ep-capital').value = p.capital || '';
   document.getElementById('ep-interes').value = _epInteresOriginal;
@@ -5485,7 +5587,20 @@ async function guardarEditPrest() {
   const nuevoCapital = parseFloat(document.getElementById('ep-capital').value) || 0;
   const nuevoInteres = parseFloat(document.getElementById('ep-interes').value) || 0;
   const tipo = document.getElementById('ep-tipo').value;
-  const tercero = tipo === 'tercero' ? canonizarTercero(document.getElementById('ep-tercero').value) : '';
+  const terceroEscrito = document.getElementById('ep-tercero').value.trim().replace(/\s+/g, ' ');
+  let tercero = tipo === 'tercero' ? canonizarTercero(terceroEscrito) : '';
+  // Si escribiste el mismo tercero con otras mayúsculas (ej. "melgarejo" →
+  // "Melgarejo"), se respeta lo escrito y se ofrece aplicarlo a todos sus créditos.
+  let renombrarOtros = [];
+  if (tipo === 'tercero' && terceroEscrito && tercero !== terceroEscrito && !/^(de|del)\s/i.test(terceroEscrito)) {
+    const g = mapaTerceros()[claveTercero(terceroEscrito)];
+    const otros = g ? g.prestamos.filter(x => x.id !== editPrestId) : [];
+    if (!otros.length) tercero = terceroEscrito;
+    else if (confirm('¿Cambiar el nombre "' + g.nombre + '" por "' + terceroEscrito + '" en sus ' + (otros.length + 1) + ' créditos?\n\n(Cancelar = se guarda como "' + g.nombre + '")')) {
+      tercero = terceroEscrito;
+      renombrarOtros = otros.map(x => ({ prestId: x.id, nombre: terceroEscrito }));
+    }
+  }
   const comPct = tipo === 'tercero' ? leerPct('ep-com-pct') : '';
   const notasTexto = document.getElementById('ep-notas').value.trim();
   if (!nuevoCapital || nuevoCapital <= 0) { showToast('El capital debe ser mayor a 0', 'error'); return; }
@@ -5526,6 +5641,10 @@ async function guardarEditPrest() {
       { range: `Préstamos!L${sheetRow}:N${sheetRow}`, values: [[ganBruta.toFixed(2), comision.toFixed(2), ganNeta.toFixed(2)]] },
       { range: `Préstamos!P${sheetRow}:Q${sheetRow}`, values: [[notas, comPct]] },
     ]);
+    if (renombrarOtros.length) {
+      await renombrarTerceroEnSheets(renombrarOtros);
+      await renombrarEnLiquidaciones(renombrarOtros.concat([{ prestId: editPrestId, nombre: tercero }]));
+    }
 
     // 2. Si cambió el capital o el interés, actualizar cuotas pendientes
     if (capitalCambio || interesCambio) {
@@ -7053,6 +7172,19 @@ async function renombrarTerceroEnSheets(cambios) { // cambios: [{ prestId, nombr
   await sheetsBatchUpdate(updates);
   return updates.length;
 }
+// Los pagos ya registrados al tercero van por crédito, así que siguen
+// asociados; solo actualizamos el nombre para que el historial se lea bien.
+async function renombrarEnLiquidaciones(cambios) {
+  if (!(DB.liquidaciones || []).length || !cambios.length) return;
+  const liqData = await sheetsGetOpcional('Liquidaciones!A1:F');
+  const upd = [];
+  liqData.forEach((r, i) => {
+    const c = cambios.find(x => x.prestId === (r[3] || ''));
+    if (c && r[2] !== c.nombre) upd.push({ range: `Liquidaciones!C${i + 1}`, values: [[c.nombre]] });
+  });
+  if (upd.length) await sheetsBatchUpdate(upd);
+}
+
 async function unificarTercerosSeleccionados() {
   if (!asegurarSesion(10)) return;
   const formas = new Set([...document.querySelectorAll('.unif-ter-chk:checked')].map(ch => ch.dataset.forma));
@@ -7083,18 +7215,7 @@ async function aplicarRenombres(cambios, btnId) {
   btn.disabled = true; const lbl = btn.textContent; btn.textContent = 'Guardando...';
   try {
     const n = await renombrarTerceroEnSheets(cambios);
-    // Los pagos ya registrados al tercero van por crédito, así que siguen
-    // asociados; solo actualizamos el nombre para que el historial se lea bien.
-    const ids = new Set(cambios.map(c => c.prestId));
-    const liqData = (DB.liquidaciones || []).length ? await sheetsGetOpcional('Liquidaciones!A1:F') : [];
-    const liqUpd = [];
-    liqData.forEach((r, i) => {
-      if (i > 0 && ids.has(r[3] || '')) {
-        const c = cambios.find(x => x.prestId === r[3]);
-        if (c && r[2] !== c.nombre) liqUpd.push({ range: `Liquidaciones!C${i + 1}`, values: [[c.nombre]] });
-      }
-    });
-    if (liqUpd.length) await sheetsBatchUpdate(liqUpd);
+    await renombrarEnLiquidaciones(cambios);
     showToast('✓ ' + n + ' crédito(s) actualizados');
     invalidateCache();
     await loadAll(true);
@@ -7115,21 +7236,24 @@ async function aplicarRenombres(cambios, btnId) {
 let revComFilas = [];
 function analizarPrestamoComision(p) {
   if (p.estado === 'Refinanciado') return null;
-  // Total según cuotas: todas menos las absorbidas/refinanciadas (las salteadas
-  // siguen sumando en el total, igual que hace el flujo de salteo).
-  const cuotas = DB.cuotas.filter(c => c.prestId === p.id && c.estado !== 'Refinanciada');
-  const totalCuotas = sumar(cuotas, c => c.monto);
-  const totalBajo = cuotas.length > 0 && totalCuotas - (p.total || 0) > 1;
-  const total = totalBajo ? totalCuotas : (p.total || 0);
+  // Total según cuotas = lo que el cliente realmente tiene que pagar:
+  //  · cuotas vigentes (todas menos Salteada/Refinanciada) por su monto
+  //  · cuotas absorbidas al unificar (Refinanciada) sólo por lo que ya se pagó
+  //  · las salteadas no se cobran → no suman
+  const cuotas = DB.cuotas.filter(c => c.prestId === p.id);
+  const totalCuotas = sumar(cuotas, c => (c.estado === 'Salteada' || c.estado === 'Refinanciada') ? (c.pagado || 0) : c.monto);
+  const difTotal = cuotas.length ? totalCuotas - (p.total || 0) : 0;
+  const totalMal = Math.abs(difTotal) > 1;
+  const total = totalMal ? totalCuotas : (p.total || 0);
   const gb = total - (p.capital || 0);
   const com = esTercero(p) ? gb * pctComision(p) / 100 : 0;
   const gn = gb - com;
   const problemas = [];
-  if (totalBajo) problemas.push('Total menor a la suma de sus cuotas');
+  if (totalMal) problemas.push(difTotal > 0 ? 'Total menor a lo que suman sus cuotas' : 'Total mayor a lo que suman sus cuotas (ej. salteos viejos)');
   if (Math.abs((p.ganBruta || 0) - gb) > 1) problemas.push('Ganancia bruta');
   if (Math.abs((p.comision || 0) - com) > 1) problemas.push(esTercero(p) ? 'Comisión' : 'Tiene comisión siendo propio');
   if (Math.abs((p.ganNeta || 0) - gn) > 1) problemas.push('Ganancia neta');
-  return problemas.length ? { p, totalCuotas, totalBajo, total, gb, com, gn, problemas } : null;
+  return problemas.length ? { p, totalCuotas, totalMal, total, gb, com, gn, problemas } : null;
 }
 function abrirRevisarComisionesModal() {
   revComFilas = DB.prestamos.map(analizarPrestamoComision).filter(Boolean);
@@ -7139,10 +7263,10 @@ function abrirRevisarComisionesModal() {
       <td><input type="checkbox" class="rev-com-chk" data-i="${i}" checked></td>
       <td><div class="td-name">${cl.id ? escapeHtml(cl.apellido) + ', ' + escapeHtml(cl.nombre) : escapeHtml(f.p.nombre)}</div><div class="td-sub">${f.p.id} · ${esTercero(f.p) ? 'Tercero ' + pctComision(f.p) + '%' : 'Propio'}</div></td>
       <td class="td-mono">${fmt(f.p.total)}</td>
-      <td class="td-mono ${f.totalBajo ? 'text-amber' : ''}">${fmt(f.totalCuotas)}</td>
+      <td class="td-mono ${f.totalMal ? 'text-amber' : ''}">${fmt(f.totalCuotas)}</td>
       <td class="td-mono">${fmt(f.p.comision)}</td>
       <td class="td-mono text-green">${fmt(f.com)}</td>
-      <td class="td-sub">${f.problemas.join(' · ')}${f.totalBajo ? '<br>Se usará el total de las cuotas' : ''}</td>
+      <td class="td-sub">${f.problemas.join(' · ')}${f.totalMal ? '<br>Se usará el total de las cuotas' : ''}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--green)">✓ Todos los créditos tienen la ganancia y la comisión bien calculadas</td></tr>';
   document.getElementById('btn-rev-com').style.display = revComFilas.length ? '' : 'none';
@@ -7162,7 +7286,7 @@ async function corregirComisionesSeleccionadas() {
       const idx = datos.findIndex(r => r[0] === f.p.id);
       if (idx < 0) return;
       const row = idx + 1;
-      if (f.totalBajo) updates.push({ range: `Préstamos!G${row}`, values: [[f.total.toFixed(2)]] });
+      if (f.totalMal) updates.push({ range: `Préstamos!G${row}`, values: [[f.total.toFixed(2)]] });
       updates.push({ range: `Préstamos!L${row}:N${row}`, values: [[f.gb.toFixed(2), f.com.toFixed(2), f.gn.toFixed(2)]] });
     });
     await sheetsBatchUpdate(updates);
